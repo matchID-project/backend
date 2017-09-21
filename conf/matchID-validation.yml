@@ -10,13 +10,12 @@ global:
       done: 
         label: Status
     elasticsearch:
-      development: 
-        connection: 
-          host: domain
-        prefix: prefix
-        index: dataset
-        type: dataset
-        size: 500
+      connection: 
+        host: domain
+      prefix: prefix
+      index: dataset
+      type: dataset
+      size: 500
     columns: 
       - field: matchid_id
         label: Hashed Id
