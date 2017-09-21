@@ -1728,7 +1728,7 @@ class pushToValidation(Resource):
 						}
 						with open(configfile, 'w') as outfile:
 							json.dump(replace_dict(conf["global"]["validation"][config],dic),outfile,indent=2)
-					return {"dataset": dataset, "status": "to validation"}
+					return {"dataset": dataset, "status": "to validation", "props": json.dump(conf["global"]["validation"])}
 				except :
 						return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
 			else:
