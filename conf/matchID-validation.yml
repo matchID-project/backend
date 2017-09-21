@@ -1,0 +1,111 @@
+global:
+  paths:
+    validation: matchIdConfig/json
+  validation:
+    validation:
+      display: true
+      action: 
+        label: Results
+        indecision_display: true
+      done: 
+        label: Status
+    elasticsearch:
+      development: 
+        connection: 
+          host: domain
+        prefix: prefix
+        index: dataset
+        type: dataset
+        size: 500
+    columns: 
+      - field: matchid_id
+        label: Hashed Id
+        display: false
+        searchable: true
+      - field: 
+          - matchid_name_last_src
+          - hit_matchid_name_last_src
+        label: last name
+        display: true
+        searchable: true
+        callBack: formatDiff
+      - field: 
+          - matchid_name_first_src
+          - hit_matchid_name_first_src
+        label: first name
+        display: true
+        searchable: true
+        callBack: formatDiff
+      - field: 
+          - matchid_sex
+          - hit_matchid_sex
+        label: sex
+        display: true
+        searchable: true
+        callBack: formatSex
+        appliedClass: 
+          head: head-centered
+          body: has-text-centered
+      - field: 
+          - matchid_date_birth_str
+          - hit_matchid_date_birth_str
+        label: birth date
+        display: true
+        searchable: true
+        callBack: formatDate
+        appliedClass: 
+          head: head-centered
+          body: has-text-centered
+      - field: 
+          - matchid_location_city
+          - hit_matchid_location_city
+        label: birth city
+        display: true
+        searchable: true
+        callBack: coloredDiff
+      - field: matchid_hit_distance
+        label: Distance
+        display: true
+        searchable: false
+        callBack: formatDistance
+        appliedClass: 
+          head: head-centered
+          body: has-text-centered      
+      - field: confiance
+        label: Score
+        display: true
+        searchable: true
+        type: score
+        callBack: formatNumber
+        appliedClass: 
+          head: head-centered
+          body: has-text-centered min-column-width-100
+    view:
+      display: true
+      column_name: view
+      fields: 
+        operation: excluded
+        names: 
+          - none
+    randomId:
+      characters: abcdef0123456789
+      length: 2
+      prefix: "*"
+      suffix: "*"
+      default_search_field: matchid_id
+    scores:
+      column: confiance
+      range: 
+        - 0
+        - 100
+      colors: 
+        success: 80
+        info: 60
+        warning: 30
+        danger: 0
+      statisticsInterval: 10
+      preComputed: 
+        decision: 55
+        indecision: 
+          - 40
+          - 65

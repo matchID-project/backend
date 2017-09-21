@@ -1,0 +1,35 @@
+global:
+  api:
+    prefix: /matchID/api/v0
+    port: 8081
+    domain: alpha.matchID
+    host: 0.0.0.0
+    use_reloader: True
+    debug: True
+  threads_by_job: 2
+  paths:
+    conf: conf #optionnal self-link
+    projects: projects
+    upload: upload
+    models: models
+    validation: matchIdConfig
+  test_chunk_size: 30
+  recipe_extensions:
+    - yaml
+    - yml
+  data_extensions:
+    - csv
+    - txt
+    - gz
+  machine_learning:
+    missing_num: 0
+    #default parameters
+    model:
+      method: RandomForestRegressor
+      library: sklearn.ensemble
+      tries: 5
+      test_size: 0.33 # test percentage
+  log:
+    dir: /matchID/log/
+    verbose: True
+    level: 1

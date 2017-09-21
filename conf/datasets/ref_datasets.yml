@@ -1,0 +1,51 @@
+datasets:
+  #territories reference datasets
+  #input datasets
+  countries:
+    connector: referential_data
+    table: 2016_pays_INSEE_code.csv
+    type: read_csv
+    sep: ","
+    encoding: utf-8
+  countries_for_fuzzy:
+    connector: referential_data
+    table: 2016_pays_INSEE_norm.csv
+    type: read_csv
+    sep: ","
+    encoding: utf-8    
+  french_citycodes:
+    connector: referential_data
+    table: 2017_communes_fr_com_code.csv
+    type: read_csv
+    sep: ","
+    encoding: utf-8
+  french_citycodes_fuzzy:
+    connector: referential_data
+    table: 2017_communes_fr_com_alg_norm.csv
+    type: read_csv
+    sep: ","
+    encoding: utf-8
+  algeria_city_fuzzy:
+    connector: referential_data
+    table: 2017_communes_alg_norm.csv
+    type: read_csv
+    sep: ","
+    encoding: utf-8          
+  french_postcodes:
+    connector: referential_data
+    table: 2016_codes_postaux_prep.csv
+    type: read_csv
+    sep: ","
+    encoding: utf-8
+  french_last_names:
+    connector: referential_data
+    table: french_last_names.csv
+    type: read_csv
+    sep: ";"
+    encoding: ascii
+  french_first_names:
+    connector: referential_data
+    table: french_first_names.csv
+    type: read_csv
+    sep: ";"
+    encoding: ascii

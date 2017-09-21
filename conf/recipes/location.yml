@@ -1,0 +1,176 @@
+recipes:
+
+  french_city_norm:
+    steps:
+      - replace:
+          select: matchid_location_city_norm
+          regex:
+            - ^\s*(lyon|marseille|paris)(\s.*|\d.*|.*art.*|.*arr.*)$: '\1'
+            - montreuil s.* bois: montreuil
+            - (^|\s)ste(\s|$): '\1sainte\2'
+            - (^|\s)st(\s|$): '\1saint\2'
+            - ^aix pce$: aix provence
+            - \sSS\s: '' 
+            - \sS\s: '' 
+            - ^x$:  ''
+            - \s+: ' ' 
+#            œ: oe 
+#            æ: ae
+            - ^.*inconnu.*$: ''
+            - sainte clotilde: saint denis
+            - berck mer: berck
+            - clichy garenne.*: clichy
+            - belleville saone: belleville      
+
+  french_city+dep:
+    steps:
+      - map:
+          matchid_location_city_norm: matchid_location_city_src
+      - normalize: 
+          select: matchid_location_city_norm
+      - french_city_norm:
+      - join:
+          type : in_memory
+          dataset: french_citycodes_fuzzy
+          fuzzy: 
+            matchid_location_city_norm: norm_name
+          strict: 
+            matchid_location_depcode: dep_code
+            matchid_location_countrycode: CODEISO3
+          select: 
+            matchid_location_citycode: insee_code
+            matchid_location_citycode_history: insee_code_history
+            matchid_location_city: name
+            matchid_location_city_alter: newest_name
+            matchid_location_depcode_alter: newest_dep_code
+            matchid_location_city_population: population
+            matchid_location_city_surface: surface
+            matchid_location_city_geopoint_2d: geopoint_2d
+      - delete:
+          select: matchid_location_city_norm.*
+      - eval: # override previous matches only if matched
+          - matchid_location_city: matchid_location_city_src if (matchid_location_city=="") else matchid_location_city
+          - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history) 
+      - to_integer: 
+          select: .*(surface|population)$
+
+
+  algeria_city:
+    steps:
+      - map:
+          matchid_location_city_alg_tmp: matchid_location_city_src
+      - normalize: 
+          select: matchid_location_city_alg_tmp
+      - replace:
+          select: matchid_location_city_alg_tmp
+          regex:
+            - ^\s*departement\s(d|de|du)\s*: ''
+      - join:
+          type : in_memory
+          dataset: algeria_city_fuzzy
+          fuzzy: 
+            matchid_location_city_alg_tmp: norm_name
+          strict: 
+            matchid_location_countrycode: CODEISO3
+          select: 
+            matchid_location_city_alg: name
+            matchid_location_city_alg_new: newest_name
+            matchid_location_city_alg_population: population
+            matchid_location_city_alg_surface: surface
+            matchid_location_city_alg_geopoint_2d: geopoint_2d
+      - eval: # override previous matches only if matched
+          - matchid_location_city: matchid_location_city if (matchid_location_city_alg=="") else matchid_location_city_alg
+          - matchid_location_city_alter: matchid_location_city_alter if (matchid_location_city_alg_new=="") else matchid_location_city_alg_new
+          - matchid_location_city_surface: matchid_location_city_surface if (matchid_location_city_alg_surface=="") else matchid_location_city_alg_surface
+          - matchid_location_city_geopoint_2d: matchid_location_city_geopoint_2d if (matchid_location_city_alg_geopoint_2d=="") else matchid_location_city_alg_geopoint_2d
+          - matchid_location_city_population: matchid_location_city_population if (matchid_location_city_alg_population=="") else matchid_location_city_alg_population
+      - delete:
+          select: matchid_location_city_alg.*
+      - to_integer: 
+          select: .*(surface|population)$
+
+
+  french_citycode:
+    steps:
+      - replace:
+          select: matchid_location_citycode$
+          regex:
+            - ^9.352$: '' #algérie
+            - ^985(..)$: '976\1' # mayotte
+            - ^98405: '97409' # mapping "La Réunion" to "Saint-Denis 1, La Réunion" 
+            - ^98(2|3|4).*$: '' # anciennes colonies
+            - ^99.*$: '' #pays étrangers
+      - join:
+          dataset: french_citycodes
+          type: in_memory
+          strict: 
+            matchid_location_citycode: insee_code
+          select: 
+            matchid_location_citycode_history: insee_code_history
+            matchid_location_city: name
+            matchid_location_city_alter: newest_name
+            matchid_location_depcode: dep_code
+            matchid_location_depcode_alter: newest_dep_code
+            matchid_location_city_population: population
+            matchid_location_city_surface: surface
+            matchid_location_city_geopoint_2d: geopoint_2d
+      - eval:
+          - matchid_location_city: matchid_location_city_src if (matchid_location_city=="") else matchid_location_city 
+          - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history) 
+      - to_integer: 
+          select: .*(surface|population)$
+
+  country_code_cog:
+    steps:
+      - map:
+         matchid_location_countrycode_cog: matchid_location_countrycode_src
+      - replace:
+          select: matchid_location_countrycode_cog
+          regex: # algérie, réunion, mayotte, anciennes colonies
+            - ^98201: "99336" # MAURITANIE
+            - ^98202: "99341" # SENEGAL
+            - ^98203: "99330" # GUINEE
+            - ^98204: "99326" # COTE D'IVOIRE
+            - ^98205: "99327" # BENIN
+            - ^98206: "99335" # MALI
+            - ^98207: "99337" # NIGER
+            - ^98208: "99345" # TOGO
+            - ^98209: "99331" # BURKINA
+            - ^98301: "99328" # GABON
+            - ^98302: "99324" # CONGO
+            - ^98303: "99323" # REP CENTRAFRICAINE
+            - ^98304: "99344" # TCHAD
+            - ^98305: "99322" # CAMEROUN
+            - ^98401: "99333" # MADAGASCAR
+            - ^98402: "99397" # COMORES
+            - ^98405: XXXXX # LA REUNION > FR
+            - ^98406: "99399" # DJIBOUTI
+            - ^9(1|2|3|4)352$: "99352" #algérie 
+            - ^98(4|5|6|7|8)(..)$: "XXXXX" #mayotte, nlle calédonie, ...
+            - ^[0-8]....$: "XXXXX" 
+
+      - join:
+          dataset: countries
+          type: in_memory
+          strict: 
+            matchid_location_countrycode_cog: COG
+          select:
+            matchid_location_country: LIBCOG
+            matchid_location_countrycode: CODEISO3
+    
+  country_label:
+    steps: 
+      - map:
+          matchid_location_country_norm: matchid_location_country_src
+      - normalize: 
+          select: matchid_location_country_norm
+      - join:
+          dataset: countries_for_fuzzy
+          type: in_memory
+          fuzzy: 
+            matchid_location_country_norm: norm_name
+          select:
+            matchid_location_country: LIBCOG
+            matchid_location_countrycode: CODEISO3
+      - delete:
+          select: matchid_location_country_norm

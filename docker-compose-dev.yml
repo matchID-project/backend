@@ -1,0 +1,95 @@
+version: '2'
+
+# this docker configuation is for dev use only
+# it is supposed that your declared some ENV variables:
+#   - ${VALIDATION} points to matchID-validation (from GitHub, branch 'prepare')
+#   - ${PROJECTS} points to your projects path
+#   - ${UPLOAD} points to your upload path
+# the dev conf allows you to change both python and nodejs code and conf live they will be
+# updated within the docker instances
+
+# for dev use it is recommanded to have at least 8Gb of memory and SSD and 4 vCPU, to ensure
+# good performance and testing.
+ 
+# for production use many adaptation will be needed if you use docker
+# - assume you docker images with a custum managed repo
+# - securize nginx routes allowing only stricly needed routes of API
+# - build the static files from node frontend and put them to the nginx
+# - build a cluster for elasticsearch
+# - use real volumes : S3-like storage for configurations (using volumes) of front and back, 
+#   and DB-storage for ES volume like SSD volumes (or memory storage still better)
+
+services:
+  nginx:
+    image: nginx
+    container_name: nginx
+    depends_on: 
+      - backend
+      - frontend
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/matchid.conf
+    ports:
+      - "80:80"      
+    restart: always
+
+  frontend:
+    build: 
+      context: ${VALIDATION}
+      dockerfile: Dockerfile.dev
+      args:
+        proxy: ${http_proxy}
+    image: matchid-frontend:latest
+    container_name: matchid-front
+    volumes:
+      - ${VALIDATION}/index.html:/matchid/index.html
+      - ${VALIDATION}/.babelrc:/matchid/.babelrc
+      - ${VALIDATION}/.editorconfig:/matchid/.editorconfig 
+      - ${VALIDATION}/.eslintignore:/matchid/.eslintignore
+      - ${VALIDATION}/.eslintrc.js:/matchid/.eslintrc.js 
+      - ${VALIDATION}/matchIdConfig:/matchid/matchIdConfig/
+      - ${VALIDATION}/config:/matchid/config/
+      - ${VALIDATION}/src:/matchid/src/
+      - ${VALIDATION}/build:/matchid/build/
+    # ports:
+    #   - "8080:8080"    
+
+  backend:
+    build: 
+      context: .
+      args:
+        proxy: ${http_proxy}  
+    image: matchid-backend:latest
+    container_name: matchid-backend
+    volumes:
+      - ./code/:/matchid/code/
+      - ./conf/:/matchid/conf/
+      - ${PROJECTS}:/matchid/projects/
+      - ./log:/matchid/log/
+      - ${UPLOAD}:/matchid/upload/
+      - ./models/:/matchid/models/
+      - ./referential_data/:/matchid/referential_data/
+      - ${VALIDATION}/matchIdConfig:/matchid/matchIdConfig/
+    # ports:
+    #   - "8081:8081"
+    restart: always
+
+  elasticsearch:
+    image: elasticsearch:latest
+    container_name: elasticsearch
+    environment:
+      - cluster.name=docker-cluster
+      - xpack.security.enabled=false
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms3072m -Xmx3072m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 6g
+    volumes:
+      - ./esdata:/usr/share/elasticsearch/data
+    ports:
+      - 9200:9200
+
+
+

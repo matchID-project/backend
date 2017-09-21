@@ -1,0 +1,60 @@
+recipes:
+  french_name_normalize:
+    steps:
+      - eval:
+        - matchid_name_first: matchid_name_first_src if (type(matchid_name_first_src)==list) else [matchid_name_first_src]
+        - matchid_name_last: matchid_name_last_src if (type(matchid_name_last_src)==list) else [matchid_name_last_src]
+      - normalize:
+          select: matchid_name_(last|first)$
+      - eval:
+        # perpare fort matching (*match) & stats (_first & _second)
+        - matchid_name_norm: list(set().union(matchid_name_last,matchid_name_first))
+        - matchid_name_match: str(" ").join(list(matchid_name_norm))
+        - matchid_name_first_first: str(matchid_name_first[0]) if (len(matchid_name_first)>0) else ""
+        - matchid_name_first_second: str(matchid_name_first[1]) if (len(matchid_name_first)>1) else ""
+        - matchid_name_last_first: str(matchid_name_last[0]) if (len(matchid_name_last)>0) else ""
+        - matchid_name_last_second: str(matchid_name_last[1]) if (len(matchid_name_last)>1) else ""     
+        - matchid_name_last_match: matchid_name_last_first
+        - matchid_name_first_match: matchid_name_first_first     
+      - replace:
+          select: matchid_name_.*match$
+          regex:
+            - (^|\s)(le|du|de|de la)($|\s): '\1\2'
+
+
+  french_name_frequency:
+    steps:
+      - join:
+          type: in_memory
+          dataset: french_first_names
+          strict:
+            matchid_name_first_first: first_name
+          select:
+            matchid_name_first_freq: frequency
+      - join:
+          type: in_memory
+          dataset: french_first_names
+          strict:
+            matchid_name_first_second: first_name
+          select:
+            matchid_name_first_second_freq: frequency
+      - join:
+          type: in_memory
+          dataset: french_last_names
+          strict:
+            matchid_name_last_first: last_name
+          select:
+            matchid_name_last_freq: frequency
+      - join:
+          type: in_memory
+          dataset: french_last_names
+          strict:
+            matchid_name_last_second: last_name
+          select:
+            matchid_name_last_second_freq: frequency
+      - delete:
+          select: matchid_name_(first|last)_(first|second)$
+      - to_float: 
+          select: .*(_freq)$
+          na_value: 0
+
