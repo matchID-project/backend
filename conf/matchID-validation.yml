@@ -2,7 +2,7 @@ global:
   paths:
     validation: matchIdConfig/json
   validation:
-    validation:
+    actions:
       display: true
       action: 
         label: Results

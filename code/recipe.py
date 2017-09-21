@@ -1711,7 +1711,7 @@ class DatasetApi(Resource):
 @api.route('/datasets/<dataset>/<action>', endpoint='datasets/<dataset>/<action>')
 class pushToValidation(Resource):
 	def put(self,dataset,action):
-		'''configure the frontend to point to this dataset'''
+		'''action = validation : configure the frontend to point to this dataset'''
 		if (action=="validation"):
 			if (not(dataset in conf["datasets"].keys())):
 				api.abort(404)
@@ -1719,6 +1719,7 @@ class pushToValidation(Resource):
 				api.abort(403)
 			if (conf["datasets"][dataset]["validation"]==True):
 				try:
+					props = {}
 					for config in conf["global"]["validation"].keys():
 						configfile=os.path.join(conf["global"]["paths"]["validation"],secure_filename(config+".json"))
 						dic={
@@ -1727,8 +1728,9 @@ class pushToValidation(Resource):
 							"dataset": dataset
 						}
 						with open(configfile, 'w') as outfile:
-							json.dump(replace_dict(conf["global"]["validation"][config],dic),outfile,indent=2)
-					return {"dataset": dataset, "status": "to validation", "props": json.dump(conf["global"]["validation"])}
+							props[config] = replace_dict(conf["global"]["validation"][config],dic)
+							json.dump(props[config],outfile,indent=2)
+					return {"dataset": dataset, "status": "to validation", "props": props}
 				except :
 						return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
 			else:
