@@ -921,19 +921,26 @@ class Recipe(Configured):
 					pass
 		return df
 
+	def internal_rename(self,df=None):
+		for col in list(self.args.keys()):
+			df[col]=df[self.args[col]]					
+			df.drop([col],axis=1)				
+		return df
+
 	def internal_map(self,df=None):
 		for col in list(self.args.keys()):
 			if True:
 				if type(self.args[col])==str:
 					df[col]=df[self.args[col]]					
 				elif type(self.args[col])==unicode:
-					df[col]=df[self.args[col]]					
+					df[col]=df[self.args[col]]
 				elif (type(self.args[col])==list):
 					multicol=[unicode(x) for x in self.args[col]]
 					df[col]=df.apply(lambda row: [row[x] for x in multicol], axis=1)
 			else:
 				pass
 		return df
+
 
 	def internal_build_model(self,df=None):
 		# callable recipe for building method
@@ -1299,7 +1306,7 @@ class Recipe(Configured):
 						# #self.log.write("debug: {}".format(df_res))
 						df_res['matchid_hit_matches_unfiltered']=df_res['total']
 						#df_res.drop(['total','failed','successful','max_score'],axis=1,inplace=True)
-						df_res.drop(['total','failed','successful','max_score'],axis=1,inplace=True)
+						df_res.drop(['failed','successful','max_score'],axis=1,inplace=True)
 						df=pd.concat([df.reset_index(drop=True),df_res],axis=1)
 						#self.log.write("after ES request:{}".format(df.shape))
 

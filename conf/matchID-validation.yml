@@ -2,7 +2,7 @@ global:
   paths:
     validation: matchIdConfig/json
   validation:
-    actions:
+    validation:
       display: true
       action: 
         label: Results
@@ -10,12 +10,13 @@ global:
       done: 
         label: Status
     elasticsearch:
-      connection: 
-        host: domain
-      prefix: prefix
-      index: dataset
-      type: dataset
-      size: 500
+      development:
+        connection: 
+          host: domain
+        prefix: prefix
+        index: dataset
+        type: dataset
+        size: 500
     columns: 
       - field: matchid_id
         label: Hashed Id
