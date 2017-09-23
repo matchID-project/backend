@@ -1306,7 +1306,7 @@ class Recipe(Configured):
 						# #self.log.write("debug: {}".format(df_res))
 						df_res['matchid_hit_matches_unfiltered']=df_res['total']
 						#df_res.drop(['total','failed','successful','max_score'],axis=1,inplace=True)
-						df_res.drop(['failed','successful','max_score'],axis=1,inplace=True)
+						df_res.drop(['failed','successful'],axis=1,inplace=True)
 						df=pd.concat([df.reset_index(drop=True),df_res],axis=1)
 						#self.log.write("after ES request:{}".format(df.shape))
 

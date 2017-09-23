@@ -51,6 +51,7 @@ recipes:
       - eval: # override previous matches only if matched
           - matchid_location_city: matchid_location_city_src if (matchid_location_city=="") else matchid_location_city
           - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history) 
+          - matchid_location_depcode: str("99") if (matchid_location_depcode == "") else matchid_location_depcode
       - to_integer: 
           select: .*(surface|population)$
 
@@ -117,6 +118,7 @@ recipes:
       - eval:
           - matchid_location_city: matchid_location_city_src if (matchid_location_city=="") else matchid_location_city 
           - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history) 
+          - matchid_location_depcode: str("99") if (matchid_location_depcode == "") else matchid_location_depcode
       - to_integer: 
           select: .*(surface|population)$
 
