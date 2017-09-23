@@ -509,7 +509,7 @@ class Dataset(Configured):
 			try:
 				self.type=self.conf["type"]
 			except:
-				self.type="read_csv"
+				self.type="csv"
 
 			try:
 				self.header=self.conf["header"]
@@ -561,11 +561,11 @@ class Dataset(Configured):
 				else:
 					read_log.write("Ooops: can't initiate inmemory dataset with no dataframe",exit=True)
 			elif (self.connector.type == "filesystem"):
-				if (self.type == "read_csv"):
+				if (self.type == "csv"):
 					self.reader=pd.read_csv(self.file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
 						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,
 						iterator=True,index_col=False,keep_default_na=False)	
-				elif (self.type == "read_fwf"):
+				elif (self.type == "fwf"):
 					# with gzip.open(self.file, mode="r") as fh:
 					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,					
 					self.reader=pd.read_fwf(self.file,chunksize=self.connector.chunk,skiprows=self.skiprows,
@@ -618,6 +618,8 @@ class Dataset(Configured):
 				self.log.write("Ooops: problem while initiating elasticsearch index {} for dataset {} : {}".format(self.table,self.name,err()),exit=True)				
 		elif (self.connector.type == "filesystem"):
 			if (self.type == "csv"):
+				pass
+			elif (self.type == "fwf"):
 				pass
 		return None
 
@@ -940,6 +942,16 @@ class Recipe(Configured):
 			else:
 				pass
 		return df
+
+
+	def internal_shuffle(self,df=None):		
+		# fully shuffles columnes and lines
+		try:
+			for col in list(df.columns):
+				df[col]=df[col].sample(frac=1).reset_index(drop=True)
+			return df
+		except:
+			self.log.write("Ooops: problem in {} - {}".format(self.name,err()),exit=False)
 
 
 	def internal_build_model(self,df=None):
