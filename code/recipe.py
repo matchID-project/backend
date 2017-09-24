@@ -84,6 +84,21 @@ def err():
 	return "{} : {} line {}".format(str(exc_type),exc_obj,exc_tb.tb_lineno)
 	#return "{}".format(traceback.print_exception(*exc_info))
 
+def to_fwf(df, fname, widths=None,names=None,append=False):
+	mode = "w"
+	fmt='str("")'
+	i=0
+	for col in names:
+	 	fmt+="+str({}).ljust({})".format(col,widths[i])
+	 	i+=1
+
+	wdf=df.apply(lambda row: safeeval(fmt,row),axis=1)
+	if append == True:
+		mode = "a"
+	with open(fname,mode) as f:
+		np.savetxt(f,wdf.values,fmt="%s")
+	return
+
 def parsedate(x="",format="%Y%m%d"):
 	try:
 		return datetime.datetime.strptime(x,self.args["format"])
@@ -509,9 +524,9 @@ class Dataset(Configured):
 			self.select=None
 			try:
 				self.file=os.path.join(self.connector.database,self.table)
-				f=open(self.file)
+				# f=open(self.file)
 			except:
-				log.write("Ooops: {} not found for dataset {}".format(os.path.join(self.connector.database,self.table)	,self.name),exit=True)
+				log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
 
 			try:
 				self.type=self.conf["type"]
@@ -663,15 +678,21 @@ class Dataset(Configured):
 					except:
 						self.log.write("elasticsearch bulk failed {}:{}/{} \n {}".format(self.connector.host,self.connector.port,self.table,err()))
 			elif (self.connector.type == "filesystem"):
+				self.log.write("filesystem write {}".format(self.name))
 				if (self.type == "csv"):
 					try:
-						self.log.write("to_csv {}, {}, {}, {}, {}, {}".format(self.file,self.sep,self.select,self.compression,self.encoding,self.header))
-						df.to_csv(self.file,mode='a',index=False,sep=self.sep,usecols=self.select,
-							compression=self.compression,encoding=self.encoding,dtype=object,header=self.header) 
+						if self.compression == 'infer':
+							self.compression = None
+						df.to_csv(self.file,mode='a',index=False,sep=self.sep,
+							compression=self.compression,encoding=self.encoding,header=self.header) 
 					except:
-						self.log.write("to_csv failed writing {} : {}".format(self.file,err()))
+						self.log.write("write to csv failed writing {} : {}".format(self.file,err()))
 				elif (self.type == "fwf"):
-					pass 					
+					try:
+						to_fwf(df,self.file,names=self.names,widths=self.widths,append=True)
+					except:
+						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))		
+					pass
 				pass
 		return processed
 
