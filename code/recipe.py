@@ -294,10 +294,16 @@ def safeeval(string=None,row=None):
 	cell = None
 	locals().update(row)
 	if "\n" in string:
-		exec string
-		return cell
+		try:
+			exec string
+			return cell
+		except:
+			return "Ooops in exec('{}'): {}".format(string,err())
 	else :
-		return eval(string)
+		try:
+			return eval(string)
+		except:
+			return "Ooops in eval('{}'): {}".format(string,err())
 
 
 def match_lv1(x, list_strings):
@@ -617,10 +623,12 @@ class Dataset(Configured):
 			except:
 				self.log.write("Ooops: problem while initiating elasticsearch index {} for dataset {} : {}".format(self.table,self.name,err()),exit=True)				
 		elif (self.connector.type == "filesystem"):
-			if (self.type == "csv"):
-				pass
-			elif (self.type == "fwf"):
-				pass
+			if (self.mode == 'create'):
+				try:
+					os.remove(self.file)
+				except:
+					# further better except should make difference btw no existing file and unwritable
+					pass
 		return None
 
 	def write(self,df=None):
@@ -648,7 +656,6 @@ class Dataset(Configured):
 						if (self.connector.thread_count>1):
 							deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
 						else:
-
 							helpers.bulk(self.connector.es,actions)
 						self.log.write("inserted {} lines to {}:{}/{}".format(size,self.connector.host,self.connector.port,self.table))
 						processed+=size
@@ -656,7 +663,14 @@ class Dataset(Configured):
 						self.log.write("elasticsearch bulk failed {}:{}/{} \n {}".format(self.connector.host,self.connector.port,self.table,err()))
 			elif (self.connector.type == "filesystem"):
 				if (self.type == "csv"):
-					pass 
+					try:
+						self.log.write("to_csv {}, {}, {}, {}, {}, {}".format(self.file,self.sep,self.select,self.compression,self.encoding,self.header))
+						df.to_csv(self.file,mode='a',index=False,sep=self.sep,usecols=self.select,
+							compression=self.compression,encoding=self.encoding,dtype=object,header=self.header) 
+					except:
+						self.log.write("to_csv failed writing {} : {}".format(self.file,err()))
+				elif (self.type == "fwf"):
+					pass 					
 				pass
 		return processed
 
@@ -819,7 +833,10 @@ class Recipe(Configured):
 
 	def run(self,head=None):
 		if (head is None):
-			head=conf["global"]["test_chunk_size"]
+			try:
+				head=self.conf["test_chunk_size"]
+			except:
+				head=conf["global"]["test_chunk_size"]
 		#log("initiating recipe {}".format(self.name))
 		self.df=[]
 		self.input.processed=0
@@ -907,21 +924,45 @@ class Recipe(Configured):
 		#df=imp.fit_transform(df)
 		return df
 
-	def internal_eval(self,df=None):		
-		for step in self.args:
-			for col in step.keys():
-				if True:
-					if type(step[col])==str:
-						df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
-					elif type(step[col])==unicode:
-						df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
-					elif (type(step[col])==list):
-						multicol=[unicode(x) for x in step[col]]
-						#print col,multicol, list(df)
-						df[col]=df.apply(lambda row: [safeeval(x,row) for x in multicol], axis=1)
-				else:
-					pass
-		return df
+	def internal_eval(self,df=None):
+		try:
+			cols=[]
+			for step in self.args:
+				for col in step.keys():
+					cols.append(col)
+					if True:
+						if type(step[col])==str:
+							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
+						elif type(step[col])==unicode:
+							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
+						elif (type(step[col])==list):
+							multicol=[unicode(x) for x in step[col]]
+							#print col,multicol, list(df)
+							df[col]=df.apply(lambda row: [safeeval(x,row) for x in multicol], axis=1)
+					else:
+						pass
+			if ("Ooops" in str(df[cols])):
+				# report detailed error analysis
+				global_col_err=[]
+				partial_col_err=[]
+				nerr_total=0
+				for col in cols:
+					col_err=df[df[col].apply(lambda x: "Ooops" in str(x))]
+					nerr=col_err.shape[0]
+					if (nerr == df.shape[0]):
+						global_col_err.append(col)
+					elif (nerr> 0):
+						partial_col_err.append(col)
+						nerr_total+=nerr
+				if (len(global_col_err)>0):
+					self.log.write("Ooops: warning in {} : global error in {}".format(self.name,global_col_err),exit=False)
+				if (len(partial_col_err)>0):
+					self.log.write("Ooops: warning in {} : {}/{} errors in {}".format(self.name,nerr_total,df.shape[0],partial_col_err),exit=False)
+			return df
+		except:
+			self.log.write("Ooops: problem in {} - {}: {} - {}".format(self.name,col,step[col],err()),exit=False)
+			return df
+
 
 	def internal_rename(self,df=None):
 		for col in list(self.args.keys()):
@@ -1338,16 +1379,9 @@ class Recipe(Configured):
 								keep_unmatched=False
 							if (keep_unmatched == False):
 								df=df[df.hits != ""]
-
-							#self.log.write("after suppression unmatched :{}".format(df.shape))
-
-							#df['hits']=df['hits'].apply(lambda x: jsonDumps(x))
-							#df=df.merge(df_res,left_on='index',right_on='index')
 							del df_res
-							#df.drop(['index','level_0'],axis=1,inplace=True)
 
 							# #unnest columns of each match : a <> {key1:val11, key2:val21} gives : a <> val11, val21
-							# # #df_hit=json_normalize(df['hit']).add_prefix('hit_')
 							try:
 								unnest=self.args["unnest"]
 							except:
@@ -1364,12 +1398,6 @@ class Recipe(Configured):
 								df=unnest.run_chunk(0,df)
 								#self.log.write("after unnest :{}".format(df.shape))
 
-
-
-						#df_hit=df.hit.apply(pd.Series).add_prefix(prefix)
-						## df=pd.concat([df.drop(['hit'],axis=1),df_hit],axis=1)
-						#df=pd.concat([df,df_hit],axis=1)
-						##df=df[df.matchid_id != df.hit_matchid_id]
 					else:
 						pass
 				else:
@@ -1703,6 +1731,8 @@ class DatasetApi(Resource):
 	def post(self,dataset):
 		'''get sample of a configured dataset, number of rows being configured in connector.samples'''
 		ds=Dataset(dataset)
+		if (ds.connector.type == "elasticsearch"):
+	 		ds.select={"query":{"function_score": {"query":ds.select["query"],"random_score":{}}}}
 		ds.init_reader()
 		try:
 			df=next(ds.reader,"").head(n=ds.connector.sample).reset_index(drop=True)
