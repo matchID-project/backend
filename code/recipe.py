@@ -36,6 +36,7 @@ import automata
 import random
 import numpy as np
 #ml dependencies
+from sklearn.utils import shuffle
 import sklearn.ensemble
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -988,9 +989,7 @@ class Recipe(Configured):
 	def internal_shuffle(self,df=None):		
 		# fully shuffles columnes and lines
 		try:
-			for col in list(df.columns):
-				df[col]=df[col].sample(frac=1).reset_index(drop=True)
-			return df
+			return df.apply(np.random.permutation)
 		except:
 			self.log.write("Ooops: problem in {} - {}".format(self.name,err()),exit=False)
 
