@@ -149,6 +149,8 @@ recipes:
             - ^98406: "99399" # DJIBOUTI
             - ^9(1|2|3|4)352$: "99352" #algérie 
             - ^98(4|5|6|7|8)(..)$: "XXXXX" #mayotte, nlle calédonie, ...
+            - ^9[0-5](...)$: "XXXXX" # idf+belfort
+            - ^97[1-6](..)$: "XXXXX" # DOMs
             - ^[0-8]....$: "XXXXX" 
 
       - join:
