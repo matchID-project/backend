@@ -51,6 +51,7 @@ recipes:
       - eval: # override previous matches only if matched
           - matchid_location_city: matchid_location_city_src if (matchid_location_city=="") else matchid_location_city
           - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history) 
+          - matchid_location_depcode: str("99") if (matchid_location_depcode == "") else matchid_location_depcode
       - to_integer: 
           select: .*(surface|population)$
 
@@ -117,6 +118,7 @@ recipes:
       - eval:
           - matchid_location_city: matchid_location_city_src if (matchid_location_city=="") else matchid_location_city 
           - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history) 
+          - matchid_location_depcode: str("99") if (matchid_location_depcode == "") else matchid_location_depcode
       - to_integer: 
           select: .*(surface|population)$
 
@@ -147,6 +149,8 @@ recipes:
             - ^98406: "99399" # DJIBOUTI
             - ^9(1|2|3|4)352$: "99352" #algérie 
             - ^98(4|5|6|7|8)(..)$: "XXXXX" #mayotte, nlle calédonie, ...
+            - ^9[0-5](...)$: "XXXXX" # idf+belfort
+            - ^97[1-6](..)$: "XXXXX" # DOMs
             - ^[0-8]....$: "XXXXX" 
 
       - join:

@@ -36,6 +36,7 @@ import automata
 import random
 import numpy as np
 #ml dependencies
+from sklearn.utils import shuffle
 import sklearn.ensemble
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -82,6 +83,21 @@ def err():
 	exc_type, exc_obj, exc_tb = sys.exc_info()
 	return "{} : {} line {}".format(str(exc_type),exc_obj,exc_tb.tb_lineno)
 	#return "{}".format(traceback.print_exception(*exc_info))
+
+def to_fwf(df, fname, widths=None,names=None,append=False):
+	mode = "w"
+	fmt='str("")'
+	i=0
+	for col in names:
+	 	fmt+="+str({}).ljust({})".format(col,widths[i])
+	 	i+=1
+
+	wdf=df.apply(lambda row: safeeval(fmt,row),axis=1)
+	if append == True:
+		mode = "a"
+	with open(fname,mode) as f:
+		np.savetxt(f,wdf.values,fmt="%s")
+	return
 
 def parsedate(x="",format="%Y%m%d"):
 	try:
@@ -294,10 +310,16 @@ def safeeval(string=None,row=None):
 	cell = None
 	locals().update(row)
 	if "\n" in string:
-		exec string
-		return cell
+		try:
+			exec string
+			return cell
+		except:
+			return "Ooops in exec('{}'): {}".format(string,err())
 	else :
-		return eval(string)
+		try:
+			return eval(string)
+		except:
+			return "Ooops in eval('{}'): {}".format(string,err())
 
 
 def match_lv1(x, list_strings):
@@ -502,14 +524,14 @@ class Dataset(Configured):
 			self.select=None
 			try:
 				self.file=os.path.join(self.connector.database,self.table)
-				f=open(self.file)
+				# f=open(self.file)
 			except:
-				log.write("Ooops: {} not found for dataset {}".format(os.path.join(self.connector.database,self.table)	,self.name),exit=True)
+				log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
 
 			try:
 				self.type=self.conf["type"]
 			except:
-				self.type="read_csv"
+				self.type="csv"
 
 			try:
 				self.header=self.conf["header"]
@@ -561,11 +583,11 @@ class Dataset(Configured):
 				else:
 					read_log.write("Ooops: can't initiate inmemory dataset with no dataframe",exit=True)
 			elif (self.connector.type == "filesystem"):
-				if (self.type == "read_csv"):
+				if (self.type == "csv"):
 					self.reader=pd.read_csv(self.file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
 						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,
 						iterator=True,index_col=False,keep_default_na=False)	
-				elif (self.type == "read_fwf"):
+				elif (self.type == "fwf"):
 					# with gzip.open(self.file, mode="r") as fh:
 					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,					
 					self.reader=pd.read_fwf(self.file,chunksize=self.connector.chunk,skiprows=self.skiprows,
@@ -617,8 +639,12 @@ class Dataset(Configured):
 			except:
 				self.log.write("Ooops: problem while initiating elasticsearch index {} for dataset {} : {}".format(self.table,self.name,err()),exit=True)				
 		elif (self.connector.type == "filesystem"):
-			if (self.type == "csv"):
-				pass
+			if (self.mode == 'create'):
+				try:
+					os.remove(self.file)
+				except:
+					# further better except should make difference btw no existing file and unwritable
+					pass
 		return None
 
 	def write(self,df=None):
@@ -646,15 +672,27 @@ class Dataset(Configured):
 						if (self.connector.thread_count>1):
 							deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
 						else:
-
 							helpers.bulk(self.connector.es,actions)
 						self.log.write("inserted {} lines to {}:{}/{}".format(size,self.connector.host,self.connector.port,self.table))
 						processed+=size
 					except:
 						self.log.write("elasticsearch bulk failed {}:{}/{} \n {}".format(self.connector.host,self.connector.port,self.table,err()))
 			elif (self.connector.type == "filesystem"):
+				self.log.write("filesystem write {}".format(self.name))
 				if (self.type == "csv"):
-					pass 
+					try:
+						if self.compression == 'infer':
+							self.compression = None
+						df.to_csv(self.file,mode='a',index=False,sep=self.sep,
+							compression=self.compression,encoding=self.encoding,header=self.header) 
+					except:
+						self.log.write("write to csv failed writing {} : {}".format(self.file,err()))
+				elif (self.type == "fwf"):
+					try:
+						to_fwf(df,self.file,names=self.names,widths=self.widths,append=True)
+					except:
+						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))		
+					pass
 				pass
 		return processed
 
@@ -817,7 +855,10 @@ class Recipe(Configured):
 
 	def run(self,head=None):
 		if (head is None):
-			head=conf["global"]["test_chunk_size"]
+			try:
+				head=self.conf["test_chunk_size"]
+			except:
+				head=conf["global"]["test_chunk_size"]
 		#log("initiating recipe {}".format(self.name))
 		self.df=[]
 		self.input.processed=0
@@ -905,21 +946,45 @@ class Recipe(Configured):
 		#df=imp.fit_transform(df)
 		return df
 
-	def internal_eval(self,df=None):		
-		for step in self.args:
-			for col in step.keys():
-				if True:
-					if type(step[col])==str:
-						df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
-					elif type(step[col])==unicode:
-						df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
-					elif (type(step[col])==list):
-						multicol=[unicode(x) for x in step[col]]
-						#print col,multicol, list(df)
-						df[col]=df.apply(lambda row: [safeeval(x,row) for x in multicol], axis=1)
-				else:
-					pass
-		return df
+	def internal_eval(self,df=None):
+		try:
+			cols=[]
+			for step in self.args:
+				for col in step.keys():
+					cols.append(col)
+					if True:
+						if type(step[col])==str:
+							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
+						elif type(step[col])==unicode:
+							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
+						elif (type(step[col])==list):
+							multicol=[unicode(x) for x in step[col]]
+							#print col,multicol, list(df)
+							df[col]=df.apply(lambda row: [safeeval(x,row) for x in multicol], axis=1)
+					else:
+						pass
+			if ("Ooops" in str(df[cols])):
+				# report detailed error analysis
+				global_col_err=[]
+				partial_col_err=[]
+				nerr_total=0
+				for col in cols:
+					col_err=df[df[col].apply(lambda x: "Ooops" in str(x))]
+					nerr=col_err.shape[0]
+					if (nerr == df.shape[0]):
+						global_col_err.append(col)
+					elif (nerr> 0):
+						partial_col_err.append(col)
+						nerr_total+=nerr
+				if (len(global_col_err)>0):
+					self.log.write("Ooops: warning in {} : global error in {}".format(self.name,global_col_err),exit=False)
+				if (len(partial_col_err)>0):
+					self.log.write("Ooops: warning in {} : {}/{} errors in {}".format(self.name,nerr_total,df.shape[0],partial_col_err),exit=False)
+			return df
+		except:
+			self.log.write("Ooops: problem in {} - {}: {} - {}".format(self.name,col,step[col],err()),exit=False)
+			return df
+
 
 	def internal_rename(self,df=None):
 		for col in list(self.args.keys()):
@@ -940,6 +1005,14 @@ class Recipe(Configured):
 			else:
 				pass
 		return df
+
+
+	def internal_shuffle(self,df=None):		
+		# fully shuffles columnes and lines
+		try:
+			return df.apply(np.random.permutation)
+		except:
+			self.log.write("Ooops: problem in {} - {}".format(self.name,err()),exit=False)
 
 
 	def internal_build_model(self,df=None):
@@ -1306,7 +1379,7 @@ class Recipe(Configured):
 						# #self.log.write("debug: {}".format(df_res))
 						df_res['matchid_hit_matches_unfiltered']=df_res['total']
 						#df_res.drop(['total','failed','successful','max_score'],axis=1,inplace=True)
-						df_res.drop(['failed','successful','max_score'],axis=1,inplace=True)
+						df_res.drop(['failed','successful'],axis=1,inplace=True)
 						df=pd.concat([df.reset_index(drop=True),df_res],axis=1)
 						#self.log.write("after ES request:{}".format(df.shape))
 
@@ -1326,16 +1399,9 @@ class Recipe(Configured):
 								keep_unmatched=False
 							if (keep_unmatched == False):
 								df=df[df.hits != ""]
-
-							#self.log.write("after suppression unmatched :{}".format(df.shape))
-
-							#df['hits']=df['hits'].apply(lambda x: jsonDumps(x))
-							#df=df.merge(df_res,left_on='index',right_on='index')
 							del df_res
-							#df.drop(['index','level_0'],axis=1,inplace=True)
 
 							# #unnest columns of each match : a <> {key1:val11, key2:val21} gives : a <> val11, val21
-							# # #df_hit=json_normalize(df['hit']).add_prefix('hit_')
 							try:
 								unnest=self.args["unnest"]
 							except:
@@ -1352,12 +1418,6 @@ class Recipe(Configured):
 								df=unnest.run_chunk(0,df)
 								#self.log.write("after unnest :{}".format(df.shape))
 
-
-
-						#df_hit=df.hit.apply(pd.Series).add_prefix(prefix)
-						## df=pd.concat([df.drop(['hit'],axis=1),df_hit],axis=1)
-						#df=pd.concat([df,df_hit],axis=1)
-						##df=df[df.matchid_id != df.hit_matchid_id]
 					else:
 						pass
 				else:
@@ -1691,6 +1751,8 @@ class DatasetApi(Resource):
 	def post(self,dataset):
 		'''get sample of a configured dataset, number of rows being configured in connector.samples'''
 		ds=Dataset(dataset)
+		if (ds.connector.type == "elasticsearch"):
+	 		ds.select={"query":{"function_score": {"query":ds.select["query"],"random_score":{}}}}
 		ds.init_reader()
 		try:
 			df=next(ds.reader,"").head(n=ds.connector.sample).reset_index(drop=True)

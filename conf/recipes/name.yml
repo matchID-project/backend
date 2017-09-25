@@ -10,6 +10,7 @@ recipes:
         # perpare fort matching (*match) & stats (_first & _second)
         - matchid_name_norm: list(set().union(matchid_name_last,matchid_name_first))
         - matchid_name_match: str(" ").join(list(matchid_name_norm))
+        - matchid_name_tokens: tokenize(matchid_name_match)
         - matchid_name_first_first: str(matchid_name_first[0]) if (len(matchid_name_first)>0) else ""
         - matchid_name_first_second: str(matchid_name_first[1]) if (len(matchid_name_first)>1) else ""
         - matchid_name_last_first: str(matchid_name_last[0]) if (len(matchid_name_last)>0) else ""
