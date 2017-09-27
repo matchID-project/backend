@@ -131,12 +131,12 @@ def deepupdate(original, update):
     Recursively update a dict.
     Subdict's won't be overwritten but also updated.
     """
-	for key, value in original.iteritems(): 
+	for key, value in original.iteritems():
 	# python3 for key, value in original.items():
 		if key not in update:
 			update[key] = value
 		elif isinstance(value, dict):
-			deepupdate(value, update[key]) 
+			deepupdate(value, update[key])
 	return update
 
 def check_conf(cfg,project,source):
@@ -267,7 +267,7 @@ def levenshtein(s1, s2):
 	if (not s1):
 		s1=""
 	if (not s2):
-		s2=""   
+		s2=""
 	if len(s1) < len(s2):
 		return levenshtein(s2, s1)
 
@@ -283,7 +283,7 @@ def levenshtein(s1, s2):
 			substitutions = previous_row[j] + (c1 != c2)
 			current_row.append(min(insertions, deletions, substitutions))
 		previous_row = current_row
-    
+
 	return previous_row[-1]
 
 def levenshtein_norm(s1,s2):
@@ -331,7 +331,7 @@ def match_lv1(x, list_strings):
 			return current_string
 		elif (current_score>0 & current_score < best_score):
 			best_match=current_string
-			best_score=current_score	
+			best_score=current_score
 
 	if best_score >= 2:
 		return None
@@ -586,10 +586,10 @@ class Dataset(Configured):
 				if (self.type == "csv"):
 					self.reader=pd.read_csv(self.file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
 						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,
-						iterator=True,index_col=False,keep_default_na=False)	
+						iterator=True,index_col=False,keep_default_na=False)
 				elif (self.type == "fwf"):
 					# with gzip.open(self.file, mode="r") as fh:
-					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,					
+					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,
 					self.reader=pd.read_fwf(self.file,chunksize=self.connector.chunk,skiprows=self.skiprows,
 						encoding=self.encoding,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
 						iterator=True,keep_default_na=False)
@@ -611,7 +611,7 @@ class Dataset(Configured):
 			if (((j+1)%self.connector.chunk)==0):
 				df=pd.concat(map(pd.DataFrame.from_dict, hits), axis=1)['_source'].T.reset_index(drop=True)
 				df['_id']=ids
-				hits=[]	
+				hits=[]
 				ids=[]
 				yield df
 		if (len(hits)>0):
@@ -624,7 +624,7 @@ class Dataset(Configured):
 			self.log=self.parent.log
 		except:
 			self.log=log
-			
+
 		#currently only manage elasticsearch injection
 		if (self.name == "inmemory"):
 			return
@@ -637,7 +637,7 @@ class Dataset(Configured):
 					self.connector.es.indices.create(index=self.table,body=self.body)
 					self.log.write("create {}:{}/{}".format(self.connector.host,self.connector.port,self.table))
 			except:
-				self.log.write("Ooops: problem while initiating elasticsearch index {} for dataset {} : {}".format(self.table,self.name,err()),exit=True)				
+				self.log.write("Ooops: problem while initiating elasticsearch index {} for dataset {} : {}".format(self.table,self.name,err()),exit=True)
 		elif (self.connector.type == "filesystem"):
 			if (self.mode == 'create'):
 				try:
@@ -650,7 +650,7 @@ class Dataset(Configured):
 	def write(self,df=None):
 		size=df.shape[0]
 		if (self.name == "inmemory"):
-			return size		
+			return size
 		processed=0
 		if (size <= self.connector.chunk):
 			df_list=[df]
@@ -684,14 +684,14 @@ class Dataset(Configured):
 						if self.compression == 'infer':
 							self.compression = None
 						df.to_csv(self.file,mode='a',index=False,sep=self.sep,
-							compression=self.compression,encoding=self.encoding,header=self.header) 
+							compression=self.compression,encoding=self.encoding,header=self.header)
 					except:
 						self.log.write("write to csv failed writing {} : {}".format(self.file,err()))
 				elif (self.type == "fwf"):
 					try:
 						to_fwf(df,self.file,names=self.names,widths=self.widths,append=True)
 					except:
-						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))		
+						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))
 					pass
 				pass
 		return processed
@@ -717,7 +717,7 @@ class Recipe(Configured):
 		#initiate input connection : creater a reader or use inmemory dataset
 		try:
 			if ("input" in self.args.keys()):
-				self.input=Dataset(self.args.input,parent=self)				
+				self.input=Dataset(self.args.input,parent=self)
 			elif ((type(self.conf["input"]) == str) | (type(self.conf["input"]) == unicode)):
 				self.input=Dataset(self.conf["input"],parent=self)
 			else:
@@ -752,13 +752,13 @@ class Recipe(Configured):
 		#initiate output connection : create a writer or use current dataframe
 		try:
 			if ("output" in self.args.keys()):
-				self.output=Dataset(self.args.output,parent=self)				
+				self.output=Dataset(self.args.output,parent=self)
 			elif ((type(self.conf["output"]) == str) | (type(self.conf["output"]) == unicode)):
 				self.output=Dataset(self.conf["output"],parent=self)
 			else:
 				self.output=Dataset(self.conf["output"]["dataset"],parent=self)
 			try:
-				# mode can be 'create, append, update' 
+				# mode can be 'create, append, update'
 				self.output.mode=self.conf["output"]["mode"]
 			except:
 				self.output.mode='create'
@@ -768,7 +768,7 @@ class Recipe(Configured):
 		try:
 			self.steps=[]
 			for s in self.conf["steps"]:
-				function=s.keys()[0] 
+				function=s.keys()[0]
 				try:
 					self.steps.append(Recipe(name=function,args=s[function]))
 				except:
@@ -837,7 +837,7 @@ class Recipe(Configured):
 			df=getattr(self.__class__,"internal_"+self.name)(self,df=df)
 		elif(len(self.steps)>0):
 			for recipe in self.steps:
-				try: 
+				try:
 					self.log.write("{} > {}".format(self.name,recipe.name),level=2)
 					recipe.init(df=df,parent=self,test=self.test)
 					# recipe.run()
@@ -850,7 +850,7 @@ class Recipe(Configured):
 			#df.fillna('',inplace=True)
 			#print self.name,self.input.name,i,self.input.processed,self.output.name
 			self.input.processed+=self.output.write(df)
-			self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))		
+			self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
 		return df
 
 	def run(self,head=None):
@@ -875,7 +875,7 @@ class Recipe(Configured):
 				self.df=pd.concat([df for df in self.input.reader])
 
 			self.df=self.run_chunk(0,self.df)
-			
+
 			if (self.test==True):
 				# end of work if in test mode
 				return self.df
@@ -922,13 +922,13 @@ class Recipe(Configured):
 	def select_columns(self,df=None):
 		try:
 			if ("select" in self.args.keys()):
-				if (type(self.args["select"])==str) | (type(self.args["select"])==unicode):			
+				if (type(self.args["select"])==str) | (type(self.args["select"])==unicode):
 					self.cols=[x for x in list(df) if re.match(self.args["select"],x)]
 				else:
 					self.cols=self.args["select"]
 			else:
 			#apply to all columns if none selected
-				self.cols=list(df)			
+				self.cols=list(df)
 		except:
 			self.cols=[]
 
@@ -954,9 +954,9 @@ class Recipe(Configured):
 					cols.append(col)
 					if True:
 						if type(step[col])==str:
-							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
+							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)
 						elif type(step[col])==unicode:
-							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)				
+							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)
 						elif (type(step[col])==list):
 							multicol=[unicode(x) for x in step[col]]
 							#print col,multicol, list(df)
@@ -988,15 +988,15 @@ class Recipe(Configured):
 
 	def internal_rename(self,df=None):
 		for col in list(self.args.keys()):
-			df[col]=df[self.args[col]]					
-			df.drop([col],axis=1)				
+			df[col]=df[self.args[col]]
+			df.drop([col],axis=1)
 		return df
 
 	def internal_map(self,df=None):
 		for col in list(self.args.keys()):
 			if True:
 				if type(self.args[col])==str:
-					df[col]=df[self.args[col]]					
+					df[col]=df[self.args[col]]
 				elif type(self.args[col])==unicode:
 					df[col]=df[self.args[col]]
 				elif (type(self.args[col])==list):
@@ -1007,7 +1007,7 @@ class Recipe(Configured):
 		return df
 
 
-	def internal_shuffle(self,df=None):		
+	def internal_shuffle(self,df=None):
 		# fully shuffles columnes and lines
 		try:
 			return df.apply(np.random.permutation)
@@ -1021,7 +1021,7 @@ class Recipe(Configured):
 		try:
 
 			if ("numerical" in self.args.keys()):
-				if (type(self.args["numerical"])==str) | (type(self.args["numerical"])==unicode):			
+				if (type(self.args["numerical"])==str) | (type(self.args["numerical"])==unicode):
 					self.numerical=[x for x in list(df) if re.match(self.args["numerical"],x)]
 				else:
 					self.numerical=self.args["numerical"]
@@ -1029,18 +1029,18 @@ class Recipe(Configured):
 				self.numerical=[]
 
 			if ("categorical" in self.args.keys()):
-				if (type(self.args["categorical"])==str) | (type(self.args["categorical"])==unicode):			
+				if (type(self.args["categorical"])==str) | (type(self.args["categorical"])==unicode):
 					self.categorical=[x for x in list(df) if re.match(self.args["categorical"],x)]
 				else:
-					self.categorical=self.args["categorical"]	
+					self.categorical=self.args["categorical"]
 			else:
 				self.categorical=[]
 
 			if ("target" in self.args.keys()):
-				if (type(self.args["target"])==str) | (type(self.args["target"])==unicode):			
+				if (type(self.args["target"])==str) | (type(self.args["target"])==unicode):
 					self.target=[x for x in list(df) if re.match(self.args["target"],x)]
 				else:
-					self.target=self.args["target"]	
+					self.target=self.args["target"]
 			else:
 				self.log.write("Ooops: no target specified for model")
 				return df
@@ -1066,7 +1066,7 @@ class Recipe(Configured):
 			X=np.hstack((Xn,Xc))
 			#for debug: self.log.write("{} {} {} {} {}".format(X.shape,len(self.numerical),Xn.shape,len(self.categorical),Xc.shape))
 
-			Y=df[self.target].applymap(lambda x: 1 if x else 0)	    	
+			Y=df[self.target].applymap(lambda x: 1 if x else 0)
 			# prep = DictVectorizer()
 			# X=X.to_dict().values()
 			# X = prep.fit_transform(X).toarray()
@@ -1095,7 +1095,7 @@ class Recipe(Configured):
 					# filename=os.path.join(conf["global"]["paths"]["models"],secure_filename(self.model["name"]+".cat"))
 					# joblib.dump(prep_cat,filename)
 					# filename=os.path.join(conf["global"]["paths"]["models"],secure_filename(self.model["name"]+".num"))
-					# joblib.dump(prep_num,filename)					
+					# joblib.dump(prep_num,filename)
 					self.log.write("Saved model {}".format(self.model["name"]))
 				except:
 					self.log.write("Ooops: couldn't save model in {} - {}".format(self.name,err()),exit=False)
@@ -1111,7 +1111,7 @@ class Recipe(Configured):
 		# tested only with regression tree
 		try:
 			if ("numerical" in self.args.keys()):
-				if (type(self.args["numerical"])==str) | (type(self.args["numerical"])==unicode):			
+				if (type(self.args["numerical"])==str) | (type(self.args["numerical"])==unicode):
 					self.numerical=[x for x in list(df) if re.match(self.args["numerical"],x)]
 				else:
 					self.numerical=self.args["numerical"]
@@ -1119,7 +1119,7 @@ class Recipe(Configured):
 				self.numerical=[]
 
 			if ("numerical" in self.args.keys()):
-				if (type(self.args["numerical"])==str) | (type(self.args["numerical"])==unicode):			
+				if (type(self.args["numerical"])==str) | (type(self.args["numerical"])==unicode):
 					self.numerical=[x for x in list(df) if re.match(self.args["numerical"],x)]
 				else:
 					self.numerical=self.args["numerical"]
@@ -1128,16 +1128,16 @@ class Recipe(Configured):
 
 
 			if ("categorical" in self.args.keys()):
-				if (type(self.args["categorical"])==str) | (type(self.args["categorical"])==unicode):			
+				if (type(self.args["categorical"])==str) | (type(self.args["categorical"])==unicode):
 					self.categorical=[x for x in list(df) if re.match(self.args["categorical"],x)]
 				else:
-					self.categorical=self.args["categorical"]	
+					self.categorical=self.args["categorical"]
 			else:
 				self.categorical=[]
 
 
 			if ("target" in self.args.keys()):
-				self.target=self.args["target"]	
+				self.target=self.args["target"]
 			else:
 				self.log.write("Ooops: no target specified for model prediction")
 				return df
@@ -1295,7 +1295,7 @@ class Recipe(Configured):
 							#using fastcomp
 							df[col+"_match"]=df[col].map(lambda x:match_lv1(x,inmemory[self.args["dataset"]].df[self.args["fuzzy"][col]]))
 					#now prematched fuzzy terms in cols _match are ok for a strict join
-					#list joining columns 
+					#list joining columns
 					left_on=[col+"_match" for col in self.args["fuzzy"].keys()]
 					right_on=[self.args["fuzzy"][x] for x in self.args["fuzzy"].keys()]
 					if ("strict" in list(self.args.keys())):
@@ -1483,9 +1483,9 @@ class Recipe(Configured):
 		self.select_columns(df=df)
 		if ("format" in self.args.keys()):
 			#parse string do datetime i.e. 20001020 + %Y%m%d => 2000-10-20T00:00:00Z
-			df[self.cols]=df[self.cols].applymap(lambda x: 
+			df[self.cols]=df[self.cols].applymap(lambda x:
 				parsedate(x,self.args["format"]))
-		
+
 		return df
 
 
@@ -1497,7 +1497,7 @@ class Recipe(Configured):
 				# warning: replace use a dict which is not ordered
 				for r in self.args["regex"]:
 					regex.append([re.compile(r.keys()[0]),r[r.keys()[0]]])
-				pd.options.mode.chained_assignment = None 	
+				pd.options.mode.chained_assignment = None
 				df[self.cols]=df[self.cols].applymap(lambda x: replace_regex(x,regex))
 			return df
 		else:
@@ -1610,7 +1610,7 @@ class actionFile(Resource):
 			return {"file": file, "status": "deleted"}
 		except:
 			api.abort(404,{"file": file, "status": err()})
-			
+
 
 @api.route('/conf/<project>/', endpoint='conf/<project>')
 @api.doc(parms={'project': 'name of a project'})
@@ -1618,7 +1618,7 @@ class DirectoryConf(Resource):
 	def get(self,project):
 		'''get configuration files of a project'''
 		read_conf()
-		if project in list(conf["global"]["projects"].keys()):	
+		if project in list(conf["global"]["projects"].keys()):
 			return conf["global"]["projects"][project]
 		else:
 			api.abort(404)
@@ -1655,7 +1655,7 @@ class DirectoryConf(Resource):
 				dirname=os.path.join(conf["global"]["paths"]["projects"],project)
 				os.mkdir(dirname)
 				os.mkdir(os.path.join(dirname,'recipes'))
-				os.mkdir(os.path.join(dirname,'datasets'))				
+				os.mkdir(os.path.join(dirname,'datasets'))
 				read_conf()
 				return {"message": "{} successfully created".format(project)}
 			except:
@@ -1673,7 +1673,7 @@ class DirectoryConf(Resource):
 				response[project]="deleted"
 			except:
 				response[project]="deletion failed - "+err()
-			read_conf()					
+			read_conf()
 			#response["yaml_validator"]=conf["global"]["projects"][project]
 			return response
 		else:
@@ -1724,10 +1724,10 @@ class FileConf(Resource):
 					read_conf()
 					response[file]["yaml_validator"]=conf["global"]["projects"][project]["files"][file]
 					return response
-				except: 
+				except:
 					api.abort(400,{file: {"saved" : "ko - "+err()}})
 			else:
-				api.abort(403)	
+				api.abort(403)
 		else:
 			api.abort(403)
 
@@ -1796,9 +1796,9 @@ class pushToValidation(Resource):
 							"domain": conf["global"]["api"]["domain"],
 							"dataset": dataset
 						}
-						with open(configfile, 'w') as outfile:
-							props[config] = replace_dict(conf["global"]["validation"][config],dic)
-							json.dump(props[config],outfile,indent=2)
+						props[config] = replace_dict(conf["global"]["validation"][config],dic)
+						# with open(configfile, 'w') as outfile:
+						# 	json.dump(props[config],outfile,indent=2)
 					return {"dataset": dataset, "status": "to validation", "props": props}
 				except :
 						return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
@@ -1834,18 +1834,18 @@ class RecipeApi(Resource):
 		try:
 			return conf["recipes"][recipe]
 		except:
-			api.abort(404) 
+			api.abort(404)
 
 
 @api.route('/recipes/<recipe>/<action>', endpoint='recipes/<recipe>/<action>')
 class RecipeRun(Resource):
 	def get(self,recipe,action):
 		'''retrieve information on a recipe
-		** action ** possible values are : 
+		** action ** possible values are :
 		- ** status ** : get status (running or not) of a recipe
 		- ** log ** : get log of a running recipe'''
 		if (action=="status"):
-			#get status of job 
+			#get status of job
 			try:
 				return {"recipe":recipe, "status": jobs[str(recipe)].job_status()}
 			except:
@@ -1863,7 +1863,7 @@ class RecipeRun(Resource):
 	@api.expect(parsers.live_parser)
 	def post(self,recipe,action):
 		'''apply recipe on posted data
-		** action ** possible values are : 
+		** action ** possible values are :
 		- ** apply ** : apply recipe on posted data
 		'''
 		if (action=="apply"):
@@ -1889,7 +1889,7 @@ class RecipeRun(Resource):
 
 	def put(self,recipe,action):
 		'''test, run or stop recipe
-		** action ** possible values are : 
+		** action ** possible values are :
 		- ** test ** : test recipe on sample data
 		- ** run ** : run the recipe
 		- ** stop ** : stop a running recipe (soft kill : it may take some time to really stop)
@@ -1915,7 +1915,7 @@ class RecipeRun(Resource):
 					if (status=="up"):
 						return {"recipe": recipe, "status": status}
 			except:
-				api.abort(403) 
+				api.abort(403)
 
 			jobs[recipe]=Recipe(recipe)
 			jobs[recipe].init()
@@ -1937,9 +1937,9 @@ class RecipeRun(Resource):
 if __name__ == '__main__':
 	read_conf()
 	app.config['DEBUG'] = conf["global"]["api"]["debug"]
-	
+
 	log=Log("main")
-	
+
 	# recipe="dataprep_snpc"
 	# r=Recipe(recipe)
 	# r.init()
