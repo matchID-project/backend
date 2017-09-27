@@ -1796,9 +1796,9 @@ class pushToValidation(Resource):
 							"domain": conf["global"]["api"]["domain"],
 							"dataset": dataset
 						}
-						with open(configfile, 'w') as outfile:
-							props[config] = replace_dict(conf["global"]["validation"][config],dic)
-							json.dump(props[config],outfile,indent=2)
+						props[config] = replace_dict(conf["global"]["validation"][config],dic)
+						# with open(configfile, 'w') as outfile:
+						# 	json.dump(props[config],outfile,indent=2)
 					return {"dataset": dataset, "status": "to validation", "props": props}
 				except :
 						return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
