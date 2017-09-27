@@ -44,7 +44,7 @@ Note that machine learning is not mandatory (you can have a real serious matchin
 Simply run it with Docker (a >8Go configuration is recommended)
 ```
 cd matchID-backend
-export VALIDATION=../matchID-validation    # path to GitHub clone of matchID-validation
+export FRONTEND=../matchID-frontend    # path to GitHub clone of matchID-frontend
 export PROJECTS=../matchID-projects/       # path to projects
 export UPLOAD=/data/matchID/upload/        # path to upload
 docker-compose -f docker-compose-dev.yml up --build
@@ -52,7 +52,7 @@ docker-compose -f docker-compose-dev.yml up --build
 
 Which launches four containers :
 - nginx (for static web files to test the backend)
-- matchid-frontend (validation frontend)
+- matchid-frontend (vuejs frontend)
 - matchid-backend (python backend)
 - elasticsearch (the database)
 
