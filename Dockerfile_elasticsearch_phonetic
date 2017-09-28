@@ -1,2 +1,5 @@
-FROM elasticsearch:5.5
-# RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install analysis-phonetic
+FROM elasticsearch:5.5.2
+ARG proxy
+ENV https_proxy $proxy
+RUN wget https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-phonetic/analysis-phonetic-5.5.2.zip -O /tmp/analysis-phonetic-5.5.2.zip `echo $proxy | sed 's/\(\S\S*\)/-e use_proxy=yes/'` > /tmp/analysis-phonetic-5.5.2.zip
+RUN /usr/share/elasticsearch/bin/elasticsearch-plugin install file:///tmp/analysis-phonetic-5.5.2.zip
