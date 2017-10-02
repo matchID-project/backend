@@ -56,7 +56,7 @@ from geopy.distance import vincenty
 # from decimal import *
 # from fuzzywuzzy import fuzz, process
 # from fastcomp import compare
-# import jellyfish
+import jellyfish
 
 ### api
 from flask import Flask,jsonify,Response, abort,request
@@ -262,6 +262,23 @@ def normalize(x=None):
 		# elif(len(x)==0):
 		# 	x=""
 	return x
+
+
+def jw(s1,s2):
+	maxi=0
+	if (type(s1)==list):
+		for s in s1:
+			maxi=max(maxi,jw(s,s2))
+		return maxi
+	if (type(s2)==list):
+		for s in s2:
+			maxi=max(maxi,jw(s1,s))
+		return maxi
+	if (type(s1) == str):
+		s1 = unicode(s1)
+	if (type(s2) == str):
+		s2 = unicode(s2)
+	return round(100*jellyfish.jaro_winkler(s1,s2))/100
 
 def levenshtein(s1, s2):
 	if (not s1):

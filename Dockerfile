@@ -1,7 +1,7 @@
 FROM python:2
 ARG proxy
 
-RUN pip install `echo $proxy | sed 's/\(\S\S*\)/--proxy \1/'` futures simplejson Flask flask_restplus PyYAML nltk elasticsearch pandas Werkzeug scikit-learn[alldeps] geopy        
+RUN pip install `echo $proxy | sed 's/\(\S\S*\)/--proxy \1/'` futures simplejson Flask flask_restplus PyYAML nltk elasticsearch pandas Werkzeug scikit-learn[alldeps] geopy jellyfish  
  
 RUN mkdir -p /matchid/code /matchid/conf/run /matchid/log /matchid/referential_data /data/matchID_test/
 
