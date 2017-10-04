@@ -331,7 +331,7 @@ def levenshtein_norm(s1,s2):
 def safeeval(string=None,row=None):
 	cell = None
 	locals().update(row)
-	if "\n" in string:
+	if ("\n" in string) & ("cell" in string):
 		try:
 			exec string
 			return cell
