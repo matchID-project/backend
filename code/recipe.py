@@ -586,7 +586,7 @@ class Dataset(Configured):
 			try:
 				self.widths=self.conf["widths"]
 			except:
-				self.widths=[1]
+				self.widths=[1000]
 
 			try:
 				self.encoding=self.conf["encoding"]
