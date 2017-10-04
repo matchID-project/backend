@@ -568,7 +568,10 @@ class Dataset(Configured):
 			try:
 				self.sep=self.conf["sep"]
 			except:
-				self.sep=","
+				if (self.type == "csv"):
+					self.sep = ";"
+				else:
+					self.sep = None
 
 			try:
 				self.compression=self.conf["compression"]
