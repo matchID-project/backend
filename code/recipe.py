@@ -1012,9 +1012,8 @@ class Recipe(Configured):
 
 
 	def internal_rename(self,df=None):
-		for col in list(self.args.keys()):
-			df[col]=df[self.args[col]]
-			df.drop([col],axis=1)
+		dic={v: k for k, v in self.args.iteritems()}
+		df.rename(columns=dic,inplace=True)
 		return df
 
 	def internal_map(self,df=None):
