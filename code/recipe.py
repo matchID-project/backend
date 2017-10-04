@@ -84,20 +84,25 @@ def err():
 	return "{} : {} line {}".format(str(exc_type),exc_obj,exc_tb.tb_lineno)
 	#return "{}".format(traceback.print_exception(*exc_info))
 
-def to_fwf(df, fname, widths=None,names=None,append=False):
+def to_fwf(df, fname, widths=None,sep="",names=None,append=False,encoding="utf8",log=None):
+	if (log == None):
+		wlog = log
 	mode = "w"
-	fmt='str("")'
-	i=0
-	for col in names:
-	 	fmt+="+str({}).ljust({})".format(col,widths[i])
-	 	i+=1
-
-	wdf=df.apply(lambda row: safeeval(fmt,row),axis=1)
-	if append == True:
-		mode = "a"
-	with open(fname,mode) as f:
-		np.savetxt(f,wdf.values,fmt="%s")
-	return
+	try:
+		wdf=df[names]
+		if (sep == None):
+			sep = ""
+		wdf=wdf.apply(lambda row: sep.join([unicode(row[unicode(col)]).ljust(widths[i]-len(sep)).encode(encoding) for i,col in enumerate(names)]),axis=1)
+		if append == True:
+			mode = "a"
+		with open(fname,mode) as f:
+			np.savetxt(f,wdf.values,fmt="%s")
+		return
+	except:
+		if (log != None):
+			log.write("Ooops : problem while writing fwf to {}: {}".format(fname,err()))
+		else:
+			raise
 
 def parsedate(x="",format="%Y%m%d"):
 	try:
@@ -326,7 +331,7 @@ def levenshtein_norm(s1,s2):
 def safeeval(string=None,row=None):
 	cell = None
 	locals().update(row)
-	if "\n" in string:
+	if ("\n" in string) & ("cell" in string):
 		try:
 			exec string
 			return cell
@@ -563,7 +568,10 @@ class Dataset(Configured):
 			try:
 				self.sep=self.conf["sep"]
 			except:
-				self.sep=","
+				if (self.type == "csv"):
+					self.sep = ";"
+				else:
+					self.sep = None
 
 			try:
 				self.compression=self.conf["compression"]
@@ -578,7 +586,7 @@ class Dataset(Configured):
 			try:
 				self.widths=self.conf["widths"]
 			except:
-				self.widths=[1]
+				self.widths=[1000]
 
 			try:
 				self.encoding=self.conf["encoding"]
@@ -608,7 +616,7 @@ class Dataset(Configured):
 					# with gzip.open(self.file, mode="r") as fh:
 					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,
 					self.reader=pd.read_fwf(self.file,chunksize=self.connector.chunk,skiprows=self.skiprows,
-						encoding=self.encoding,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
+						encoding=self.encoding,delimiter=self.sep,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
 						iterator=True,keep_default_na=False)
 			elif (self.connector.type == "elasticsearch"):
 				self.reader= self.scanner()
@@ -706,7 +714,7 @@ class Dataset(Configured):
 						self.log.write("write to csv failed writing {} : {}".format(self.file,err()))
 				elif (self.type == "fwf"):
 					try:
-						to_fwf(df,self.file,names=self.names,widths=self.widths,append=True)
+						to_fwf(df,self.file,names=self.names,sep=self.sep,widths=self.widths,append=True,encoding=self.encoding,log=self.log)
 					except:
 						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))
 					pass
@@ -1004,9 +1012,8 @@ class Recipe(Configured):
 
 
 	def internal_rename(self,df=None):
-		for col in list(self.args.keys()):
-			df[col]=df[self.args[col]]
-			df.drop([col],axis=1)
+		dic={v: k for k, v in self.args.iteritems()}
+		df.rename(columns=dic,inplace=True)
 		return df
 
 	def internal_map(self,df=None):
