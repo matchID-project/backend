@@ -126,8 +126,8 @@ def WHERE( back = 0 ):
     # return "%s/%s %s()" % ( os.path.basename( frame.f_code.co_filename ),
                         # frame.f_lineno, frame.f_code.co_name )
 
-def jsonDumps(j=None):
-    return simplejson.dumps(j, ensure_ascii=False, encoding='utf8',ignore_nan=True)
+def jsonDumps(j=None,encoding='utf8'):
+    return simplejson.dumps(j, ensure_ascii=False, encoding=encoding,ignore_nan=True)
 
 def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict):
 	class OrderedLoader(Loader):
