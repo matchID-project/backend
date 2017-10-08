@@ -980,7 +980,7 @@ ALW295b7@2017-01-01,DZA,,,,Tlemcen,tlemcen,ALCO1304@2017-01-01,,,46999,,,false,R
 ALW2a142@2017-01-01,DZA,,,,Jijel,jijel,ALCO1802@2017-01-01,,,2532,,,false,Eraguene,,,,,,1802,Eraguene,Jijel,,,,,1.0,216.0
 ALW2c5ac@2017-01-01,DZA,,,,Laghouat,laghouat,ALCO0302@2017-01-01,,,23841,,,false,Ksar El Hirane,,1240,,,,0302,Ksar El Hirane,Laghouat,,,,,1.0,233.0
 ALW2ed08@2017-01-01,DZA,,,,Batna,batna,ALCO0505@2017-01-01,,,,,,false,Seriana,,,,,,0505,Seriana,Batna,,,,,1.0,263.0
-ALW2f656@2017-01-01,DZA,,,,Alger,alger,ALCO1604@2017-01-01,,,44050,,,false,Belouizdad,,214,,,,1604,Belouizdad,Alger,1984,Hussein Dey,,,1.0,291.0
+ALW2f656@2017-01-01,DZA,,,,Alger,alger,ALCO1604@2017-01-01,,,2481788,,,false,,,214,36.7114,3.4978,POINT(3.4978 36.7114),1604,,Alger,1984,,,,1.0,291.0
 ALW35f95@2017-01-01,DZA,,,,Saïda,saida,ALS0aab5@2017-01-01,,,,,,false,Youb,,,,,,,Youb,Saïda,,,,,1.0,314.0
 ALW4d349@2017-01-01,DZA,,,,Illizi,illizi,ALCO3302@2017-01-01,,,14655,,,false,Djanet,,57460,,,,3302,Djanet,Illizi,,,,,1.0,356.0
 ALW529e8@2017-01-01,DZA,,,,Boumerdès,boumerdes,ALS29db6@2017-01-01,,,,,,false,Chabet el Ameur,,,,,,,Chabet el Ameur,Boumerdès,,,,,1.0,358.0
@@ -1008,8 +1008,8 @@ ALWbc447@2017-01-01,DZA,,,,El Oued,el oued,ALCO3902@2017-01-01,,,21965,,,false,R
 ALWc48d9@2017-01-01,DZA,,,,Tipaza,tipaza,ALCO4202@2017-01-01,,,25480,,,false,Menaceur,,,,,,4202,Menaceur,Tipaza,,,,,1.0,664.0
 ALWd2a97@2017-01-01,DZA,,,,Mostaganem,mostaganem,ALS04851@2017-01-01,,,,,,false,Hassi Mameche,,,,,,,Hassi Mameche,Mostaganem,,,,,1.0,677.0
 ALWd5618@2017-01-01,DZA,,,,Biskra,biskra,ALS17681@2017-01-01,,,,,,false,Sidi Khaled,,,,,,,Sidi Khaled,Biskra,,,,,1.0,691.0
-ALWd9f22@2017-01-01,DZA,,,,Constantine,constantine,ALS011f2@2017-01-01,,,,,,false,Didouche Mourad,,,,,,,Didouche Mourad,Constantine,,,,,1.0,705.0
-ALWdf864@2017-01-01,DZA,,,,Oran,oran,ALCO3103@2017-01-01,,,171883,,,false,Bir El Djir,,3246,,,,3103,Bir El Djir,Oran,,,,,1.0,712.0
+ALWd9f22@2017-01-01,DZA,,,,Constantine,constantine,ALS011f2@2017-01-01,,,,,,false,,,448374,36.221,7.0546,POINT(7.0546 36.221),,,Constantine,,,,,1.0,705.0
+ALWdf864@2017-01-01,DZA,,,,Oran,oran,ALCO3103@2017-01-01,,,609940,,,false,,,3246,35.6383,-0.2101,POINT(-0.2101 35.6383),3103,,Oran,,,,,1.0,712.0
 ALWed7d3@2017-01-01,DZA,,,,Tamanrasset,tamanrasset,ALCO1104@2017-01-01,,,,,,false,In Guezzam,,,,,,1104,In Guezzam,Tamanrasset,,,,,1.0,725.0
 ALWf0f4c@2017-01-01,DZA,,,,Bouira,bouira,ALS0691f@2017-01-01,,,,,,false,Souk El Khemis,,,36.36666,3.88333,POINT(3.88333 36.36666),,Souk El Khemis,Bouira,,,,,1.0,727.0
 ALWf0f4c@2017-01-01,DZA,,,,Coligny,coligny,,,,,,,true,Bouira,,,,,,,,,,,,1,1.0,2592.0

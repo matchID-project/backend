@@ -56,7 +56,7 @@ from geopy.distance import vincenty
 # from decimal import *
 # from fuzzywuzzy import fuzz, process
 # from fastcomp import compare
-# import jellyfish
+import jellyfish
 
 ### api
 from flask import Flask,jsonify,Response, abort,request
@@ -84,20 +84,35 @@ def err():
 	return "{} : {} line {}".format(str(exc_type),exc_obj,exc_tb.tb_lineno)
 	#return "{}".format(traceback.print_exception(*exc_info))
 
-def to_fwf(df, fname, widths=None,names=None,append=False):
-	mode = "w"
-	fmt='str("")'
-	i=0
-	for col in names:
-	 	fmt+="+str({}).ljust({})".format(col,widths[i])
-	 	i+=1
+def fwf_format(row,widths,sep=""):
+	return sep.join([row[col].ljust(widths[i]-len(sep)) for i,col in enumerate(row.keys())])
 
-	wdf=df.apply(lambda row: safeeval(fmt,row),axis=1)
-	if append == True:
-		mode = "a"
-	with open(fname,mode) as f:
-		np.savetxt(f,wdf.values,fmt="%s")
-	return
+def to_fwf(df, fname, widths=None,sep="",header=False,names=None,append=False,encoding="utf8",log=None):
+	if (log == None):
+		wlog = log
+	mode = "w"
+	try:
+		wdf=df[names]
+		if (sep == None):
+			sep = ""
+		wdf=wdf.apply(lambda row: fwf_format(row,widths,sep),axis=1)
+		if header:
+			header=sep.join([unicode(col).ljust(widths[i]-len(sep)) for i,col in enumerate(names)])
+		else:
+			header=None
+		if append == True:
+			mode = "a"
+		with open(fname,mode) as f:
+			if (header == None):
+				np.savetxt(f,wdf.values,fmt="%s")
+			else:
+				np.savetxt(f,wdf.values,header=header.encode(encoding),fmt="%s",comments="")
+		return
+	except:
+		if (log != None):
+			log.write("Ooops : problem while writing fwf to {}: {}".format(fname,err()))
+		else:
+			raise
 
 def parsedate(x="",format="%Y%m%d"):
 	try:
@@ -111,8 +126,8 @@ def WHERE( back = 0 ):
     # return "%s/%s %s()" % ( os.path.basename( frame.f_code.co_filename ),
                         # frame.f_lineno, frame.f_code.co_name )
 
-def jsonDumps(j=None):
-    return simplejson.dumps(j, ensure_ascii=False, encoding='utf8',ignore_nan=True)
+def jsonDumps(j=None,encoding='utf8'):
+    return simplejson.dumps(j, ensure_ascii=False, encoding=encoding,ignore_nan=True)
 
 def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict):
 	class OrderedLoader(Loader):
@@ -255,6 +270,7 @@ def normalize(x=None):
 	if (type(x)==str):
 		x=re.sub('[^A-Za-z0-9]+', ' ', x.lower())
 		x=re.sub('\s+', ' ', x)
+		x=re.sub('^\s+$', '', x)
 	elif (type(x)==list):
 		x=filter(None,[normalize(z) for z in x])
 		# if (len(x)==1):
@@ -262,6 +278,23 @@ def normalize(x=None):
 		# elif(len(x)==0):
 		# 	x=""
 	return x
+
+
+def jw(s1,s2):
+	maxi=0
+	if (type(s1)==list):
+		for s in s1:
+			maxi=max(maxi,jw(s,s2))
+		return maxi
+	if (type(s2)==list):
+		for s in s2:
+			maxi=max(maxi,jw(s1,s))
+		return maxi
+	if (type(s1) == str):
+		s1 = unicode(s1)
+	if (type(s2) == str):
+		s2 = unicode(s2)
+	return round(100*jellyfish.jaro_winkler(s1,s2))/100
 
 def levenshtein(s1, s2):
 	if (not s1):
@@ -309,7 +342,7 @@ def levenshtein_norm(s1,s2):
 def safeeval(string=None,row=None):
 	cell = None
 	locals().update(row)
-	if "\n" in string:
+	if ("\n" in string) & ("cell" in string):
 		try:
 			exec string
 			return cell
@@ -523,10 +556,18 @@ class Dataset(Configured):
 		if (self.connector.type == "filesystem"):
 			self.select=None
 			try:
-				self.file=os.path.join(self.connector.database,self.table)
-				# f=open(self.file)
+				self.files=[os.path.join(self.connector.database,f) 
+							for f in os.listdir(self.connector.database)
+							if re.match(r'^'+self.table+'$',f)]
+				self.file=self.files[0]
 			except:
-				log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
+				self.file=os.path.join(self.connector.database,self.table)
+				#log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
+
+			try:
+				self.skiprows=self.conf["skiprows"]
+			except:
+				self.skiprows=0
 
 			try:
 				self.type=self.conf["type"]
@@ -534,9 +575,18 @@ class Dataset(Configured):
 				self.type="csv"
 
 			try:
-				self.header=self.conf["header"]
+				self.prefix=self.conf["prefix"]
 			except:
-				self.header="infer"
+				self.prefix=None
+
+
+			try:
+				self.header=self.conf["header"]	
+			except:
+				if (self.type == "csv"):
+					self.header="infer"
+				else:
+					self.header=False
 
 			try:
 				self.names=self.conf["names"]
@@ -546,7 +596,10 @@ class Dataset(Configured):
 			try:
 				self.sep=self.conf["sep"]
 			except:
-				self.sep=","
+				if (self.type == "csv"):
+					self.sep = ";"
+				else:
+					self.sep = None
 
 			try:
 				self.compression=self.conf["compression"]
@@ -561,7 +614,7 @@ class Dataset(Configured):
 			try:
 				self.widths=self.conf["widths"]
 			except:
-				self.widths=[1]
+				self.widths=[1000]
 
 			try:
 				self.encoding=self.conf["encoding"]
@@ -584,15 +637,15 @@ class Dataset(Configured):
 					read_log.write("Ooops: can't initiate inmemory dataset with no dataframe",exit=True)
 			elif (self.connector.type == "filesystem"):
 				if (self.type == "csv"):
-					self.reader=pd.read_csv(self.file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
-						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,
-						iterator=True,index_col=False,keep_default_na=False)
+					self.reader=itertools.chain.from_iterable(pd.read_csv(file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
+						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,names=self.names,skiprows=self.skiprows,
+						prefix=self.prefix,iterator=True,index_col=False,keep_default_na=False) for file in self.files)
 				elif (self.type == "fwf"):
 					# with gzip.open(self.file, mode="r") as fh:
 					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,
-					self.reader=pd.read_fwf(self.file,chunksize=self.connector.chunk,skiprows=self.skiprows,
-						encoding=self.encoding,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
-						iterator=True,keep_default_na=False)
+					self.reader=itertools.chain.from_iterable(pd.read_fwf(file,chunksize=self.connector.chunk,skiprows=self.skiprows,
+						encoding=self.encoding,delimiter=self.sep,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
+						iterator=True,keep_default_na=False) for file in self.files)
 			elif (self.connector.type == "elasticsearch"):
 				self.reader= self.scanner()
 		else:
@@ -647,7 +700,7 @@ class Dataset(Configured):
 					pass
 		return None
 
-	def write(self,df=None):
+	def write(self,chunk=0,df=None):
 		size=df.shape[0]
 		if (self.name == "inmemory"):
 			return size
@@ -683,13 +736,21 @@ class Dataset(Configured):
 					try:
 						if self.compression == 'infer':
 							self.compression = None
+						if (chunk == 0):
+							header = self.header
+						else:
+							header = None
 						df.to_csv(self.file,mode='a',index=False,sep=self.sep,
-							compression=self.compression,encoding=self.encoding,header=self.header)
+							compression=self.compression,encoding=self.encoding,header=header)
 					except:
 						self.log.write("write to csv failed writing {} : {}".format(self.file,err()))
 				elif (self.type == "fwf"):
+					if (chunk == 0):
+						header = self.header
+					else:
+						header = False					
 					try:
-						to_fwf(df,self.file,names=self.names,widths=self.widths,append=True)
+						to_fwf(df,self.file,names=self.names,header=header,sep=self.sep,widths=self.widths,append=True,encoding=self.encoding,log=self.log)
 					except:
 						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))
 					pass
@@ -849,7 +910,7 @@ class Recipe(Configured):
 		if ((self.output.name != "inmemory") & (self.test==False)):
 			#df.fillna('',inplace=True)
 			#print self.name,self.input.name,i,self.input.processed,self.output.name
-			self.input.processed+=self.output.write(df)
+			self.input.processed+=self.output.write(i,df)
 			self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
 		return df
 
@@ -871,9 +932,12 @@ class Recipe(Configured):
 				if(self.test==True):
 					self.df=self.df.head(n=head)
 			else:
-				#self.df=next(self.input.reader)
 				self.df=pd.concat([df for df in self.input.reader])
 
+			# removes trailing space in columns
+			self.df.rename(columns=lambda x: x.strip(), inplace=True)
+
+			# runs the recipe
 			self.df=self.run_chunk(0,self.df)
 
 			if (self.test==True):
@@ -889,10 +953,12 @@ class Recipe(Configured):
 				# # process to parallelization with multiprocessing lib
 				queue={}
 				for i, df in enumerate(self.input.reader):
+					# removes trailing space in columns
+					df.rename(columns=lambda x: x.strip(), inplace=True)
 					nt= i%self.threads
 					if (nt in queue.keys()):
 						queue[nt].join()
-					queue[nt]=Process(target=self.run_chunk,args=[i,df])
+					queue[nt]=Process(target=self.run_chunk,args=[i+1,df])
 					queue[nt].start()
 
 		except SystemExit:
@@ -987,9 +1053,8 @@ class Recipe(Configured):
 
 
 	def internal_rename(self,df=None):
-		for col in list(self.args.keys()):
-			df[col]=df[self.args[col]]
-			df.drop([col],axis=1)
+		dic={v: k for k, v in self.args.iteritems()}
+		df.rename(columns=dic,inplace=True)
 		return df
 
 	def internal_map(self,df=None):
@@ -1257,43 +1322,76 @@ class Recipe(Configured):
 				if (self.args["type"] == "elasticsearch"):
 					join_type="elasticsearch"
 			if (join_type == "in_memory"): # join in memory
+				ds = self.args["dataset"]
+
+				# cache inmemory reading
+				# a flush method should be created
 				try:
 					# inmemory cache
-					inmemory[self.args["dataset"]].df
+					inmemory[ds].df
 				except:
-					inmemory[self.args["dataset"]]=Dataset(self.args["dataset"])
-					inmemory[self.args["dataset"]].init_reader()
-					inmemory[self.args["dataset"]].df=pd.concat([dx for dx in inmemory[self.args["dataset"]].reader]).reset_index(drop=True)
-					if ("select" in list(self.args.keys())):
-						#select columns to retrieve in join
-						cols=[self.args["select"][col] for col in list(self.args["select"].keys())]
-						if ("strict" in list(self.args.keys())):
-							#keep joining cols
-							cols=list(set().union(cols,	[self.args["strict"][x] for x in list(self.args["strict"].keys())]))
-						if ("fuzzy" in list(self.args.keys())):
-							#keep fuzzy joining cols
-							cols=list(set().union(cols,	[self.args["fuzzy"][x] for x in list(self.args["fuzzy"].keys())]))
-							#initiate levenstein matcher (beta : not optimized)
-							#this method remains in memory
-							inmemory[self.args["dataset"]].matcher={}
-							for col in list(self.args["fuzzy"].keys()):
-								words=sorted(set(inmemory[self.args["dataset"]].df[self.args["fuzzy"][col]].tolist()))
-								inmemory[self.args["dataset"]].matcher[col]=automata.Matcher(words)
-						inmemory[self.args["dataset"]].df=inmemory[self.args["dataset"]].df[cols]
+					self.log.write("Creating cache for join with dataset {} in {}".format(ds,self.name))
+					inmemory[ds]=Dataset(self.args["dataset"])
+					inmemory[ds].init_reader()
+					inmemory[ds].df=pd.concat([dx for dx in inmemory[ds].reader]).reset_index(drop=True)
+
+
+				# collects useful columns
+				if ("select" in list(self.args.keys())):
+					#select columns to retrieve in join
+					cols=[self.args["select"][col] for col in list(self.args["select"].keys())]
+					if ("strict" in list(self.args.keys())):
+						#keep joining cols
+						cols=list(set().union(cols,	[self.args["strict"][x] for x in list(self.args["strict"].keys())]))
+					if ("fuzzy" in list(self.args.keys())):
+						#keep fuzzy joining cols
+						cols=list(set().union(cols,	[self.args["fuzzy"][x] for x in list(self.args["fuzzy"].keys())]))
+						#initiate levenstein matcher (beta : not optimized)
+						#this method remains in memory
+						try:
+							inmemory[ds].matcher
+						except:
+							inmemory[ds].matcher={}
+						for col in list(self.args["fuzzy"].keys()):
+							try:
+								inmemory[ds].matcher[self.args["fuzzy"][col]]
+							except:
+								self.log.write("Creating automata cache for fuzzy join on column {} of dataset {} in {}".format(col,ds,self.name))
+								words=sorted(set(inmemory[ds].df[self.args["fuzzy"][col]].tolist()))
+								inmemory[ds].matcher[self.args["fuzzy"][col]]=automata.Matcher(words)
+
+				# caches filtered version of the dataset				
+				try:
+					join_df = inmemory[ds].filtered[sha1(cols)]
+				except:
+					try:
+						self.log.write("Creating filtered cache for join with dataset {} in {}".format(ds,self.name))
+						inmemory[ds].filtered
+					except:
+						inmemory[ds].filtered = {}
+					inmemory[ds].filtered[sha1(cols)] = inmemory[ds].df[cols]
+					join_df = inmemory[ds].filtered[sha1(cols)]
+
 				if ("fuzzy" in list(self.args.keys())):
 					for col in list(self.args["fuzzy"].keys()):
 						#get fuzzy matches for the fuzzy columns
-						fuzzy_method="automata"
+						if ("fuzzy_method" in list(self.args.keys())):
+							fuzzy_method = self.args["fuzzy_method"]
+						else:
+							fuzzy_method="automata"
 						if (fuzzy_method=="automata"):
 							#using levenshtein automata (tested 10x faster as tested against fastcomp and jaro winkler)
 							#a full openfst precompile automata would be still faster but not coded for now
-							df[col+"_match"]=df[col].map(lambda x: next(automata.find_all_matches(x, 1,inmemory[self.args["dataset"]].matcher[col]),""))
+							df[col+"_match"]=df[col].map(lambda x: 
+								next(itertools.chain.from_iterable(
+									automata.find_all_matches(x, dist,inmemory[ds].matcher[self.args["fuzzy"][col]])
+									for dist in range(2)),""))
 						elif (fuzzy_method=="jellyfish"):
 							#using jellyfish jaro winkler
-							df[col+"_match"]=df[col].map(lambda x:match_jw(x,inmemory[self.args["dataset"]].df[self.args["fuzzy"][col]]))
+							df[col+"_match"]=df[col].map(lambda x:match_jw(x,join_df[self.args["fuzzy"][col]]))
 						elif (fuzzy_method=="fastcomp"):
 							#using fastcomp
-							df[col+"_match"]=df[col].map(lambda x:match_lv1(x,inmemory[self.args["dataset"]].df[self.args["fuzzy"][col]]))
+							df[col+"_match"]=df[col].map(lambda x:match_lv1(x,join_df[self.args["fuzzy"][col]]))
 					#now prematched fuzzy terms in cols _match are ok for a strict join
 					#list joining columns
 					left_on=[col+"_match" for col in self.args["fuzzy"].keys()]
@@ -1304,10 +1402,12 @@ class Recipe(Configured):
 						right_on=list(set().union(right_on,[self.args["strict"][x] for x in list(self.args["strict"].keys())]))
 
 					#joining, the right dataset being keepd in memory
-					df=pd.merge(df,inmemory[self.args["dataset"]].df,
+					df=pd.merge(df,join_df,
 						how='left',left_on=left_on,
 						right_on=right_on,
 						left_index=False,right_index=False)
+					# self.log.write("{}x{} - {}\n{}".format(left_on,right_on,self.name,df[list(set().union(left_on,right_on))].head(n=5)))
+
 					#map new names of retrieved colums
 					if ("select" in self.args):
 						reverse={v: k for k, v in self.args["select"].iteritems()}
@@ -1321,7 +1421,7 @@ class Recipe(Configured):
 							pass
 				elif ("strict" in self.args.keys()):
 					# simple strict join
-					df=pd.merge(df,inmemory[self.args["dataset"]].df,
+					df=pd.merge(df,join_df,
 						how='left',left_on=list(self.args["strict"].keys()),
 						right_on=[self.args["strict"][x] for x in list(self.args["strict"].keys())],
 						left_index=False,right_index=False)

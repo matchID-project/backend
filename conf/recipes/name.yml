@@ -3,9 +3,12 @@ recipes:
     steps:
       - eval:
         - matchid_name_first: matchid_name_first_src if (type(matchid_name_first_src)==list) else [matchid_name_first_src]
-        - matchid_name_last: matchid_name_last_src if (type(matchid_name_last_src)==list) else [matchid_name_last_src]
+        - matchid_name_last: matchid_name_last_src if (type(matchid_name_last_src)==list) else [matchid_name_last_src]       
       - normalize:
           select: matchid_name_(last|first)$
+      - eval: #dedup
+        - matchid_name_first: list(set(matchid_name_first))
+        - matchid_name_last: list(set(matchid_name_last))
       - eval:
         # perpare fort matching (*match) & stats (_first & _second)
         - matchid_name_norm: list(set().union(matchid_name_last,matchid_name_first))

@@ -56,16 +56,12 @@ recipes:
       #     head: 500
           # select: (.*diff.*|matchid_hit_score($|_[a-z]*))$
   scoring:
+    steps:
+      - scoring_lev:
+  scoring_lev:
     steps:   
-      # - eval:
-      #   - matchid_name_first_freq: matchid_name_first_freq if ("matchid_name_first_freq" in row.keys()) else 0
-      #   - matchid_name_last_freq: matchid_name_first_freq if ("matchid_name_last_freq" in row.keys()) else 0
-      #   - hit_matchid_name_first_freq: matchid_name_first_freq if ("hit_matchid_name_first_freq" in row.keys()) else 0
-      #   - hit_matchid_name_last_freq: matchid_name_first_freq if ("hit_matchid_name_last_freq" in row.keys()) else 0
       - eval:
         #scoring names : compute nomalized levenshtein distance and common words btw arrays of names : []x[]
-        # - matchid_name_tokens: tokenize(matchid_name_match)
-        # - hit_matchid_name_tokens: tokenize(hit_matchid_name_match)
         - matchid_hit_freq: max(matchid_name_first_freq,hit_matchid_name_first_freq,matchid_name_last_freq,hit_matchid_name_last_freq)*matchid_hit_matches_unfiltered
         - matchid_hit_score_name_lv_nn: max(levenshtein_norm(matchid_name_last,hit_matchid_name_last),levenshtein_norm(matchid_name_last_match,hit_matchid_name_last_match))
         - matchid_hit_score_name_lv_pp: max(levenshtein_norm(matchid_name_first_match,hit_matchid_name_first_match),levenshtein_norm(matchid_name_first,hit_matchid_name_first))   
@@ -87,6 +83,45 @@ recipes:
         - matchid_hit_score_date: round(levenshtein_norm(matchid_date_birth_str,hit_matchid_date_birth_str)*(0.9 if re.search('0101$',matchid_date_birth_str) else 1),2) 
         - matchid_hit_score_sex: 1 if (str(matchid_sex) == str(hit_matchid_sex)) else 0  
         - matchid_hit_score: round(1.0*matchid_hit_score_name*matchid_hit_score_date*(0.2+0.8*matchid_hit_score_location)*(0.5*(1.0+matchid_hit_score_sex)),2)
+        - scoring_version: str("scoring_lev")
+  scoring_jw:
+    steps:   
+      - eval:
+        #scoring names : compute nomalized levenshtein distance and common words btw arrays of names : []x[]
+        - matchid_hit_freq: max(matchid_name_first_freq,hit_matchid_name_first_freq,matchid_name_last_freq,hit_matchid_name_last_freq)*matchid_hit_matches_unfiltered
+        - matchid_hit_score_name_lv_nn: max(jw(matchid_name_last,hit_matchid_name_last),jw(matchid_name_last_match,hit_matchid_name_last_match))
+        - matchid_hit_score_name_lv_pp: max(jw(matchid_name_first_match,hit_matchid_name_first_match),jw(matchid_name_first,hit_matchid_name_first))   
+        - matchid_hit_score_name_lv_np: round(jw(matchid_name_first,hit_matchid_name_last)*jw(matchid_name_last,hit_matchid_name_first),2)   
+        - matchid_hit_score_name_tokens: round(len([x for x in matchid_name_tokens if x in hit_matchid_name_tokens])*1.0 /max(1,min(len(matchid_name_tokens),len(hit_matchid_name_tokens))),2)  
+        - matchid_hit_score_name: round(max(matchid_hit_score_name_lv_nn*matchid_hit_score_name_lv_pp,0.7*matchid_hit_score_name_lv_np,0.7*matchid_hit_score_name_tokens),2)
+         #scoring location
+        - matchid_hit_score_location_lv_city: jw(matchid_location_city,hit_matchid_location_city)      
+        - matchid_hit_score_location_lv_country: jw(matchid_location_country,hit_matchid_location_country)      
+        - matchid_hit_score_location_citycode_history: 1 if (len([x for x in matchid_location_citycode_history if x in hit_matchid_location_citycode_history])>0) else 0      
+        - matchid_hit_score_location_citycode: 1 if ((len(matchid_location_citycode)>0) & (matchid_location_citycode == hit_matchid_location_citycode)) else 0
+        - matchid_hit_score_location_depcode: 1 if (matchid_location_depcode == hit_matchid_location_depcode) else 0      
+        - matchid_hit_score_location_countrycode: 1 if (matchid_location_countrycode == hit_matchid_location_countrycode) else 0   
+        - matchid_hit_distance: distance(matchid_location_city_geopoint_2d,hit_matchid_location_city_geopoint_2d)
+        - matchid_hit_score_location_distance: 0 if (matchid_hit_distance == "") else round(100*40/(40+matchid_hit_distance))/100
+        # - matchid_hit_score_location_global: 0.5*max(matchid_hit_score_location_citycode,matchid_hit_score_location_lv_city)+0.25*max(matchid_hit_score_location_depcode,matchid_hit_score_location_lv_department)+0.25*max(matchid_hit_score_location_countrycode,matchid_hit_score_location_lv_country)   
+        - matchid_hit_score_location: 'if (matchid_location_countrycode == "FRA"):
+                                        cell = round(
+                                                    0.5 * max(matchid_hit_score_location_citycode,matchid_hit_score_location_citycode_history,
+                                                              matchid_hit_score_location_lv_city,matchid_hit_score_location_distance)
+                                                    + 0.5 * matchid_hit_score_location_depcode
+                                                  ,2)
+                                      else: 
+                                        cell = round(
+                                                    0.5 * max(matchid_hit_score_location_citycode,matchid_hit_score_location_citycode_history,
+                                                              matchid_hit_score_location_lv_city,matchid_hit_score_location_distance)
+                                                    + 0.5 *max(matchid_hit_score_location_countrycode,
+                                                                matchid_hit_score_location_lv_country)
+                                                  ,2)'
+        #scoring date
+        - matchid_hit_score_date: round(jw(matchid_date_birth_str,hit_matchid_date_birth_str)*(0.9 if re.search('0101$',matchid_date_birth_str) else 1),2) 
+        - matchid_hit_score_sex: 1 if (str(matchid_sex) == str(hit_matchid_sex)) else 0  
+        - matchid_hit_score: round(1.0*matchid_hit_score_name*matchid_hit_score_date*(0.2+0.8*matchid_hit_score_location)*(0.5*(1.0+matchid_hit_score_sex)),2)
+        - scoring_version: str("scoring_jw")
   diff:
     steps:
       - eval:
@@ -94,4 +129,4 @@ recipes:
         - matchid_hit_diff_name_first: str(" ").join(matchid_name_first) if (matchid_hit_score_name_lv_pp>0.99) else str(" ").join(matchid_name_first) +" <> "+str(" ").join(hit_matchid_name_first) 
         - matchid_hit_diff_date: matchid_date_birth_str if (matchid_date_birth_str==hit_matchid_date_birth_str) else matchid_date_birth_str +" <> "+hit_matchid_date_birth_str 
         - matchid_hit_diff_location: matchid_location_city_src + " - " + (matchid_location_citycode if (matchid_location_countrycode=="FRA") else matchid_location_countrycode)  if (matchid_hit_score_location>0.99) else matchid_location_city_src +" <> "+hit_matchid_location_city_src 
-        - matchid_hit_diff_src: matchid_src if (matchid_src != hit_matchid_src) else matchid_src +" <> "+hit_matchid_src 
+        - matchid_hit_diff_src: matchid_src if (matchid_src == hit_matchid_src) else matchid_src +" <> "+hit_matchid_src 
