@@ -556,10 +556,18 @@ class Dataset(Configured):
 		if (self.connector.type == "filesystem"):
 			self.select=None
 			try:
-				self.file=os.path.join(self.connector.database,self.table)
-				# f=open(self.file)
+				self.files=[os.path.join(self.connector.database,f) 
+							for f in os.listdir(self.connector.database)
+							if re.match(r'^'+self.table+'$',f)]
+				self.file=self.files[0]
 			except:
-				log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
+				self.file=os.path.join(self.connector.database,self.table)
+				#log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
+
+			try:
+				self.skiprows=self.conf["skiprows"]
+			except:
+				self.skiprows=0
 
 			try:
 				self.type=self.conf["type"]
@@ -629,15 +637,15 @@ class Dataset(Configured):
 					read_log.write("Ooops: can't initiate inmemory dataset with no dataframe",exit=True)
 			elif (self.connector.type == "filesystem"):
 				if (self.type == "csv"):
-					self.reader=pd.read_csv(self.file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
-						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,
-						iterator=True,index_col=False,keep_default_na=False)
+					self.reader=itertools.chain.from_iterable(pd.read_csv(file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
+						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,names=self.names,skiprows=self.skiprows,
+						prefix=self.prefix,iterator=True,index_col=False,keep_default_na=False) for file in self.files)
 				elif (self.type == "fwf"):
 					# with gzip.open(self.file, mode="r") as fh:
 					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,
-					self.reader=pd.read_fwf(self.file,chunksize=self.connector.chunk,skiprows=self.skiprows,
+					self.reader=itertools.chain.from_iterable(pd.read_fwf(file,chunksize=self.connector.chunk,skiprows=self.skiprows,
 						encoding=self.encoding,delimiter=self.sep,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
-						iterator=True,keep_default_na=False)
+						iterator=True,keep_default_na=False) for file in self.files)
 			elif (self.connector.type == "elasticsearch"):
 				self.reader= self.scanner()
 		else:
