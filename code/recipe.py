@@ -932,9 +932,12 @@ class Recipe(Configured):
 				if(self.test==True):
 					self.df=self.df.head(n=head)
 			else:
-				#self.df=next(self.input.reader)
 				self.df=pd.concat([df for df in self.input.reader])
 
+			# removes trailing space in columns
+			self.df.rename(columns=lambda x: x.strip(), inplace=True)
+
+			# runs the recipe
 			self.df=self.run_chunk(0,self.df)
 
 			if (self.test==True):
@@ -1349,11 +1352,11 @@ class Recipe(Configured):
 							inmemory[ds].matcher={}
 						for col in list(self.args["fuzzy"].keys()):
 							try:
-								inmemory[ds].matcher[col]
+								inmemory[ds].matcher[self.args["fuzzy"][col]]
 							except:
 								self.log.write("Creating automata cache for fuzzy join on column {} of dataset {} in {}".format(col,ds,self.name))
 								words=sorted(set(inmemory[ds].df[self.args["fuzzy"][col]].tolist()))
-								inmemory[ds].matcher[col]=automata.Matcher(words)
+								inmemory[ds].matcher[self.args["fuzzy"][col]]=automata.Matcher(words)
 
 				# caches filtered version of the dataset				
 				try:
@@ -1377,7 +1380,10 @@ class Recipe(Configured):
 						if (fuzzy_method=="automata"):
 							#using levenshtein automata (tested 10x faster as tested against fastcomp and jaro winkler)
 							#a full openfst precompile automata would be still faster but not coded for now
-							df[col+"_match"]=df[col].map(lambda x: next(automata.find_all_matches(x, 1,inmemory[self.args["dataset"]].matcher[col]),""))
+							df[col+"_match"]=df[col].map(lambda x: 
+								next(itertools.chain.from_iterable(
+									automata.find_all_matches(x, dist,inmemory[ds].matcher[self.args["fuzzy"][col]])
+									for dist in range(2)),""))
 						elif (fuzzy_method=="jellyfish"):
 							#using jellyfish jaro winkler
 							df[col+"_match"]=df[col].map(lambda x:match_jw(x,join_df[self.args["fuzzy"][col]]))
@@ -1398,6 +1404,8 @@ class Recipe(Configured):
 						how='left',left_on=left_on,
 						right_on=right_on,
 						left_index=False,right_index=False)
+					# self.log.write("{}x{} - {}\n{}".format(left_on,right_on,self.name,df[list(set().union(left_on,right_on))].head(n=5)))
+
 					#map new names of retrieved colums
 					if ("select" in self.args):
 						reverse={v: k for k, v in self.args["select"].iteritems()}
