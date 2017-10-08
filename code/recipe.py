@@ -84,7 +84,10 @@ def err():
 	return "{} : {} line {}".format(str(exc_type),exc_obj,exc_tb.tb_lineno)
 	#return "{}".format(traceback.print_exception(*exc_info))
 
-def to_fwf(df, fname, widths=None,sep="",names=None,append=False,encoding="utf8",log=None):
+def fwf_format(row,widths,sep=""):
+	return sep.join([row[col].ljust(widths[i]-len(sep)) for i,col in enumerate(row.keys())])
+
+def to_fwf(df, fname, widths=None,sep="",header=False,names=None,append=False,encoding="utf8",log=None):
 	if (log == None):
 		wlog = log
 	mode = "w"
@@ -92,11 +95,18 @@ def to_fwf(df, fname, widths=None,sep="",names=None,append=False,encoding="utf8"
 		wdf=df[names]
 		if (sep == None):
 			sep = ""
-		wdf=wdf.apply(lambda row: sep.join([unicode(row[unicode(col)]).ljust(widths[i]-len(sep)).encode(encoding) for i,col in enumerate(names)]),axis=1)
+		wdf=wdf.apply(lambda row: fwf_format(row,widths,sep),axis=1)
+		if header:
+			header=sep.join([unicode(col).ljust(widths[i]-len(sep)) for i,col in enumerate(names)])
+		else:
+			header=None
 		if append == True:
 			mode = "a"
 		with open(fname,mode) as f:
-			np.savetxt(f,wdf.values,fmt="%s")
+			if (header == None):
+				np.savetxt(f,wdf.values,fmt="%s")
+			else:
+				np.savetxt(f,wdf.values,header=header.encode(encoding),fmt="%s",comments="")
 		return
 	except:
 		if (log != None):
@@ -556,9 +566,18 @@ class Dataset(Configured):
 				self.type="csv"
 
 			try:
-				self.header=self.conf["header"]
+				self.prefix=self.conf["prefix"]
 			except:
-				self.header="infer"
+				self.prefix=None
+
+
+			try:
+				self.header=self.conf["header"]	
+			except:
+				if (self.type == "csv"):
+					self.header="infer"
+				else:
+					self.header=False
 
 			try:
 				self.names=self.conf["names"]
@@ -708,13 +727,21 @@ class Dataset(Configured):
 					try:
 						if self.compression == 'infer':
 							self.compression = None
+						if (chunk == 0):
+							header = self.header
+						else:
+							header = None
 						df.to_csv(self.file,mode='a',index=False,sep=self.sep,
-							compression=self.compression,encoding=self.encoding,header=self.header)
+							compression=self.compression,encoding=self.encoding,header=header)
 					except:
 						self.log.write("write to csv failed writing {} : {}".format(self.file,err()))
 				elif (self.type == "fwf"):
+					if (chunk == 0):
+						header = self.header
+					else:
+						header = False					
 					try:
-						to_fwf(df,self.file,names=self.names,sep=self.sep,widths=self.widths,append=True,encoding=self.encoding,log=self.log)
+						to_fwf(df,self.file,names=self.names,header=header,sep=self.sep,widths=self.widths,append=True,encoding=self.encoding,log=self.log)
 					except:
 						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))
 					pass
