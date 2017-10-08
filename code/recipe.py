@@ -953,6 +953,8 @@ class Recipe(Configured):
 				# # process to parallelization with multiprocessing lib
 				queue={}
 				for i, df in enumerate(self.input.reader):
+					# removes trailing space in columns
+					df.rename(columns=lambda x: x.strip(), inplace=True)
 					nt= i%self.threads
 					if (nt in queue.keys()):
 						queue[nt].join()
