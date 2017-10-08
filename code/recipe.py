@@ -270,6 +270,7 @@ def normalize(x=None):
 	if (type(x)==str):
 		x=re.sub('[^A-Za-z0-9]+', ' ', x.lower())
 		x=re.sub('\s+', ' ', x)
+		x=re.sub('^\s+$', '', x)
 	elif (type(x)==list):
 		x=filter(None,[normalize(z) for z in x])
 		# if (len(x)==1):
