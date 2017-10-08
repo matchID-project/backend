@@ -1391,7 +1391,7 @@ class Recipe(Configured):
 						right_on=list(set().union(right_on,[self.args["strict"][x] for x in list(self.args["strict"].keys())]))
 
 					#joining, the right dataset being keepd in memory
-					df=pd.merge(df,inmemory[self.args["dataset"]].df,
+					df=pd.merge(df,join_df,
 						how='left',left_on=left_on,
 						right_on=right_on,
 						left_index=False,right_index=False)
@@ -1408,7 +1408,7 @@ class Recipe(Configured):
 							pass
 				elif ("strict" in self.args.keys()):
 					# simple strict join
-					df=pd.merge(df,inmemory[self.args["dataset"]].df,
+					df=pd.merge(df,join_df,
 						how='left',left_on=list(self.args["strict"].keys()),
 						right_on=[self.args["strict"][x] for x in list(self.args["strict"].keys())],
 						left_index=False,right_index=False)
