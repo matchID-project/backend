@@ -700,7 +700,7 @@ class Dataset(Configured):
 					pass
 		return None
 
-	def write(self,df=None):
+	def write(self,chunk=0,df=None):
 		size=df.shape[0]
 		if (self.name == "inmemory"):
 			return size
@@ -910,7 +910,7 @@ class Recipe(Configured):
 		if ((self.output.name != "inmemory") & (self.test==False)):
 			#df.fillna('',inplace=True)
 			#print self.name,self.input.name,i,self.input.processed,self.output.name
-			self.input.processed+=self.output.write(df)
+			self.input.processed+=self.output.write(i,df)
 			self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
 		return df
 
@@ -953,7 +953,7 @@ class Recipe(Configured):
 					nt= i%self.threads
 					if (nt in queue.keys()):
 						queue[nt].join()
-					queue[nt]=Process(target=self.run_chunk,args=[i,df])
+					queue[nt]=Process(target=self.run_chunk,args=[i+1,df])
 					queue[nt].start()
 
 		except SystemExit:
