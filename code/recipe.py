@@ -1317,43 +1317,70 @@ class Recipe(Configured):
 				if (self.args["type"] == "elasticsearch"):
 					join_type="elasticsearch"
 			if (join_type == "in_memory"): # join in memory
+				ds = self.args["dataset"]
+
+				# cache inmemory reading
+				# a flush method should be created
 				try:
 					# inmemory cache
-					inmemory[self.args["dataset"]].df
+					inmemory[ds].df
 				except:
-					inmemory[self.args["dataset"]]=Dataset(self.args["dataset"])
-					inmemory[self.args["dataset"]].init_reader()
-					inmemory[self.args["dataset"]].df=pd.concat([dx for dx in inmemory[self.args["dataset"]].reader]).reset_index(drop=True)
-					if ("select" in list(self.args.keys())):
-						#select columns to retrieve in join
-						cols=[self.args["select"][col] for col in list(self.args["select"].keys())]
-						if ("strict" in list(self.args.keys())):
-							#keep joining cols
-							cols=list(set().union(cols,	[self.args["strict"][x] for x in list(self.args["strict"].keys())]))
-						if ("fuzzy" in list(self.args.keys())):
-							#keep fuzzy joining cols
-							cols=list(set().union(cols,	[self.args["fuzzy"][x] for x in list(self.args["fuzzy"].keys())]))
-							#initiate levenstein matcher (beta : not optimized)
-							#this method remains in memory
-							inmemory[self.args["dataset"]].matcher={}
-							for col in list(self.args["fuzzy"].keys()):
-								words=sorted(set(inmemory[self.args["dataset"]].df[self.args["fuzzy"][col]].tolist()))
-								inmemory[self.args["dataset"]].matcher[col]=automata.Matcher(words)
-						inmemory[self.args["dataset"]].df=inmemory[self.args["dataset"]].df[cols]
+					inmemory[ds]=Dataset(self.args["dataset"])
+					inmemory[ds].init_reader()
+					inmemory[ds].df=pd.concat([dx for dx in inmemory[ds].reader]).reset_index(drop=True)
+
+
+				# collects useful columns
+				if ("select" in list(self.args.keys())):
+					#select columns to retrieve in join
+					cols=[self.args["select"][col] for col in list(self.args["select"].keys())]
+					if ("strict" in list(self.args.keys())):
+						#keep joining cols
+						cols=list(set().union(cols,	[self.args["strict"][x] for x in list(self.args["strict"].keys())]))
+					if ("fuzzy" in list(self.args.keys())):
+						#keep fuzzy joining cols
+						cols=list(set().union(cols,	[self.args["fuzzy"][x] for x in list(self.args["fuzzy"].keys())]))
+						#initiate levenstein matcher (beta : not optimized)
+						#this method remains in memory
+						try:
+							inmemory[ds].matcher
+						except:
+							inmemory[ds].matcher={}
+						for col in list(self.args["fuzzy"].keys()):
+							try:
+								inmemory[ds].matcher[col]
+							except:
+								words=sorted(set(inmemory[ds].df[self.args["fuzzy"][col]].tolist()))
+								inmemory[ds].matcher[col]=automata.Matcher(words)
+
+				# caches filtered version of the dataset				
+				try:
+					join_df = inmemory[ds].filtered[sha1(cols)]
+				except:
+					try:
+						inmemory[ds].filtered
+					except:
+						inmemory[ds].filtered = {}
+					inmemory[ds].filtered[sha1(cols)] = inmemory[ds].df[cols]
+					join_df = inmemory[ds].filtered[sha1(cols)]
+
 				if ("fuzzy" in list(self.args.keys())):
 					for col in list(self.args["fuzzy"].keys()):
 						#get fuzzy matches for the fuzzy columns
-						fuzzy_method="automata"
+						if ("fuzzy_method" in list(self.args.keys())):
+							fuzzy_method = self.args["fuzzy_method"]
+						else:
+							fuzzy_method="automata"
 						if (fuzzy_method=="automata"):
 							#using levenshtein automata (tested 10x faster as tested against fastcomp and jaro winkler)
 							#a full openfst precompile automata would be still faster but not coded for now
 							df[col+"_match"]=df[col].map(lambda x: next(automata.find_all_matches(x, 1,inmemory[self.args["dataset"]].matcher[col]),""))
 						elif (fuzzy_method=="jellyfish"):
 							#using jellyfish jaro winkler
-							df[col+"_match"]=df[col].map(lambda x:match_jw(x,inmemory[self.args["dataset"]].df[self.args["fuzzy"][col]]))
+							df[col+"_match"]=df[col].map(lambda x:match_jw(x,join_df[self.args["fuzzy"][col]]))
 						elif (fuzzy_method=="fastcomp"):
 							#using fastcomp
-							df[col+"_match"]=df[col].map(lambda x:match_lv1(x,inmemory[self.args["dataset"]].df[self.args["fuzzy"][col]]))
+							df[col+"_match"]=df[col].map(lambda x:match_lv1(x,join_df[self.args["fuzzy"][col]]))
 					#now prematched fuzzy terms in cols _match are ok for a strict join
 					#list joining columns
 					left_on=[col+"_match" for col in self.args["fuzzy"].keys()]
