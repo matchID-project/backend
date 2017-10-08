@@ -954,7 +954,7 @@ class Recipe(Configured):
 				queue={}
 				for i, df in enumerate(self.input.reader):
 					# removes trailing space in columns
-					self.df.rename(columns=lambda x: x.strip(), inplace=True)
+					df.rename(columns=lambda x: x.strip(), inplace=True)
 					nt= i%self.threads
 					if (nt in queue.keys()):
 						queue[nt].join()
