@@ -1325,6 +1325,7 @@ class Recipe(Configured):
 					# inmemory cache
 					inmemory[ds].df
 				except:
+					self.log.write("Creating cache for join with dataset {} in {}".format(ds,self.name))
 					inmemory[ds]=Dataset(self.args["dataset"])
 					inmemory[ds].init_reader()
 					inmemory[ds].df=pd.concat([dx for dx in inmemory[ds].reader]).reset_index(drop=True)
@@ -1350,6 +1351,7 @@ class Recipe(Configured):
 							try:
 								inmemory[ds].matcher[col]
 							except:
+								self.log.write("Creating automata cache for fuzzy join on column {} of dataset {} in {}".format(col,ds,self.name))
 								words=sorted(set(inmemory[ds].df[self.args["fuzzy"][col]].tolist()))
 								inmemory[ds].matcher[col]=automata.Matcher(words)
 
@@ -1358,6 +1360,7 @@ class Recipe(Configured):
 					join_df = inmemory[ds].filtered[sha1(cols)]
 				except:
 					try:
+						self.log.write("Creating filtered cache for join with dataset {} in {}".format(ds,self.name))
 						inmemory[ds].filtered
 					except:
 						inmemory[ds].filtered = {}
