@@ -5,17 +5,18 @@ recipes:
       - replace:
           select: matchid_location_city_norm
           regex:
-            - ^\s*(lyon|marseille|paris)(\s.*|\d.*|.*art.*|.*arr.*)$: '\1'
+            - ^\s*(lyon|marseille|paris)(\s.*|\s*\d\d*.*|.*art.*|.*arr.*)$: '\1'
             - montreuil s.* bois: montreuil
             - (^|\s)ste(\s|$): '\1sainte\2'
             - (^|\s)st(\s|$): '\1saint\2'
             - ^aix pce$: aix provence
+            - \s(de|en|les|le|la|du|de la|sous|sur)\s: ' '
             - \sSS\s: '' 
             - \sS\s: '' 
             - ^x$:  ''
             - \s+: ' ' 
-#            œ: oe 
-#            æ: ae
+            - œ: oe 
+            - æ: ae
             - ^.*inconnu.*$: ''
             - sainte clotilde: saint denis
             - berck mer: berck
@@ -35,6 +36,7 @@ recipes:
           fuzzy: 
             matchid_location_city_norm: norm_name
           strict: 
+            # matchid_location_city_norm: norm_name
             matchid_location_depcode: dep_code
             matchid_location_countrycode: CODEISO3
           select: 
@@ -67,7 +69,7 @@ recipes:
           regex:
             - ^\s*departement\s(d|de|du)\s*: ''
       - join:
-          type : in_memory
+          type: in_memory
           dataset: algeria_city_fuzzy
           fuzzy: 
             matchid_location_city_alg_tmp: norm_name
