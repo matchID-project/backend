@@ -67,14 +67,12 @@ from werkzeug.wsgi import DispatcherMiddleware
 import parsers
 
 global jobs
-global zjobs
 global inmemory
 global log
 global conf
 
 inmemory={}
 jobs={}
-zjobs={}
 
 
 
