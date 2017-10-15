@@ -859,6 +859,7 @@ class Recipe(Configured):
 
 	def set_job(self,job=None):
 		self.job=job
+		self.job.date = datetime.datetime.now().isoformat()
 		return
 
 	def start_job(self):
@@ -879,8 +880,6 @@ class Recipe(Configured):
 					self.job=None
 					return "done"
 				except:
-					if (self.name in list(zjobs.keys())):
-						return "existing zombie job"
 					return "down"
 		except:
 			return "down"
@@ -1950,12 +1949,25 @@ class RecipeRun(Resource):
 				return {"recipe":recipe, "status": "down"}
 		elif (action=="log"):
 			#get logs
-			if True:
+			try:
+				# try if there is a current log
 				with open(jobs[recipe].log.file, 'r') as f:
 					response = f.read()
 					return Response(response,mimetype="text/plain")
-			else:
-				api.abort(404)
+			except:
+				try:
+					# search for a previous log
+					a = conf["recipes"][recipe] # check if recipe is declared
+					logfiles = [os.path.join(conf["global"]["log"]["dir"],f)
+								for f in os.listdir(conf["global"]["log"]["dir"])
+								if re.match(r'^.*-' + recipe + '.log$',f)]
+					logfiles.sort()
+					file = logfiles[-1]
+					with open(file, 'r') as f:
+						response = f.read()
+						return Response(response,mimetype="text/plain")
+				except:
+					api.abort(404)
 		api.abort(403)
 
 	@api.expect(parsers.live_parser)
@@ -2031,6 +2043,41 @@ class RecipeRun(Resource):
 				api.abort(404)
 
 
+@api.route('/jobs/', endpoint='jobs')
+class jobsList(Resource):
+	def get(self):
+		'''retrieve jobs list
+		'''
+		# response = jobs.keys()
+		response = {"running": {}, "done": {}}
+		for recipe, job in jobs.iteritems():
+			status = job.job_status()
+			if (status != "down"):
+				response["running"][recipe] = { "status": status,
+												"file": re.sub(r".*/","", job.log.file),
+												"date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
+											  }
+
+		logfiles = [f
+							for f in os.listdir(conf["global"]["log"]["dir"])
+							if re.match(r'^.*.log$',f)]
+		for file in logfiles:
+			recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
+			date = re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log", file, re.IGNORECASE).group(1)
+			if (recipe in conf["recipes"].keys()):
+				try:
+					if (response["running"][recipe]["date"] != date):
+						try:
+							response["done"][recipe].append({"date": date, "file": file})
+						except:
+							response["done"][recipe]=[{"date": date, "file": file}]
+				except:
+					try:
+						response["done"][recipe].append({"date": date, "file": file})
+					except:
+						response["done"][recipe]=[{"date": date, "file": file}]
+
+		return response
 
 if __name__ == '__main__':
 	read_conf()
