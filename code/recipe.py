@@ -27,7 +27,8 @@ import pandas as pd
 #### parallelize
 import concurrent.futures
 #import threading
-from multiprocessing import Process
+from multiprocessing import Process, Manager
+
 import uuid
 
 ### datascience dependecies
@@ -66,13 +67,12 @@ from werkzeug.serving import run_simple
 from werkzeug.wsgi import DispatcherMiddleware
 import parsers
 
-global jobs
-global inmemory
-global log
-global conf
 
+global manager, jobs, inmemory, log, conf
+
+manager = Manager()
 inmemory={}
-jobs={}
+jobs = {}
 
 
 
@@ -866,6 +866,9 @@ class Recipe(Configured):
 		self.job.start()
 		return
 
+	def join_job(self):
+		self.job.join()
+
 	def stop_job(self):
 		self.job.terminate()
 		return
@@ -1620,9 +1623,10 @@ class Recipe(Configured):
 		except:
 			return df
 
-def thread_job(recipe=None):
+def thread_job(recipe=None, result={}):
 	try:
-		recipe.run()
+		result["df"] = recipe.run()
+		result["log"] = str(recipe.log.writer.getvalue())
 	except:
 		pass
 
@@ -2005,18 +2009,27 @@ class RecipeRun(Resource):
 		- ** stop ** : stop a running recipe (soft kill : it may take some time to really stop)
 		'''
 		if (action=="test"):
-			r=Recipe(recipe)
-			r.init(test=True)
-			r.run()
+			try: 
+				read_conf()
+				result = manager.dict()
+				r=Recipe(recipe)
+				r.init(test=True)
+				r.set_job(Process(target=thread_job,args=[r, result]))
+				r.start_job()
+				r.join_job()
+				r.df = result["df"]
+				r.log = result["log"]
+			except:
+				return {"data": [{"result": "empty"}], "log": "Ooops: {}".format(err())}
 			if isinstance(r.df, pd.DataFrame):
 				df=r.df.fillna("")
 				try:
-					return jsonize({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
+					return jsonize({"data": df.T.to_dict().values(), "log": result["log"]})
 				except:
 					df=df.applymap(lambda x: str(x))
-					return jsonize({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
+					return jsonize({"data": df.T.to_dict().values(), "log": result["log"]})
 			else:
-				return {"log": r.log.writer.getvalue()}
+				return {"data": [{"result": "empty"}], "log": result["log"]}
 		elif (action=="run"):
 			#run recipe (gives a job)
 			try:
