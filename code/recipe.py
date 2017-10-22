@@ -127,6 +127,19 @@ def WHERE( back = 0 ):
 def jsonDumps(j=None,encoding='utf8'):
     return simplejson.dumps(j, ensure_ascii=False, encoding=encoding,ignore_nan=True)
 
+def toJson(x = None):
+	if (x == None):
+		return ""
+	if ((type(x) != unicode) & (type(x) != str)):
+		return x
+	if (x == ""):
+		return x
+	try:
+		return json.loads(x)
+	except:
+		return x
+
+
 def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict):
 	class OrderedLoader(Loader):
 		pass
