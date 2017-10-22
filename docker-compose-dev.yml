@@ -66,7 +66,7 @@ services:
       - ${PROJECTS}:/matchid/projects/
       - ./log:/matchid/log/
       - ${UPLOAD}:/matchid/upload/
-      - ./models/:/matchid/models/
+      - ${MODELS}:/matchid/models/
       - ./referential_data/:/matchid/referential_data/
       - ${FRONTEND}/matchIdConfig:/matchid/matchIdConfig/
     # ports:
@@ -99,6 +99,7 @@ services:
 
   kibana:
     image: kibana:latest
+    container_name: kibana
     volumes:
       - ./kibana/config/:/usr/share/kibana/config
     ports:
