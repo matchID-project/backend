@@ -34,9 +34,14 @@ First clone the project
 git clone https://github.com/eig-2017/matchID-backend.git
 ```
 
-You have to clone matchID-validation project to enable annotation for machine learning capabilities:
+You have to clone matchID-frontend project to enable annotation for machine learning capabilities:
 ```
-git clone https://github.com/eig-2017/matchID-validation.git
+git clone https://github.com/eig-2017/matchID-frontend.git
+```
+
+And the matchid-examples to have some data and recipes to play with:
+```
+git clone https://github.com/eig-2017/matchID-examples.git
 ```
 
 Note that machine learning is not mandatory (you can have a real serious matching only based on rules) but seriously recommended for reduction development time.
@@ -45,8 +50,10 @@ Simply run it with Docker (a >8Go configuration is recommended)
 ```
 cd matchID-backend
 export FRONTEND=../matchID-frontend    # path to GitHub clone of matchID-frontend
-export PROJECTS=../matchID-projects/       # path to projects
-export UPLOAD=/data/matchID/upload/        # path to upload
+export PROJECTS=../matchID-examples/projects/       # path to projects
+export UPLOAD=../matchID-examples/data/       # path to upload
+export MODELS=../matchID-examples/models       # path to upload
+
 docker-compose -f docker-compose-dev.yml up --build
 ```
 
