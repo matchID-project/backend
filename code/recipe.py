@@ -27,7 +27,8 @@ import pandas as pd
 #### parallelize
 import concurrent.futures
 #import threading
-from multiprocessing import Process
+from multiprocessing import Process, Manager
+
 import uuid
 
 ### datascience dependecies
@@ -66,13 +67,12 @@ from werkzeug.serving import run_simple
 from werkzeug.wsgi import DispatcherMiddleware
 import parsers
 
-global jobs
-global inmemory
-global log
-global conf
 
+global manager, jobs, inmemory, log, conf
+
+manager = Manager()
 inmemory={}
-jobs={}
+jobs = {}
 
 
 
@@ -114,7 +114,7 @@ def to_fwf(df, fname, widths=None,sep="",header=False,names=None,append=False,en
 
 def parsedate(x="",format="%Y%m%d"):
 	try:
-		return datetime.datetime.strptime(x,self.args["format"])
+		return datetime.datetime.strptime(x,format)
 	except:
 		return x
 
@@ -126,6 +126,19 @@ def WHERE( back = 0 ):
 
 def jsonDumps(j=None,encoding='utf8'):
     return simplejson.dumps(j, ensure_ascii=False, encoding=encoding,ignore_nan=True)
+
+def toJson(x = None):
+	if (x == None):
+		return ""
+	if ((type(x) != unicode) & (type(x) != str)):
+		return x
+	if (x == ""):
+		return x
+	try:
+		return json.loads(x)
+	except:
+		return x
+
 
 def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict):
 	class OrderedLoader(Loader):
@@ -340,17 +353,15 @@ def levenshtein_norm(s1,s2):
 def safeeval(string=None,row=None):
 	cell = None
 	locals().update(row)
-	if ("\n" in string) & ("cell" in string):
-		try:
+	try:
+		if ('cell' in string):
 			exec string
-			return cell
-		except:
-			return "Ooops in exec('{}'): {}".format(string,err())
-	else :
-		try:
-			return eval(string)
-		except:
-			return "Ooops in eval('{}'): {}".format(string,err())
+		else:
+			cell = eval(string)
+
+		return cell
+	except:
+		return "Ooops in exec('{}'): {}".format(string,err())
 
 
 def match_lv1(x, list_strings):
@@ -716,7 +727,10 @@ class Dataset(Configured):
 						ids=df['_id'].T.to_dict()
 						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": records[it]} for it in records]
 					else:
-						records=df.fillna("").T.to_dict()
+						if ('_id' in df.columns):
+							records=df.drop(['_id'],axis=1).fillna("").T.to_dict()
+						else:
+							records=df.fillna("").T.to_dict()
 						actions=[{'_op_type': 'index','_index': self.table,'_type': self.name, "_source": records[it]} for it in records]
 
 					try:
@@ -866,6 +880,9 @@ class Recipe(Configured):
 		self.job.start()
 		return
 
+	def join_job(self):
+		self.job.join()
+
 	def stop_job(self):
 		self.job.terminate()
 		return
@@ -972,7 +989,7 @@ class Recipe(Configured):
 					self.df=df
 				except:
 					self.df=None
-				self.log.write("error in main loop of {} {}: {}".format(self.name,str(self.input.select),error))
+				self.log.write("Ooops: error in main loop of {} {}: {}".format(self.name,str(self.input.select),error))
 				return self.df
 			else:
 				self.log.write("Ooops: error while running {} - {}".format(self.name,err()))
@@ -1016,10 +1033,9 @@ class Recipe(Configured):
 				for col in step.keys():
 					cols.append(col)
 					if True:
-						if type(step[col])==str:
-							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)
-						elif type(step[col])==unicode:
-							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)
+						if ((type(step[col])==str) | (type(step[col])==unicode)):
+							# self.log.write("Ooops: output shape {} to {}".format(dh.shape, df.shape),exit=False)
+							df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
 						elif (type(step[col])==list):
 							multicol=[unicode(x) for x in step[col]]
 							#print col,multicol, list(df)
@@ -1620,9 +1636,10 @@ class Recipe(Configured):
 		except:
 			return df
 
-def thread_job(recipe=None):
+def thread_job(recipe=None, result={}):
 	try:
-		recipe.run()
+		result["df"] = recipe.run()
+		result["log"] = str(recipe.log.writer.getvalue())
 	except:
 		pass
 
@@ -2005,18 +2022,27 @@ class RecipeRun(Resource):
 		- ** stop ** : stop a running recipe (soft kill : it may take some time to really stop)
 		'''
 		if (action=="test"):
-			r=Recipe(recipe)
-			r.init(test=True)
-			r.run()
+			try: 
+				read_conf()
+				result = manager.dict()
+				r=Recipe(recipe)
+				r.init(test=True)
+				r.set_job(Process(target=thread_job,args=[r, result]))
+				r.start_job()
+				r.join_job()
+				r.df = result["df"]
+				r.log = result["log"]
+			except:
+				return {"data": [{"result": "empty"}], "log": "Ooops: {}".format(err())}
 			if isinstance(r.df, pd.DataFrame):
 				df=r.df.fillna("")
 				try:
-					return jsonize({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
+					return jsonize({"data": df.T.to_dict().values(), "log": result["log"]})
 				except:
 					df=df.applymap(lambda x: str(x))
-					return jsonize({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
+					return jsonize({"data": df.T.to_dict().values(), "log": result["log"]})
 			else:
-				return {"log": r.log.writer.getvalue()}
+				return {"data": [{"result": "empty"}], "log": result["log"]}
 		elif (action=="run"):
 			#run recipe (gives a job)
 			try:
@@ -2095,5 +2121,4 @@ if __name__ == '__main__':
 	application = DispatcherMiddleware(Flask('dummy_app'), {
 		app.config['APPLICATION_ROOT']: app,
 	})
-	run_simple(conf["global"]["api"]["host"], conf["global"]["api"]["port"], application, use_reloader=conf["global"]["api"]["use_reloader"])
-	#app.run(host='localhost', port=8080)
+	run_simple(conf["global"]["api"]["host"], conf["global"]["api"]["port"], application, processes=conf["global"]["api"]["processes"], use_reloader=conf["global"]["api"]["use_reloader"])

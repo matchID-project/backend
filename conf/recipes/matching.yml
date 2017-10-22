@@ -130,3 +130,4 @@ recipes:
         - matchid_hit_diff_date: matchid_date_birth_str if (matchid_date_birth_str==hit_matchid_date_birth_str) else matchid_date_birth_str +" <> "+hit_matchid_date_birth_str 
         - matchid_hit_diff_location: matchid_location_city_src + " - " + (matchid_location_citycode if (matchid_location_countrycode=="FRA") else matchid_location_countrycode)  if (matchid_hit_score_location>0.99) else matchid_location_city_src +" <> "+hit_matchid_location_city_src 
         - matchid_hit_diff_src: matchid_src if (matchid_src == hit_matchid_src) else matchid_src +" <> "+hit_matchid_src 
+        - matchid_hit_diff_id: matchid_id if (matchid_id == hit_matchid_id) else matchid_id +" <> "+hit_matchid_id

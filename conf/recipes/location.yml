@@ -51,9 +51,9 @@ recipes:
       - delete:
           select: matchid_location_city_norm.*
       - eval: # override previous matches only if matched
-          - matchid_location_city: matchid_location_city_src if (matchid_location_city=="") else matchid_location_city
-          - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history) 
-          - matchid_location_depcode: str("99") if (matchid_location_depcode == "") else matchid_location_depcode
+          - matchid_location_city: matchid_location_city_src if ('matchid_location_city' not in row.keys()) else (matchid_location_city_src if (matchid_location_city=="") else matchid_location_city )
+          - matchid_location_depcode: str("99") if ('matchid_location_depcode' not in row.keys()) else ( str("99") if (matchid_location_depcode == "") else matchid_location_depcode)
+          - matchid_location_citycode_history: list([[]]) if (matchid_location_citycode_history=="") else [json.loads(matchid_location_citycode_history)]
       - to_integer: 
           select: .*(surface|population)$
 
@@ -95,6 +95,8 @@ recipes:
 
   french_citycode:
     steps:
+      - eval:
+          - matchid_location_citycode: matchid_location_citycode if ('matchid_location_citycode' in row.keys()) else matchid_location_citycode_src
       - replace:
           select: matchid_location_citycode$
           regex:
@@ -118,16 +120,16 @@ recipes:
             matchid_location_city_surface: surface
             matchid_location_city_geopoint_2d: geopoint_2d
       - eval:
-          - matchid_location_city: matchid_location_city_src if (matchid_location_city=="") else matchid_location_city 
-          - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history) 
-          - matchid_location_depcode: str("99") if (matchid_location_depcode == "") else matchid_location_depcode
+          - matchid_location_city: matchid_location_city_src if ('matchid_location_city' not in row.keys()) else (matchid_location_city_src if (matchid_location_city=="") else matchid_location_city )
+          - matchid_location_depcode: str("99") if ('matchid_location_depcode' not in row.keys()) else ( str("99") if (matchid_location_depcode == "") else matchid_location_depcode)
+          - matchid_location_citycode_history: list([[]]) if (matchid_location_citycode_history=="") else [json.loads(matchid_location_citycode_history)]
       - to_integer: 
           select: .*(surface|population)$
 
   country_code_cog:
     steps:
-      - map:
-         matchid_location_countrycode_cog: matchid_location_countrycode_src
+      - eval:
+          - matchid_location_countrycode_cog: matchid_location_countrycode if ('matchid_location_countrycode' in row.keys()) else matchid_location_countrycode_src
       - replace:
           select: matchid_location_countrycode_cog
           regex: # algérie, réunion, mayotte, anciennes colonies
