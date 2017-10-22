@@ -114,7 +114,7 @@ def to_fwf(df, fname, widths=None,sep="",header=False,names=None,append=False,en
 
 def parsedate(x="",format="%Y%m%d"):
 	try:
-		return datetime.datetime.strptime(x,self.args["format"])
+		return datetime.datetime.strptime(x,format)
 	except:
 		return x
 
