@@ -1033,10 +1033,9 @@ class Recipe(Configured):
 				for col in step.keys():
 					cols.append(col)
 					if True:
-						if type(step[col])==str:
-							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)
-						elif type(step[col])==unicode:
-							df[col]=df.apply(lambda row:safeeval(step[col],row),axis=1)
+						if ((type(step[col])==str) | (type(step[col])==unicode)):
+							# self.log.write("Ooops: output shape {} to {}".format(dh.shape, df.shape),exit=False)
+							df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
 						elif (type(step[col])==list):
 							multicol=[unicode(x) for x in step[col]]
 							#print col,multicol, list(df)
