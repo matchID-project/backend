@@ -2121,5 +2121,4 @@ if __name__ == '__main__':
 	application = DispatcherMiddleware(Flask('dummy_app'), {
 		app.config['APPLICATION_ROOT']: app,
 	})
-	run_simple(conf["global"]["api"]["host"], conf["global"]["api"]["port"], application, use_reloader=conf["global"]["api"]["use_reloader"])
-	#app.run(host='localhost', port=8080)
+	run_simple(conf["global"]["api"]["host"], conf["global"]["api"]["port"], application, processes=conf["global"]["api"]["processes"], use_reloader=conf["global"]["api"]["use_reloader"])
