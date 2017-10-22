@@ -95,3 +95,13 @@ services:
       - ./esdata:/usr/share/elasticsearch/data
     ports:
       - 9200:9200
+
+
+  kibana:
+    image: kibana:latest
+    volumes:
+      - ./kibana/config/:/usr/share/kibana/config
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
