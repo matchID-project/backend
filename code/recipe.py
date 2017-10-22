@@ -989,7 +989,7 @@ class Recipe(Configured):
 					self.df=df
 				except:
 					self.df=None
-				self.log.write("error in main loop of {} {}: {}".format(self.name,str(self.input.select),error))
+				self.log.write("Ooops: error in main loop of {} {}: {}".format(self.name,str(self.input.select),error))
 				return self.df
 			else:
 				self.log.write("Ooops: error while running {} - {}".format(self.name,err()))
