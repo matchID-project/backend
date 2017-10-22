@@ -727,7 +727,10 @@ class Dataset(Configured):
 						ids=df['_id'].T.to_dict()
 						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": records[it]} for it in records]
 					else:
-						records=df.fillna("").T.to_dict()
+						if ('_id' in df.columns):
+							records=df.drop(['_id'],axis=1).fillna("").T.to_dict()
+						else:
+							records=df.fillna("").T.to_dict()
 						actions=[{'_op_type': 'index','_index': self.table,'_type': self.name, "_source": records[it]} for it in records]
 
 					try:
