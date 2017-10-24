@@ -1852,11 +1852,16 @@ class FileConf(Resource):
 
 	@api.expect(parsers.yaml_parser)
 	def post(self,project,file):
-		'''upload a text/yaml configuration file from project'''
+		'''upload a text/yaml configuration file to a project'''
 		if (project != "project"):
 			args = parsers.yaml_parser.parse_args()
 			filecontent=args['yaml']
 			if (allowed_conf_file(file)):
+				try:
+					test = ordered_load(filecontent)
+				except:
+					api.abort(400,{file: {"saved" : "ko - "+err()}})
+
 				try:
 					pfile=os.path.join(conf["global"]["projects"][project]["path"],file)
 					with open(pfile,'w') as f:
