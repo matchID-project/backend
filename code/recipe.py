@@ -1883,12 +1883,14 @@ class FileConf(Resource):
 class ListDatasets(Resource):
 	def get(self):
 		'''get json of all configured datasets'''
+		read_conf()
 		return conf["datasets"]
 
 @api.route('/datasets/<dataset>/', endpoint='datasets/<dataset>')
 class DatasetApi(Resource):
 	def get(self,dataset):
 		'''get json of a configured dataset'''
+		read_conf()
 		try:
 			return conf["datasets"][dataset]
 		except:
@@ -2053,9 +2055,9 @@ class RecipeRun(Resource):
 		- ** run ** : run the recipe
 		- ** stop ** : stop a running recipe (soft kill : it may take some time to really stop)
 		'''
+		read_conf()
 		if (action=="test"):
 			try: 
-				read_conf()
 				result = manager.dict()
 				r=Recipe(recipe)
 				r.init(test=True)
