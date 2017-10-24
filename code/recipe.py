@@ -999,13 +999,13 @@ class Recipe(Configured):
 			except:
 				pass
 
-	def select_columns(self,df=None):
+	def select_columns(self,df=None,arg="select"):
 		try:
 			if ("select" in self.args.keys()):
-				if (type(self.args["select"])==str) | (type(self.args["select"])==unicode):
-					self.cols=[x for x in list(df) if re.match(self.args["select"],x)]
+				if (type(self.args[arg])==str) | (type(self.args[arg])==unicode):
+					self.cols=[x for x in list(df) if re.match(self.args[arg]+"$",x)]
 				else:
-					self.cols=self.args["select"]
+					self.cols=self.args[arg]
 			else:
 			#apply to all columns if none selected
 				self.cols=list(df)
