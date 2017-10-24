@@ -2113,7 +2113,7 @@ class jobsList(Resource):
 		for recipe, job in jobs.iteritems():
 			status = job.job_status()
 			if (status != "down"):
-				response["running"][recipe] = { "status": status,
+				response["running"].append = { "recipe": recipe,
 												"file": re.sub(r".*/","", job.log.file),
 												"date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
 											  }
@@ -2128,14 +2128,14 @@ class jobsList(Resource):
 				try:
 					if (response["running"][recipe]["date"] != date):
 						try:
-							response["done"][recipe].append({"date": date, "file": file})
+							response["done"].append({"recipe": recipe, "date": date, "file": file})
 						except:
-							response["done"][recipe]=[{"date": date, "file": file}]
+							response["done"]=[{"recipe": recipe, "date": date, "file": file}]
 				except:
 					try:
-						response["done"][recipe].append({"date": date, "file": file})
+						response["done"].append({"recipe": recipe, "date": date, "file": file})
 					except:
-						response["done"][recipe]=[{"date": date, "file": file}]
+						response["done"]=[{"recipe": recipe, "date": date, "file": file}]
 
 		return response
 
