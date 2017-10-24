@@ -999,13 +999,13 @@ class Recipe(Configured):
 			except:
 				pass
 
-	def select_columns(self,df=None):
+	def select_columns(self,df=None,arg="select"):
 		try:
 			if ("select" in self.args.keys()):
-				if (type(self.args["select"])==str) | (type(self.args["select"])==unicode):
-					self.cols=[x for x in list(df) if re.match(self.args["select"],x)]
+				if (type(self.args[arg])==str) | (type(self.args[arg])==unicode):
+					self.cols=[x for x in list(df) if re.match(self.args[arg]+"$",x)]
 				else:
-					self.cols=self.args["select"]
+					self.cols=self.args[arg]
 			else:
 			#apply to all columns if none selected
 				self.cols=list(df)
@@ -1273,6 +1273,27 @@ class Recipe(Configured):
 			self.log.write("Ooops: in {}, problem converting to int: {} - {}".format(self.name,self.cols,err()),exit=False)
 			return df
 
+	def internal_list_to_tuple(self,df=None):
+		#keep only selected columns
+		self.select_columns(df=df)
+		try:
+			df[self.cols]=df[self.cols].applymap(lambda x: tuple(x) if (type(x) == list) else x)
+			return df
+		except:
+			self.log.write("Ooops: in {}, problem converting to tuple: {} - {}".format(self.name,self.cols,err()),exit=False)
+			return df
+
+	def internal_tuple_to_list(self,df=None):
+		#keep only selected columns
+		self.select_columns(df=df)
+		try:
+			df[self.cols]=df[self.cols].applymap(lambda x: list(x) if (type(x) == tuple) else x)
+			return df
+		except:
+			self.log.write("Ooops: in {}, problem converting to tuple: {} - {}".format(self.name,self.cols,err()),exit=False)
+			return df
+
+
 	def internal_to_float(self,df=None):
 		#keep only selected columns
 		self.select_columns(df=df)
@@ -1324,7 +1345,13 @@ class Recipe(Configured):
 			self.log.write("Ooops: problem with columns selection in {} - {} - {}".format(self.name,self.cols,err()),exit=False)
 			return df
 
-
+	def internal_groupby(self,df=None):
+		self.select_columns(df=df)
+		self.cols = [x for x in self.cols if x not in self.args["agg"].keys()]
+		self.log.write("Oooops:{}".format(self.cols))
+		df=df.groupby(self.cols).agg(self.args["agg"]).reset_index()
+		# self.log.write("Oooops:{}".format(df))
+		return df
 
 	def internal_join(self,df=None):
 		try:
@@ -1825,11 +1852,16 @@ class FileConf(Resource):
 
 	@api.expect(parsers.yaml_parser)
 	def post(self,project,file):
-		'''upload a text/yaml configuration file from project'''
+		'''upload a text/yaml configuration file to a project'''
 		if (project != "project"):
 			args = parsers.yaml_parser.parse_args()
 			filecontent=args['yaml']
 			if (allowed_conf_file(file)):
+				try:
+					test = ordered_load(filecontent)
+				except:
+					api.abort(400,{file: {"saved" : "ko - "+err()}})
+
 				try:
 					pfile=os.path.join(conf["global"]["projects"][project]["path"],file)
 					with open(pfile,'w') as f:
@@ -1851,12 +1883,14 @@ class FileConf(Resource):
 class ListDatasets(Resource):
 	def get(self):
 		'''get json of all configured datasets'''
+		read_conf()
 		return conf["datasets"]
 
 @api.route('/datasets/<dataset>/', endpoint='datasets/<dataset>')
 class DatasetApi(Resource):
 	def get(self,dataset):
 		'''get json of a configured dataset'''
+		read_conf()
 		try:
 			return conf["datasets"][dataset]
 		except:
@@ -1873,7 +1907,7 @@ class DatasetApi(Resource):
 			#df.fillna('',inplace=True)
 			return {"data": list(df.fillna("").T.to_dict().values())}
 		except:
-			return {"data":[]}
+			return {"data":[{"error": "error: {} {}".format(err(),ds.file)}]}
 
 	def delete(self,dataset):
 		'''delete the content of a dataset (currently only working on elasticsearch datasets)'''
@@ -2021,9 +2055,9 @@ class RecipeRun(Resource):
 		- ** run ** : run the recipe
 		- ** stop ** : stop a running recipe (soft kill : it may take some time to really stop)
 		'''
+		read_conf()
 		if (action=="test"):
 			try: 
-				read_conf()
 				result = manager.dict()
 				r=Recipe(recipe)
 				r.init(test=True)
@@ -2079,7 +2113,7 @@ class jobsList(Resource):
 		for recipe, job in jobs.iteritems():
 			status = job.job_status()
 			if (status != "down"):
-				response["running"][recipe] = { "status": status,
+				response["running"].append = { "recipe": recipe,
 												"file": re.sub(r".*/","", job.log.file),
 												"date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
 											  }
@@ -2094,14 +2128,14 @@ class jobsList(Resource):
 				try:
 					if (response["running"][recipe]["date"] != date):
 						try:
-							response["done"][recipe].append({"date": date, "file": file})
+							response["done"].append({"recipe": recipe, "date": date, "file": file})
 						except:
-							response["done"][recipe]=[{"date": date, "file": file}]
+							response["done"]=[{"recipe": recipe, "date": date, "file": file}]
 				except:
 					try:
-						response["done"][recipe].append({"date": date, "file": file})
+						response["done"].append({"recipe": recipe, "date": date, "file": file})
 					except:
-						response["done"][recipe]=[{"date": date, "file": file}]
+						response["done"]=[{"recipe": recipe, "date": date, "file": file}]
 
 		return response
 
