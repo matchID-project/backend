@@ -1907,7 +1907,7 @@ class DatasetApi(Resource):
 			#df.fillna('',inplace=True)
 			return {"data": list(df.fillna("").T.to_dict().values())}
 		except:
-			return {"data":[]}
+			return {"data":[{"error": "error: {} {}".format(err(),ds.file)}]}
 
 	def delete(self,dataset):
 		'''delete the content of a dataset (currently only working on elasticsearch datasets)'''
