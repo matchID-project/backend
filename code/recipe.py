@@ -1345,7 +1345,13 @@ class Recipe(Configured):
 			self.log.write("Ooops: problem with columns selection in {} - {} - {}".format(self.name,self.cols,err()),exit=False)
 			return df
 
-
+	def internal_groupby(self,df=None):
+		self.select_columns(df=df)
+		self.cols = [x for x in self.cols if x not in self.args["agg"].keys()]
+		self.log.write("Oooops:{}".format(self.cols))
+		df=df.groupby(self.cols).agg(self.args["agg"]).reset_index()
+		# self.log.write("Oooops:{}".format(df))
+		return df
 
 	def internal_join(self,df=None):
 		try:
