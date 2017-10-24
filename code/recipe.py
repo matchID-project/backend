@@ -1273,6 +1273,27 @@ class Recipe(Configured):
 			self.log.write("Ooops: in {}, problem converting to int: {} - {}".format(self.name,self.cols,err()),exit=False)
 			return df
 
+	def internal_list_to_tuple(self,df=None):
+		#keep only selected columns
+		self.select_columns(df=df)
+		try:
+			df[self.cols]=df[self.cols].applymap(lambda x: tuple(x) if (type(x) == list) else x)
+			return df
+		except:
+			self.log.write("Ooops: in {}, problem converting to tuple: {} - {}".format(self.name,self.cols,err()),exit=False)
+			return df
+
+	def internal_tuple_to_list(self,df=None):
+		#keep only selected columns
+		self.select_columns(df=df)
+		try:
+			df[self.cols]=df[self.cols].applymap(lambda x: list(x) if (type(x) == tuple) else x)
+			return df
+		except:
+			self.log.write("Ooops: in {}, problem converting to tuple: {} - {}".format(self.name,self.cols,err()),exit=False)
+			return df
+
+
 	def internal_to_float(self,df=None):
 		#keep only selected columns
 		self.select_columns(df=df)
