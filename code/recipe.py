@@ -349,19 +349,21 @@ def levenshtein_norm(s1,s2):
 	else:
 		return 0
 
-
-def safeeval(string=None,row=None):
+def safeeval(expression=None,row=None,verbose=True,defaut=""):
 	cell = None
 	locals().update(row)
 	try:
-		if ('cell' in string):
-			exec string
+		if ('cell' in expression):
+			exec expression
 		else:
-			cell = eval(string)
+			cell = eval(expression)
 
 		return cell
 	except:
-		return "Ooops in exec('{}'): {}".format(string,err())
+		if (verbose):
+			return "Ooops in exec('{}'): {}".format(expression,err())
+		else:
+			return default
 
 
 def match_lv1(x, list_strings):
