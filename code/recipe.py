@@ -116,7 +116,7 @@ def parsedate(x="",format="%Y%m%d"):
 	try:
 		return datetime.datetime.strptime(x,format)
 	except:
-		return x
+		return None
 
 def WHERE( back = 0 ):
     frame = sys._getframe( back + 1 )
