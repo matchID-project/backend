@@ -116,7 +116,7 @@ def parsedate(x="",format="%Y%m%d"):
 	try:
 		return datetime.datetime.strptime(x,format)
 	except:
-		return x
+		return None
 
 def WHERE( back = 0 ):
     frame = sys._getframe( back + 1 )
@@ -349,19 +349,21 @@ def levenshtein_norm(s1,s2):
 	else:
 		return 0
 
-
-def safeeval(string=None,row=None):
+def safeeval(expression=None,row=None,verbose=True,defaut=""):
 	cell = None
 	locals().update(row)
 	try:
-		if ('cell' in string):
-			exec string
+		if ('cell' in expression):
+			exec expression
 		else:
-			cell = eval(string)
+			cell = eval(expression)
 
 		return cell
 	except:
-		return "Ooops in exec('{}'): {}".format(string,err())
+		if (verbose):
+			return "Ooops in exec('{}'): {}".format(expression,err())
+		else:
+			return default
 
 
 def match_lv1(x, list_strings):
@@ -721,17 +723,17 @@ class Dataset(Configured):
 		for df in df_list:
 			size=df.shape[0]
 			if (self.connector.type == "elasticsearch"):
-					#df.fillna("",inplace=True)
+					df=df.fillna("")
 					if ('_id' in df.columns) & (self.mode == 'update'):
-						records=df.drop(['_id'],axis=1).fillna("").T.to_dict()
+						records=df.drop(['_id'],axis=1).T.to_dict()
 						ids=df['_id'].T.to_dict()
-						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": records[it]} for it in records]
+						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 					else:
 						if ('_id' in df.columns):
-							records=df.drop(['_id'],axis=1).fillna("").T.to_dict()
+							records=df.drop(['_id'],axis=1).T.to_dict()
 						else:
-							records=df.fillna("").T.to_dict()
-						actions=[{'_op_type': 'index','_index': self.table,'_type': self.name, "_source": records[it]} for it in records]
+							records=df.T.to_dict()
+						actions=[{'_op_type': 'index','_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 
 					try:
 						if (self.connector.thread_count>1):
@@ -1008,9 +1010,9 @@ class Recipe(Configured):
 					self.cols=self.args[arg]
 			else:
 			#apply to all columns if none selected
-				self.cols=list(df)
+				self.cols=[x for x in list(df)]
 		except:
-			self.cols=[]
+			self.cols=[x for x in list(df)]
 
 
 	def prepare_categorical(self,df=None):
