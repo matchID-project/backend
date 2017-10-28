@@ -1010,9 +1010,9 @@ class Recipe(Configured):
 					self.cols=self.args[arg]
 			else:
 			#apply to all columns if none selected
-				self.cols=list(df)
+				self.cols=[x for x in list(df)]
 		except:
-			self.cols=[]
+			self.cols=[x for x in list(df)]
 
 
 	def prepare_categorical(self,df=None):
