@@ -723,17 +723,17 @@ class Dataset(Configured):
 		for df in df_list:
 			size=df.shape[0]
 			if (self.connector.type == "elasticsearch"):
-					#df.fillna("",inplace=True)
+					df=df.fillna("")
 					if ('_id' in df.columns) & (self.mode == 'update'):
-						records=df.drop(['_id'],axis=1).fillna("").T.to_dict()
+						records=df.drop(['_id'],axis=1).T.to_dict()
 						ids=df['_id'].T.to_dict()
-						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": records[it]} for it in records]
+						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 					else:
 						if ('_id' in df.columns):
-							records=df.drop(['_id'],axis=1).fillna("").T.to_dict()
+							records=df.drop(['_id'],axis=1).T.to_dict()
 						else:
-							records=df.fillna("").T.to_dict()
-						actions=[{'_op_type': 'index','_index': self.table,'_type': self.name, "_source": records[it]} for it in records]
+							records=df.T.to_dict()
+						actions=[{'_op_type': 'index','_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 
 					try:
 						if (self.connector.thread_count>1):
