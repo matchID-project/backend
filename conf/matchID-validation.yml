@@ -73,7 +73,16 @@ global:
       - field: confiance
         label: Score
         display: true
-        searchable: true
+        searchable: false
+        type: score
+        callBack: formatNumber
+        appliedClass:
+          head: head-centered
+          body: has-text-centered min-column-width-100
+      - field: matchid_hit_score
+        label: Pre_Score
+        display: true
+        searchable: false
         type: score
         callBack: formatNumber
         appliedClass:
@@ -96,7 +105,7 @@ global:
         info: 60
         warning: 30
         danger: 0
-      statisticsInterval: 10
+      statisticsInterval: 5
       preComputed:
         decision: 55
         indecision:

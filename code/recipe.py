@@ -1028,6 +1028,21 @@ class Recipe(Configured):
 		#df=imp.fit_transform(df)
 		return df
 
+
+	def internal_fillna(self,df=None):
+		# try:
+		for step in self.args:
+			for col in step.keys():
+				# self.log.write("{}".format(col))
+				if (col not in list(df)):
+					df[col] = step[col]
+				else:
+					df[col]=df[col].fillna(step[col])
+		return df
+		# except:
+		# 	self.log.write("Ooops: problem in {} - {}: {} - {}".format(self.name,col,step[col],err()),exit=False)
+		# 	return df
+
 	def internal_eval(self,df=None):
 		try:
 			cols=[]
@@ -2111,15 +2126,17 @@ class jobsList(Resource):
 		'''retrieve jobs list
 		'''
 		# response = jobs.keys()
-		response = {"running": {}, "done": {}}
+		response = {"running": [], "done": []}
 		for recipe, job in jobs.iteritems():
 			status = job.job_status()
-			if (status != "down"):
-				response["running"].append = { "recipe": recipe,
-												"file": re.sub(r".*/","", job.log.file),
-												"date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
-											  }
-
+			try: 
+				if (status != "down"):
+					response["running"].append({ "recipe": recipe,
+												 "file": re.sub(r".*/","", job.log.file),
+												 "date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
+												  })
+			except:
+				response["running"]=[{"error": "while trying to get running jobs list"}]
 		logfiles = [f
 							for f in os.listdir(conf["global"]["log"]["dir"])
 							if re.match(r'^.*.log$',f)]
