@@ -2126,15 +2126,17 @@ class jobsList(Resource):
 		'''retrieve jobs list
 		'''
 		# response = jobs.keys()
-		response = {"running": {}, "done": {}}
+		response = {"running": [], "done": []}
 		for recipe, job in jobs.iteritems():
 			status = job.job_status()
-			if (status != "down"):
-				response["running"].append = { "recipe": recipe,
-												"file": re.sub(r".*/","", job.log.file),
-												"date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
-											  }
-
+			try: 
+				if (status != "down"):
+					response["running"].append({ "recipe": recipe,
+												 "file": re.sub(r".*/","", job.log.file),
+												 "date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
+												  })
+			except:
+				response["running"]=[{"error": "while trying to get running jobs list"}]
 		logfiles = [f
 							for f in os.listdir(conf["global"]["log"]["dir"])
 							if re.match(r'^.*.log$',f)]
