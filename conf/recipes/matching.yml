@@ -58,6 +58,8 @@ recipes:
   scoring:
     steps:
       - scoring_lev:
+      - eval:
+          - confiance: round(100*matchid_hit_score)        
   scoring_lev:
     steps:   
       - eval:
@@ -131,3 +133,50 @@ recipes:
         - matchid_hit_diff_location: matchid_location_city_src + " - " + (matchid_location_citycode if (matchid_location_countrycode=="FRA") else matchid_location_countrycode)  if (matchid_hit_score_location>0.99) else matchid_location_city_src +" <> "+hit_matchid_location_city_src 
         - matchid_hit_diff_src: matchid_src if (matchid_src == hit_matchid_src) else matchid_src +" <> "+hit_matchid_src 
         - matchid_hit_diff_id: matchid_id if (matchid_id == hit_matchid_id) else matchid_id +" <> "+hit_matchid_id
+
+
+  scoring_fillna:
+    # ensures that fill empty values for easier writing of the scoring
+      steps:
+        - fillna:
+          # names
+          - matchid_name_first_freq: 0
+          - matchid_name_last_freq: 0
+          - hit_matchid_name_first_freq: 0
+          - hit_matchid_name_last_freq: 0
+          - matchid_hit_matches_unfiltered: 1
+          - matchid_name_last: ["XXXXX"]
+          - hit_matchid_name_last: ["YYYYY"]
+          - matchid_name_last_match: ["XXXXX"]
+          - hit_matchid_name_last_match: ["YYYYY"]
+          - matchid_name_first: ["XXXXX"]
+          - hit_matchid_name_first: ["XXXXX"]
+          - matchid_name_first_match: ["YYYYY"]
+          - hit_matchid_name_first_match: ["YYYYY"]
+          - matchid_name_tokens: ["XXXXX"]
+          - hit_matchid_name_tokens: ["YYYYY"]
+          # location
+          - matchid_location_city: "XXXXX"
+          - hit_matchid_location_city: "YYYYY"
+          - matchid_location_country: "XXXXX"
+          - hit_matchid_location_country: "YYYYY"
+          - matchid_location_citycode_history: ["XXXXX"]
+          - hit_matchid_location_citycode_history: ["YYYYY"]
+          - matchid_location_citycode: "XXXXX"
+          - hit_matchid_location_citycode: "YYYYY"
+          - matchid_location_depcode: "XX"
+          - hit_matchid_location_depcode: "YY"
+          - matchid_location_countrycode: "XXX"
+          - hit_matchid_location_countrycode: "YYY"
+          - matchid_location_city_geopoint_2d: "POINT(0 90)"
+          - hit_matchid_location_city_geopoint_2d: "POINT(0 -90)"
+          - matchid_date_birth_str: "XXXXXXXX"
+          - hit_matchid_date_birth_str: "YYYYYYYY"
+          - matchid_sex: "X"
+          - hit_matchid_sex: "Y"
+          - matchid_location_city_population: 0
+          - hit_matchid_location_city_population: 0
+          - matchid_location_city_surface: 0
+          - hit_matchid_location_city_surface: 0
+
+
