@@ -1028,6 +1028,21 @@ class Recipe(Configured):
 		#df=imp.fit_transform(df)
 		return df
 
+
+	def internal_fillna(self,df=None):
+		# try:
+		for step in self.args:
+			for col in step.keys():
+				# self.log.write("{}".format(col))
+				if (col not in list(df)):
+					df[col] = step[col]
+				else:
+					df[col]=df[col].fillna(step[col])
+		return df
+		# except:
+		# 	self.log.write("Ooops: problem in {} - {}: {} - {}".format(self.name,col,step[col],err()),exit=False)
+		# 	return df
+
 	def internal_eval(self,df=None):
 		try:
 			cols=[]
