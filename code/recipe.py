@@ -1340,14 +1340,15 @@ class Recipe(Configured):
 	def internal_ngram(self,df=None):
 		#keep only selected columns
 		self.select_columns(df=df)
+		if ("n" in self.args.keys()):
+			n = self.args['n']
+		else:
+			n = list([2, 3])	
 		try:
-			if ("where" in self.args.keys()):
-				df["matchid_selection_xykfsd"]=df.apply(lambda row:safeeval(self.args["where"],row),axis=1)
-				df=df[df.matchid_selection_xykfsd == True]
-				del df["matchid_selection_xykfsd"]
-			return df[self.cols]
+			df[self.cols]=df[self.cols].applymap(lambda x: ngrams(tokenize(normalize(x)), n))
+			return df
 		except:
-			self.log.write("Ooops: problem with columns selection in {} - {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write("Ooops: problem in ngrams {} - {} - {}".format(self.name,self.cols,err()),exit=False)
 			return df
 
 	# def internal_sql(self,df=None):
