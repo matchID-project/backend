@@ -10,6 +10,7 @@ from cStringIO import StringIO
 import yaml as y
 import json
 import itertools
+import operator
 import simplejson
 from collections import Iterable
 from collections import OrderedDict
@@ -223,6 +224,9 @@ def geopoint(geopoint):
 	except:
 		return ""
 
+def union(x):
+	return list(x)
+
 def distance(a,b):
 	try:
 		return round(10*vincenty(geopoint(a),geopoint(b)).kilometers)/10
@@ -254,17 +258,19 @@ def replace_dict(x,dic):
 def sha1(row):
 	return hashlib.sha1(str(row)).hexdigest()
 
-def ngrams(x,n=2):
-	if (type(x)==list):
-		return flatten([ngrams(z,n) for z in x])
+def ngrams(x,n = [3]):
+	if (type(x) == list):
+		return flatten([ngrams(z, n) for z in x])
 	elif ((type(x)==unicode)|(type(x)==str)):
-		return [x[i:i+N] for i in xrange(len(x)-N+1)]
+		return flatten([[x[i:i+p] for i in xrange(len(x)-p+1)] for p in n])
+
+
 
 def flatten(x):
-    if (type(x)==list):
+    if (type(x) == list):
         return [a for i in x for a in flatten(i)]
     else:
-        return x
+        return list([x])
 
 def tokenize (x=None):
 	if (type(x)==list):
@@ -1052,11 +1058,16 @@ class Recipe(Configured):
 					if True:
 						if ((type(step[col])==str) | (type(step[col])==unicode)):
 							# self.log.write("Ooops: output shape {} to {}".format(dh.shape, df.shape),exit=False)
-							df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
+							try:
+								df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
+							except:
+								a=df.apply(lambda row: tuple(safeeval(step[col],row)), axis=1)
+								df[col]=a
 						elif (type(step[col])==list):
 							multicol=[unicode(x) for x in step[col]]
 							#print col,multicol, list(df)
-							df[col]=df.apply(lambda row: [safeeval(x,row) for x in multicol], axis=1)
+							df[col]=df.apply(lambda row: [safeeval(x,row) for x in multicol], reduce = False, axis=1)
+							#df[col]=pd.concat([df.apply(lambda row: safeeval(x,row), axis=1) for x in multicol], axis = 1)
 					else:
 						pass
 			if ("Ooops" in str(df[cols])):
@@ -1329,14 +1340,15 @@ class Recipe(Configured):
 	def internal_ngram(self,df=None):
 		#keep only selected columns
 		self.select_columns(df=df)
+		if ("n" in self.args.keys()):
+			n = self.args['n']
+		else:
+			n = list([2, 3])	
 		try:
-			if ("where" in self.args.keys()):
-				df["matchid_selection_xykfsd"]=df.apply(lambda row:safeeval(self.args["where"],row),axis=1)
-				df=df[df.matchid_selection_xykfsd == True]
-				del df["matchid_selection_xykfsd"]
-			return df[self.cols]
+			df[self.cols]=df[self.cols].applymap(lambda x: ngrams(tokenize(normalize(x)), n))
+			return df
 		except:
-			self.log.write("Ooops: problem with columns selection in {} - {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write("Ooops: problem in ngrams {} - {} - {}".format(self.name,self.cols,err()),exit=False)
 			return df
 
 	# def internal_sql(self,df=None):
@@ -1364,10 +1376,31 @@ class Recipe(Configured):
 
 	def internal_groupby(self,df=None):
 		self.select_columns(df=df)
-		self.cols = [x for x in self.cols if x not in self.args["agg"].keys()]
-		self.log.write("Oooops:{}".format(self.cols))
-		df=df.groupby(self.cols).agg(self.args["agg"]).reset_index()
-		# self.log.write("Oooops:{}".format(df))
+		try:
+			if ("agg" in self.args.keys()):
+				self.cols = [x for x in self.cols if x not in self.args["agg"].keys()]
+				dic = {'list': union}
+				aggs =replace_dict(self.args["agg"], dic)
+				df=df.groupby(self.cols).agg(aggs).reset_index()
+			if ("transform" in self.args.keys()):
+				for step in self.args["transform"]:
+					for col in step.keys():
+						if (step[col] != "rank"):
+							df[col+'_'+step[col]]=df.groupby(self.cols)[col].transform(step[col])
+						else:
+							df[col+'_'+step[col]]=df.groupby(self.cols)[col].transform(step[col], method='dense')
+			if ("rank" in self.args.keys()):
+				for col in self.args["rank"]:
+					self.log.write("ranking by {}".format(col))
+					df[col+'_rank']=df.groupby(self.cols)[col].rank(method='dense',ascending=False)
+
+
+			# if ("apply" in self.args.keys()):
+			# 	self.cols = [x for x in self.cols if x not in self.args["apply"].keys()]
+			# 	dfg=df.groupby(self.cols)
+			# 	df=pd.concat([dfg.apply(lambda x: safeeval((self.args["apply"][col]),{"x": x})) for col in self.args["apply"].keys()])
+		except:
+			self.log.write("Ooops: groupby error {} : {}".format(self.cols,err()))
 		return df
 
 	def internal_join(self,df=None):
@@ -1471,11 +1504,9 @@ class Recipe(Configured):
 						# python 3 reverse={v: k for k, v in self.args["select"].items()}
 						df.rename(columns=reverse,inplace=True)
 					#remove unnecessary columns of the right_on
-					for key in right_on:
-						try:
-							del df[key]
-						except:
-							pass
+					right_on = [x for x in right_on if x not in left_on]
+					df.drop(right_on,axis=1,inplace=True)
+
 				elif ("strict" in self.args.keys()):
 					# simple strict join
 					df=pd.merge(df,join_df,
@@ -1600,6 +1631,18 @@ class Recipe(Configured):
 			self.log.write("Ooops: error in unnest: {}".format(err()))
 			return df
 
+	def internal_nest(self, df=None):
+		self.select_columns(df=df)
+		try:
+			target=self.args["target"]
+		except:
+			target="nested"
+		try:
+			df[target] = df[self.cols].apply(lambda x: x.to_json(), axis=1)
+			df=self.internal_delete(df)
+		except:
+			self.log.write("Ooops: error while folding: {}".format(err()))
+		return df
 
 	def internal_unfold(self,df=None):
 		self.select_columns(df=df)
