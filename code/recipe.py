@@ -1058,11 +1058,16 @@ class Recipe(Configured):
 					if True:
 						if ((type(step[col])==str) | (type(step[col])==unicode)):
 							# self.log.write("Ooops: output shape {} to {}".format(dh.shape, df.shape),exit=False)
-							df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
+							try:
+								df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
+							except:
+								a=df.apply(lambda row: tuple(safeeval(step[col],row)), axis=1)
+								df[col]=a
 						elif (type(step[col])==list):
 							multicol=[unicode(x) for x in step[col]]
 							#print col,multicol, list(df)
-							df[col]=df.apply(lambda row: [safeeval(x,row) for x in multicol], axis=1)
+							df[col]=df.apply(lambda row: [safeeval(x,row) for x in multicol], reduce = False, axis=1)
+							#df[col]=pd.concat([df.apply(lambda row: safeeval(x,row), axis=1) for x in multicol], axis = 1)
 					else:
 						pass
 			if ("Ooops" in str(df[cols])):
