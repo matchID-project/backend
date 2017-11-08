@@ -258,17 +258,19 @@ def replace_dict(x,dic):
 def sha1(row):
 	return hashlib.sha1(str(row)).hexdigest()
 
-def ngrams(x,n=2):
-	if (type(x)==list):
-		return flatten([ngrams(z,n) for z in x])
+def ngrams(x,n = [3]):
+	if (type(x) == list):
+		return flatten([ngrams(z, n) for z in x])
 	elif ((type(x)==unicode)|(type(x)==str)):
-		return [x[i:i+N] for i in xrange(len(x)-N+1)]
+		return flatten([[x[i:i+p] for i in xrange(len(x)-p+1)] for p in n])
+
+
 
 def flatten(x):
-    if (type(x)==list):
+    if (type(x) == list):
         return [a for i in x for a in flatten(i)]
     else:
-        return x
+        return list([x])
 
 def tokenize (x=None):
 	if (type(x)==list):
