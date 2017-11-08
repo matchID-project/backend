@@ -54,7 +54,7 @@ recipes:
           - matchid_location_city: matchid_location_city_src if ('matchid_location_city' not in row.keys()) else (matchid_location_city_src if (matchid_location_city=="") else matchid_location_city )
           - matchid_location_depcode: str("99") if ('matchid_location_depcode' not in row.keys()) else ( str("99") if (matchid_location_depcode == "") else matchid_location_depcode)
           - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history)
-          - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
+#          - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
       - to_integer: 
           select: .*(surface|population)$
 
@@ -88,7 +88,7 @@ recipes:
           - matchid_location_city_surface: matchid_location_city_surface if (matchid_location_city_alg_surface=="") else matchid_location_city_alg_surface
           - matchid_location_city_geopoint_2d: matchid_location_city_geopoint_2d if (matchid_location_city_alg_geopoint_2d=="") else matchid_location_city_alg_geopoint_2d
           - matchid_location_city_population: matchid_location_city_population if (matchid_location_city_alg_population=="") else matchid_location_city_alg_population
-          - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
+#          - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
       - delete:
           select: matchid_location_city_alg.*
       - to_integer: 
@@ -125,7 +125,7 @@ recipes:
           - matchid_location_city: matchid_location_city_src if ('matchid_location_city' not in row.keys()) else (matchid_location_city_src if (matchid_location_city=="") else matchid_location_city )
           - matchid_location_depcode: str("99") if ('matchid_location_depcode' not in row.keys()) else ( str("99") if (matchid_location_depcode == "") else matchid_location_depcode)
           - matchid_location_citycode_history: list([[]]) if (matchid_location_citycode_history=="") else [json.loads(matchid_location_citycode_history)]
-          - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
+     #     - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
       - to_integer: 
           select: .*(surface|population)$
 
