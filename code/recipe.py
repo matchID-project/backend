@@ -1631,6 +1631,18 @@ class Recipe(Configured):
 			self.log.write("Ooops: error in unnest: {}".format(err()))
 			return df
 
+	def internal_nest(self, df=None):
+		self.select_columns(df=df)
+		try:
+			target=self.args["target"]
+		except:
+			target="nested"
+		try:
+			df[target] = df[self.cols].apply(lambda x: x.to_json(), axis=1)
+			df=self.internal_delete(df)
+		except:
+			self.log.write("Ooops: error while folding: {}".format(err()))
+		return df
 
 	def internal_unfold(self,df=None):
 		self.select_columns(df=df)
