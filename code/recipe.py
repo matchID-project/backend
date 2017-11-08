@@ -1376,10 +1376,31 @@ class Recipe(Configured):
 
 	def internal_groupby(self,df=None):
 		self.select_columns(df=df)
-		self.cols = [x for x in self.cols if x not in self.args["agg"].keys()]
-		self.log.write("Oooops:{}".format(self.cols))
-		df=df.groupby(self.cols).agg(self.args["agg"]).reset_index()
-		# self.log.write("Oooops:{}".format(df))
+		try:
+			if ("agg" in self.args.keys()):
+				self.cols = [x for x in self.cols if x not in self.args["agg"].keys()]
+				dic = {'list': union}
+				aggs =replace_dict(self.args["agg"], dic)
+				df=df.groupby(self.cols).agg(aggs).reset_index()
+			if ("transform" in self.args.keys()):
+				for step in self.args["transform"]:
+					for col in step.keys():
+						if (step[col] != "rank"):
+							df[col+'_'+step[col]]=df.groupby(self.cols)[col].transform(step[col])
+						else:
+							df[col+'_'+step[col]]=df.groupby(self.cols)[col].transform(step[col], method='dense')
+			if ("rank" in self.args.keys()):
+				for col in self.args["rank"]:
+					self.log.write("ranking by {}".format(col))
+					df[col+'_rank']=df.groupby(self.cols)[col].rank(method='dense',ascending=False)
+
+
+			# if ("apply" in self.args.keys()):
+			# 	self.cols = [x for x in self.cols if x not in self.args["apply"].keys()]
+			# 	dfg=df.groupby(self.cols)
+			# 	df=pd.concat([dfg.apply(lambda x: safeeval((self.args["apply"][col]),{"x": x})) for col in self.args["apply"].keys()])
+		except:
+			self.log.write("Ooops: groupby error {} : {}".format(self.cols,err()))
 		return df
 
 	def internal_join(self,df=None):
