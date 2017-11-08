@@ -224,6 +224,9 @@ def geopoint(geopoint):
 	except:
 		return ""
 
+def union(x):
+	return list(x)
+
 def distance(a,b):
 	try:
 		return round(10*vincenty(geopoint(a),geopoint(b)).kilometers)/10
