@@ -10,6 +10,7 @@ from cStringIO import StringIO
 import yaml as y
 import json
 import itertools
+import operator
 import simplejson
 from collections import Iterable
 from collections import OrderedDict
