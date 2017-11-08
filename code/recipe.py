@@ -1504,11 +1504,9 @@ class Recipe(Configured):
 						# python 3 reverse={v: k for k, v in self.args["select"].items()}
 						df.rename(columns=reverse,inplace=True)
 					#remove unnecessary columns of the right_on
-					for key in right_on:
-						try:
-							del df[key]
-						except:
-							pass
+					right_on = [x for x in right_on if x not in left_on]
+					df.drop(right_on,axis=1,inplace=True)
+
 				elif ("strict" in self.args.keys()):
 					# simple strict join
 					df=pd.merge(df,join_df,
