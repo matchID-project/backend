@@ -109,7 +109,7 @@ def to_fwf(df, fname, widths=None,sep="",header=False,names=None,append=False,en
 		return
 	except:
 		if (log != None):
-			log.write("Ooops : problem while writing fwf to {}: {}".format(fname,err()))
+			log.write(error=err())
 		else:
 			raise
 
@@ -406,6 +406,7 @@ class Log(object):
 	def __init__(self,name=None,test=False):
 		self.name=name
 		self.test=test
+		self.start=datetime.datetime.now()
 		self.writer=sys.stdout
 		if (self.test==True):
 			self.writer=StringIO()
@@ -434,13 +435,21 @@ class Log(object):
 		except:
 			self.verbose=False
 
-	def write(self,msg="",exit=False,level=1):
+	def write(self,msg=None,error=None,exit=False,level=1):
 		try:
 			self.writer
 		except:
 			return
 		if (level<=self.level):
-			fmsg="{} : {} - {}".format(datetime.datetime.now(),WHERE(1),msg)
+			t = datetime.datetime.now()
+			d = (t-self.start)
+			if (error != None):
+				if (msg != None):
+					fmsg="{} - {} : {} - Ooops: {} - {}".format(t,d,WHERE(1),msg,error)
+				else:
+					fmsg="{} - {} : {} - Ooops: {}".format(t,d,WHERE(1),error)
+			else:
+				fmsg="{} - {} : {} - {}".format(t,d,WHERE(1),msg)
 			try:
 				if (self.verbose==True):
 					print(fmsg)
@@ -529,7 +538,7 @@ class Dataset(Configured):
 				self.connector={"type": "inmemory", "chunk": 10000}
 				return
 			else:
-				log.write("Ooops: no conf for dataset {}".format(self.name))
+				log.write(error="no conf for dataset {}".format(self.name))
 
 		try:
 			self.parent=parent
@@ -539,7 +548,7 @@ class Dataset(Configured):
 		try:
 			self.connector=Connector(self.conf["connector"])
 		except:
-			log.write("Ooops: failed to initiate connector for dataset {}".format(self.name))
+			log.write(error="failed to initiate connector for dataset {}".format(self.name))
 
 		try:
 			if type(self.conf["table"]) == str:
@@ -547,7 +556,7 @@ class Dataset(Configured):
 			else:
 				self.table=self.conf["table"]["name"]
 		except:
-			log.write("Ooops: table of dataset {} has to be defined".format(self.name))
+			log.write(error="table of dataset {} has to be defined".format(self.name))
 
 		if (self.connector.type == "elasticsearch"):
 			try:
@@ -651,7 +660,7 @@ class Dataset(Configured):
 				if (df is not None):
 					self.reader=[df]
 				else:
-					read_log.write("Ooops: can't initiate inmemory dataset with no dataframe",exit=True)
+					read_log.write(error="can't initiate inmemory dataset with no dataframe",exit=True)
 			elif (self.connector.type == "filesystem"):
 				if (self.type == "csv"):
 					self.reader=itertools.chain.from_iterable(pd.read_csv(file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
@@ -666,7 +675,7 @@ class Dataset(Configured):
 			elif (self.connector.type == "elasticsearch"):
 				self.reader= self.scanner()
 		else:
-			read_log.write("Ooops: couldn't initiate dataset {} : {}".format(self.name,err()),exit=True)
+			read_log.write(msg="couldn't initiate dataset {}".format(self.name), error=err(),exit=True)
 
 	def scanner(self,**kwargs):
 		self.select=json.loads(json.dumps(self.select))
@@ -707,7 +716,7 @@ class Dataset(Configured):
 					self.connector.es.indices.create(index=self.table,body=self.body)
 					self.log.write("create {}:{}/{}".format(self.connector.host,self.connector.port,self.table))
 			except:
-				self.log.write("Ooops: problem while initiating elasticsearch index {} for dataset {} : {}".format(self.table,self.name,err()),exit=True)
+				self.log.write(msg="problem while initiating elasticsearch index {} for dataset {}".format(self.table,self.name),error=err(),exit=True)
 		elif (self.connector.type == "filesystem"):
 			if (self.mode == 'create'):
 				try:
@@ -749,7 +758,7 @@ class Dataset(Configured):
 						self.log.write("inserted {} lines to {}:{}/{}".format(size,self.connector.host,self.connector.port,self.table))
 						processed+=size
 					except:
-						self.log.write("elasticsearch bulk failed {}:{}/{} \n {}".format(self.connector.host,self.connector.port,self.table,err()))
+						self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=err())
 			elif (self.connector.type == "filesystem"):
 				self.log.write("filesystem write {}".format(self.name))
 				if (self.type == "csv"):
@@ -793,7 +802,8 @@ class Recipe(Configured):
 				self.args=args
 				return
 			else:
-				sys.exit("Ooops: can't couldn't find recipe {} in conf and no internal_{} function".format(self.name,self.name))
+				self.log = log
+				self.log.write(error="can't couldn't find recipe {} in conf and no internal_{} function".format(self.name,self.name),exit=True)
 
 		#initiate input connection : creater a reader or use inmemory dataset
 		try:
@@ -853,7 +863,7 @@ class Recipe(Configured):
 				try:
 					self.steps.append(Recipe(name=function,args=s[function]))
 				except:
-					self.log.write("Ooops: recipe {} calls an unknown function {}".format(self.name,function))
+					self.log.write(error="recipe {} calls an unknown function {}".format(self.name,function))
 		except:
 			pass
 
@@ -868,16 +878,16 @@ class Recipe(Configured):
 				self.log=Log(self.name,test=test)
 
 		except:
-			self.log.write("Ooops: couldn't init log for recipe {}".format(self.name),exit=True)
+			self.log.write(error="couldn't init log for recipe {}".format(self.name),exit=True)
 		try:
 			self.input.init_reader(df=df)
 		except:
-			self.log.write("Ooops: couldn't init input {} of recipe {}: {}".format(self.input.name,self.name,err()))
+			self.log.write(msg="couldn't init input {} of recipe {}".format(self.input.name,self.name),error=err())
 		if (self.test==False):
 			try:
 				self.output.init_writer()
 			except:
-				self.log.write("Ooops: couldn't init output {} of recipe {}".format(self.output.name,self.name))
+				self.log.write(msg="couldn't init output {} of recipe {}".format(self.output.name,self.name),error=err())
 
 	def set_job(self,job=None):
 		self.job=job
@@ -928,7 +938,7 @@ class Recipe(Configured):
 					if (recipe.name=="pause"):
 						return df
 				except:
-					self.log.write("Ooops: error while calling {} in {} - {}".format(recipe.name,self.name,err()))
+					self.log.write(msg="error while calling {} in {}".format(recipe.name,self.name),error=err())
 		if ((self.output.name != "inmemory") & (self.test==False)):
 			#df.fillna('',inplace=True)
 			#print self.name,self.input.name,i,self.input.processed,self.output.name
@@ -989,7 +999,7 @@ class Recipe(Configured):
 					queue[thread].terminate()
 			except:
 				pass
-			self.log.write("Ooops: SIGTERM {}".format(self.name),exit=True)
+			self.log.write(error="Recipe {} aborted via SIGTERM".format(self.name),exit=True)
 		except:
 			if (self.test==True):
 				error=err()
@@ -997,10 +1007,10 @@ class Recipe(Configured):
 					self.df=df
 				except:
 					self.df=None
-				self.log.write("Ooops: error in main loop of {} {}: {}".format(self.name,str(self.input.select),error))
+				self.log.write(msg="in main loop of {} {}".format(self.name,str(self.input.select)),error=error)
 				return self.df
 			else:
-				self.log.write("Ooops: error while running {} - {}".format(self.name,err()))
+				self.log.write(msg="while running {} - {}".format(self.name),error=err())
 			try:
 				for thread in queue.keys():
 					queue[thread].terminate()
@@ -1084,12 +1094,12 @@ class Recipe(Configured):
 						partial_col_err.append(col)
 						nerr_total+=nerr
 				if (len(global_col_err)>0):
-					self.log.write("Ooops: warning in {} : global error in {}".format(self.name,global_col_err),exit=False)
+					self.log.write(error="warning in {} : global error in {}".format(self.name,global_col_err),exit=False)
 				if (len(partial_col_err)>0):
-					self.log.write("Ooops: warning in {} : {}/{} errors in {}".format(self.name,nerr_total,df.shape[0],partial_col_err),exit=False)
+					self.log.write(error="warning in {} : {}/{} errors in {}".format(self.name,nerr_total,df.shape[0],partial_col_err),exit=False)
 			return df
 		except:
-			self.log.write("Ooops: problem in {} - {}: {} - {}".format(self.name,col,step[col],err()),exit=False)
+			self.log.write(msg="problem in {} - {} - {}".format(self.name,col,step[col]),error=err(),exit=False)
 			return df
 
 
@@ -1118,7 +1128,7 @@ class Recipe(Configured):
 		try:
 			return df.apply(np.random.permutation)
 		except:
-			self.log.write("Ooops: problem in {} - {}".format(self.name,err()),exit=False)
+			self.log.write(msg="problem in {} - {}".format(self.name),error=err(),exit=False)
 
 
 	def internal_build_model(self,df=None):
@@ -1148,7 +1158,7 @@ class Recipe(Configured):
 				else:
 					self.target=self.args["target"]
 			else:
-				self.log.write("Ooops: no target specified for model")
+				self.log.write(error="no target specified for model")
 				return df
 
 
@@ -1204,10 +1214,10 @@ class Recipe(Configured):
 					# joblib.dump(prep_num,filename)
 					self.log.write("Saved model {}".format(self.model["name"]))
 				except:
-					self.log.write("Ooops: couldn't save model in {} - {}".format(self.name,err()),exit=False)
+					self.log.write(msg="couldn't save model in {}".format(self.name),error=err(),exit=False)
 
 		except:
-			self.log.write("Ooops: problem while building model from numerical: {} and categorical: {} to {} in {} - {}".format(self.numerical,self.categorical,self.target,self.name,err()),exit=False)
+			self.log.write(msg="problem while building model from numerical: {} and categorical: {} to {} in {}".format(self.numerical,self.categorical,self.target,self.name),error=err(),exit=False)
 			return df
 
 		return df
@@ -1245,7 +1255,7 @@ class Recipe(Configured):
 			if ("target" in self.args.keys()):
 				self.target=self.args["target"]
 			else:
-				self.log.write("Ooops: no target specified for model prediction")
+				self.log.write(error="no target specified for model prediction")
 				return df
 
 
@@ -1270,7 +1280,7 @@ class Recipe(Configured):
 			df[self.target]=df[self.target].apply(lambda x: round(100*x))
 
 		except:
-			self.log.write("Ooops: problem while applying model from numerical: {} and categorical: {} to {} in {} - {}".format(self.numerical,self.categorical,self.target,self.name,err()),exit=False)
+			self.log.write(msg="problem while applying model from numerical: {} and categorical: {} to {} in {}".format(self.numerical,self.categorical,self.target,self.name),error=err(),exit=False)
 
 		return df
 
@@ -1287,7 +1297,7 @@ class Recipe(Configured):
 				del df["matchid_selection_xykfsd"]
 			return df[self.cols]
 		except:
-			self.log.write("Ooops: problem with columns selection in {} - {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
 
 
@@ -1298,7 +1308,7 @@ class Recipe(Configured):
 			df[self.cols]=df[self.cols].applymap(lambda x: np.nan if (str(x) == "") else int(x))
 			return df
 		except:
-			self.log.write("Ooops: in {}, problem converting to int: {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
 
 	def internal_list_to_tuple(self,df=None):
@@ -1308,7 +1318,7 @@ class Recipe(Configured):
 			df[self.cols]=df[self.cols].applymap(lambda x: tuple(x) if (type(x) == list) else x)
 			return df
 		except:
-			self.log.write("Ooops: in {}, problem converting to tuple: {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
 
 	def internal_tuple_to_list(self,df=None):
@@ -1318,7 +1328,7 @@ class Recipe(Configured):
 			df[self.cols]=df[self.cols].applymap(lambda x: list(x) if (type(x) == tuple) else x)
 			return df
 		except:
-			self.log.write("Ooops: in {}, problem converting to tuple: {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
 
 
@@ -1333,7 +1343,7 @@ class Recipe(Configured):
 			df[self.cols]=df[self.cols].applymap(lambda x: na_value if (str(x) == "") else float(x))
 			return df
 		except:
-			self.log.write("Ooops: in {}, problem converting to float: {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
 
 
@@ -1348,7 +1358,7 @@ class Recipe(Configured):
 			df[self.cols]=df[self.cols].applymap(lambda x: ngrams(tokenize(normalize(x)), n))
 			return df
 		except:
-			self.log.write("Ooops: problem in ngrams {} - {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
 
 	# def internal_sql(self,df=None):
@@ -1371,7 +1381,7 @@ class Recipe(Configured):
 			# 	del df[col]
 			return df
 		except:
-			self.log.write("Ooops: problem with columns selection in {} - {} - {}".format(self.name,self.cols,err()),exit=False)
+			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
 
 	def internal_groupby(self,df=None):
@@ -1391,7 +1401,6 @@ class Recipe(Configured):
 							df[col+'_'+step[col]]=df.groupby(self.cols)[col].transform(step[col], method='dense')
 			if ("rank" in self.args.keys()):
 				for col in self.args["rank"]:
-					self.log.write("ranking by {}".format(col))
 					df[col+'_rank']=df.groupby(self.cols)[col].rank(method='dense',ascending=False)
 
 
@@ -1400,14 +1409,14 @@ class Recipe(Configured):
 			# 	dfg=df.groupby(self.cols)
 			# 	df=pd.concat([dfg.apply(lambda x: safeeval((self.args["apply"][col]),{"x": x})) for col in self.args["apply"].keys()])
 		except:
-			self.log.write("Ooops: groupby error {} : {}".format(self.cols,err()))
+			self.log.write(msg="{}".format(self.cols),error=err())
 		return df
 
 	def internal_join(self,df=None):
 		try:
 			join_type="in_memory"
 			if (self.args==None):
-				sys.exit("Ooops: no args in join")
+				self.log.write(error="no args in join",exit=True)
 			if ("type" in self.args.keys()):
 				if (self.args["type"] == "elasticsearch"):
 					join_type="elasticsearch"
@@ -1560,7 +1569,7 @@ class Recipe(Configured):
 									tries+=1
 									df_res=part['matchid_id'].apply(lambda x: {"_source" : {}})
 							if (success==False):
-								self.log.write("join {} x {} failure in sub-chunk {} to {} : {}".format(self.name,self.args["dataset"],index-es.connector.chunk_search,index,error))
+								self.log.write(msg="join {} x {} failure in sub-chunk {} to {}".format(self.name,self.args["dataset"],index-es.connector.chunk_search,index),error=error)
 							m_res.append(df_res)
 						df_res=pd.concat(m_res).reset_index(drop=True)
 
@@ -1628,7 +1637,7 @@ class Recipe(Configured):
 				df_list.append(df[col].apply(pd.Series).add_prefix(prefix))
 			return pd.concat(df_list,axis=1).drop(self.cols,axis=1)
 		except:
-			self.log.write("Ooops: error in unnest: {}".format(err()))
+			self.log.write(error=err())
 			return df
 
 	def internal_nest(self, df=None):
@@ -1641,7 +1650,7 @@ class Recipe(Configured):
 			df[target] = df[self.cols].apply(lambda x: x.to_json(), axis=1)
 			df=self.internal_delete(df)
 		except:
-			self.log.write("Ooops: error while folding: {}".format(err()))
+			self.log.write(error=err())
 		return df
 
 	def internal_unfold(self,df=None):
@@ -1676,7 +1685,7 @@ class Recipe(Configured):
 				.append(df.loc[lens==0, idx_cols]).fillna(fill_na) \
 				.loc[:, df.columns]
 		except:
-			self.log.write("Ooops: failure in unfold : {}".format(err()))
+			self.log.write(error=err())
 			return df
 
 	def internal_parsedate(self,df=None):
