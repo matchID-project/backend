@@ -405,6 +405,7 @@ def match_jw(x, list_strings):
 class Log(object):
 	def __init__(self,name=None,test=False):
 		self.name=name
+		self.chunk=0
 		self.test=test
 		self.start=datetime.datetime.now()
 		self.writer=sys.stdout
@@ -445,11 +446,11 @@ class Log(object):
 			d = (t-self.start)
 			if (error != None):
 				if (msg != None):
-					fmsg="{} - {} : {} - Ooops: {} - {}".format(t,d,WHERE(1),msg,error)
+					fmsg="{} - {} - chunk {} : {} - Ooops: {} - {}".format(t,d,self.chunk,WHERE(1),msg,error)
 				else:
-					fmsg="{} - {} : {} - Ooops: {}".format(t,d,WHERE(1),error)
+					fmsg="{} - {} - chunk {} : {} - Ooops: {}".format(t,d,self.chunk,WHERE(1),error)
 			else:
-				fmsg="{} - {} : {} - {}".format(t,d,WHERE(1),msg)
+				fmsg="{} - {} - chunk {} : {} - {}".format(t,d,self.chunk,WHERE(1),msg)
 			try:
 				if (self.verbose==True):
 					print(fmsg)
@@ -792,6 +793,7 @@ class Recipe(Configured):
 			Configured.__init__(self,"recipes",name)
 			self.type="configured"
 			self.args=args
+			self.errors=0
 			self.log=None
 		except:
 			if (hasattr(self.__class__,"internal_"+name) and callable(getattr(self.__class__,"internal_"+name))):
@@ -924,8 +926,9 @@ class Recipe(Configured):
 		# 	#stupid but working hack to leave time for inmemory preload of first thread first chunk
 		# 	#the limit is if the treatment of a chunk takes more than 30s... better workaround has to be found
 		# 	time.sleep(30)
+		self.log.chunk = i
 		if (self.input.name != "inmemory"):
-			self.log.write("proceed chunk {} : {} rows from {} with recipe {}".format((i+1),df.shape[0],self.input.name,self.name))
+			self.log.write("proceed {} rows from {} with recipe {}".format(df.shape[0],self.input.name,self.name))
 		if (self.type == "internal"):
 			df=getattr(self.__class__,"internal_"+self.name)(self,df=df)
 		elif(len(self.steps)>0):
@@ -993,6 +996,12 @@ class Recipe(Configured):
 					queue[nt]=Process(target=self.run_chunk,args=[i+1,df])
 					queue[nt].start()
 
+				self.errors=len(set([re.search('chunk (\d+)', line).group(1) for line in str(self.log.writer.getvalue()).split("\n") if "Ooops" in line]))
+				if (self.errors > 0):
+					self.log.write(msg="Recipe {} finished with errors on {} chunks".format(self.name,self.errors))
+				else:
+					self.log.write(msg="Recipe {} successfully fininshed".format(self.name))
+					
 		except SystemExit:
 			try:
 				for thread in queue.keys():
@@ -1736,6 +1745,7 @@ def thread_job(recipe=None, result={}):
 	try:
 		result["df"] = recipe.run()
 		result["log"] = str(recipe.log.writer.getvalue())
+		result["errors"] = recipe.errors
 	except:
 		pass
 
@@ -2135,6 +2145,8 @@ class RecipeRun(Resource):
 				r.join_job()
 				r.df = result["df"]
 				r.log = result["log"]
+				r.errors = result["errors"]
+
 			except:
 				return {"data": [{"result": "empty"}], "log": "Ooops: {}".format(err())}
 			if isinstance(r.df, pd.DataFrame):
