@@ -837,6 +837,23 @@ class Recipe(Configured):
 				except:
 					self.threads=1
 
+			try:
+				if ("before" in self.conf.keys()):
+					self.before=self.conf["before"]
+				elif ("run" in self.conf.keys()):
+					self.before=self.conf["run"]
+				else:
+					self.before=[]
+			except:
+				self.before=[]
+
+			try:
+				self.after=self.conf["after"]
+			except:
+				self.after=[]
+
+			
+
 		except:
 			self.input=Dataset("inmemory",parent=self)
 			self.input.select=None
@@ -949,7 +966,26 @@ class Recipe(Configured):
 			self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
 		return df
 
+	def run_deps(self,recipes):
+		queue = []
+		for recipe in recipes:
+			r=Recipe(recipe)
+			r.init()
+			r.set_job(Process(target=thread_job,args=[r, result]))
+			r.start_job()
+			if re.sub(r'\s*\&\s*$',recipe):
+				queue.append(r)
+			else:
+				r.join_job()
+		for r in queue:
+			r.join_job()
+
+
 	def run(self,head=None):
+
+		# recipes to run before
+		self.run_deps(self.before)
+
 		if (head is None):
 			try:
 				head=self.conf["test_chunk_size"]
@@ -1025,6 +1061,10 @@ class Recipe(Configured):
 					queue[thread].terminate()
 			except:
 				pass
+
+			# recipes to run after
+			self.run_deps(self.after)
+
 
 	def select_columns(self,df=None,arg="select"):
 		try:
