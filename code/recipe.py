@@ -758,6 +758,12 @@ class Dataset(Configured):
 							helpers.bulk(self.connector.es,actions)
 						self.log.write("inserted {} lines to {}:{}/{}".format(size,self.connector.host,self.connector.port,self.table))
 						processed+=size
+					except elasticsearch.SerializationError:
+						error=err()
+						if ('"errors":false' in error):
+							self.log.write(msg="elasticsearch SerializationError but no error")
+						else:
+							self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=error)
 					except:
 						self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=err())
 			elif (self.connector.type == "filesystem"):
