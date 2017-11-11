@@ -405,7 +405,7 @@ def match_jw(x, list_strings):
 class Log(object):
 	def __init__(self,name=None,test=False):
 		self.name=name
-		self.chunk=0
+		self.chunk="init"
 		self.test=test
 		self.start=datetime.datetime.now()
 		self.writer=sys.stdout
@@ -654,14 +654,14 @@ class Dataset(Configured):
 		try:
 			self.log=self.parent.log
 		except:
-			pass
+			self.log=log
 
 		if True:
 			if (self.name == "inmemory"):
 				if (df is not None):
 					self.reader=[df]
 				else:
-					read_log.write(error="can't initiate inmemory dataset with no dataframe",exit=True)
+					self.log.write(error="can't initiate inmemory dataset with no dataframe",exit=True)
 			elif (self.connector.type == "filesystem"):
 				if (self.type == "csv"):
 					self.reader=itertools.chain.from_iterable(pd.read_csv(file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
@@ -676,7 +676,7 @@ class Dataset(Configured):
 			elif (self.connector.type == "elasticsearch"):
 				self.reader= self.scanner()
 		else:
-			read_log.write(msg="couldn't initiate dataset {}".format(self.name), error=err(),exit=True)
+			self.log.write(msg="couldn't initiate dataset {}".format(self.name), error=err(),exit=True)
 
 	def scanner(self,**kwargs):
 		self.select=json.loads(json.dumps(self.select))
@@ -799,8 +799,10 @@ class Recipe(Configured):
 			if (hasattr(self.__class__,"internal_"+name) and callable(getattr(self.__class__,"internal_"+name))):
 				self.input=Dataset("inmemory",parent=self)
 				self.input.select=None
+				self.steps=[]
 				self.output=Dataset("inmemory",parent=self)
 				self.type="internal"
+				self.log=None
 				self.args=args
 				return
 			else:
@@ -829,34 +831,35 @@ class Recipe(Configured):
 			except:
 				self.input.chunked=True
 
-			try:
-				self.threads=self.conf["threads"]
-			except:
-				try:
-					self.threads=conf["global"]["threads_by_job"]
-				except:
-					self.threads=1
-
-			try:
-				if ("before" in self.conf.keys()):
-					self.before=self.conf["before"]
-				elif ("run" in self.conf.keys()):
-					self.before=self.conf["run"]
-				else:
-					self.before=[]
-			except:
-				self.before=[]
-
-			try:
-				self.after=self.conf["after"]
-			except:
-				self.after=[]
-
-			
-
 		except:
 			self.input=Dataset("inmemory",parent=self)
 			self.input.select=None
+			self.input.chunked=True
+
+
+
+		try:
+			self.threads=self.conf["threads"]
+		except:
+			try:
+				self.threads=conf["global"]["threads_by_job"]
+			except:
+				self.threads=1
+
+		try:
+			if ("before" in self.conf.keys()):
+				self.before=self.conf["before"]
+			elif ("run" in self.conf.keys()):
+				self.before=self.conf["run"]
+			else:
+				self.before=[]
+		except:
+			self.before=[]
+
+		try:
+			self.after=self.conf["after"]
+		except:
+			self.after=[]
 
 
 		#initiate output connection : create a writer or use current dataframe
@@ -901,7 +904,8 @@ class Recipe(Configured):
 		try:
 			self.input.init_reader(df=df)
 		except:
-			self.log.write(msg="couldn't init input {} of recipe {}".format(self.input.name,self.name),error=err())
+			if ((len(self.before)+len(self.after))==0):
+				self.log.write(msg="couldn't init input {} of recipe {}".format(self.input.name,self.name),error=err())
 		if (self.test==False):
 			try:
 				self.output.init_writer()
@@ -967,18 +971,42 @@ class Recipe(Configured):
 		return df
 
 	def run_deps(self,recipes):
+		if (len(recipes) == 0):
+			return
+		if(self.test==True):
+			self.log.write(msg="no call of full run (before/run/after) in test mode")
+			return
+
 		queue = []
 		for recipe in recipes:
-			r=Recipe(recipe)
-			r.init()
-			r.set_job(Process(target=thread_job,args=[r, result]))
-			r.start_job()
-			if re.sub(r'\s*\&\s*$',recipe):
-				queue.append(r)
+			thread=False
+			if (re.sub(r'\s*\&\s*$','',recipe) != recipe):
+				recipe=re.sub(r'\s*\&\s*$','',recipe)
+				thread=True
+			jobs[recipe]=Recipe(recipe)
+			jobs[recipe].init()
+			jobs[recipe].result = manager.dict()			
+			jobs[recipe].set_job(Process(target=thread_job,args=[jobs[recipe], jobs[recipe].result]))
+			jobs[recipe].start_job()
+			self.log.write(msg="run {}".format(recipe))
+			if (thread==True):
+				queue.append(jobs[recipe])
 			else:
-				r.join_job()
+				jobs[recipe].join_job()
+				jobs[recipe].errors = jobs[recipe].result["errors"]
+				if (jobs[recipe].errors > 0):
+					self.log.write(error="Finished {} with {} errors".format(recipe,jobs[recipe].errors))
+				else:
+					self.log.write(msg="Finished {} with no error".format(recipe))
+
+
 		for r in queue:
 			r.join_job()
+			r.errors = jobs[r.name].result["errors"]
+			if (r.errors > 0):
+				self.log.write(error="Finished {} with {} errors".format(r.name,r.errors))
+			else:
+				self.log.write(msg="Finished {} with no error".format(r.name))
 
 
 	def run(self,head=None):
@@ -1032,18 +1060,25 @@ class Recipe(Configured):
 					queue[nt]=Process(target=self.run_chunk,args=[i+1,df])
 					queue[nt].start()
 
-				self.errors=len(set([re.search('chunk (\d+)', line).group(1) for line in str(self.log.writer.getvalue()).split("\n") if "Ooops" in line]))
+				self.log.chunk="end"
+				try:
+					with open(self.log.file, 'r') as f:
+						logtext = f.read()
+					self.errors=len(set([re.search('chunk (\d+)', line).group(1) for line in logtext.split("\n") if "Ooops" in line]))
+				except:
+					self.errors=err()
 				if (self.errors > 0):
 					self.log.write(msg="Recipe {} finished with errors on {} chunks".format(self.name,self.errors))
 				else:
-					self.log.write(msg="Recipe {} successfully fininshed".format(self.name))
-					
+					self.log.write(msg="Recipe {} successfully fininshed with no error".format(self.name))
+
 		except SystemExit:
 			try:
 				for thread in queue.keys():
 					queue[thread].terminate()
 			except:
 				pass
+			self.chunk="end"
 			self.log.write(error="Recipe {} aborted via SIGTERM".format(self.name),exit=True)
 		except:
 			if (self.test==True):
@@ -1052,10 +1087,15 @@ class Recipe(Configured):
 					self.df=df
 				except:
 					self.df=None
-				self.log.write(msg="in main loop of {} {}".format(self.name,str(self.input.select)),error=error)
+				if (len(self.steps)>0):
+					self.log.write(msg="in main loop of {} {}".format(self.name,str(self.input.select)),error=error)
+				else:
+					if((len(self.before)+len(self.after))==0):
+						self.log.write(error="a recipe should contain a least a steps, before, run or after section")
 				return self.df
 			else:
-				self.log.write(msg="while running {} - {}".format(self.name),error=err())
+				if (len(self.steps)>0):
+					self.log.write(msg="while running {} - {}".format(self.name),error=err())
 			try:
 				for thread in queue.keys():
 					queue[thread].terminate()
@@ -1603,6 +1643,7 @@ class Recipe(Configured):
 							#self.log.write("\n{}".format(bulk))
 							tries=0
 							success=False
+							failure=None
 							max_tries=3
 							while(tries<max_tries):
 								try:
@@ -1616,6 +1657,7 @@ class Recipe(Configured):
 									df_res=part['matchid_id'].apply(lambda x: {"_source" : {}})
 								except:
 									tries+=1
+									failure="Timeout"
 									df_res=part['matchid_id'].apply(lambda x: {"_source" : {}})
 							if (success==False):
 								self.log.write(msg="join {} x {} failure in sub-chunk {} to {}".format(self.name,self.args["dataset"],index-es.connector.chunk_search,index),error=error)
@@ -1784,8 +1826,13 @@ class Recipe(Configured):
 def thread_job(recipe=None, result={}):
 	try:
 		result["df"] = recipe.run()
-		result["log"] = str(recipe.log.writer.getvalue())
 		result["errors"] = recipe.errors
+
+		try:
+			result["log"] = str(recipe.log.writer.getvalue())
+		except:
+			with open(recipe.log.file, 'r') as f:
+				result["log"] = f.read()
 	except:
 		pass
 
