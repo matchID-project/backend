@@ -10,6 +10,7 @@ from cStringIO import StringIO
 import yaml as y
 import json
 import itertools
+import time
 import operator
 import simplejson
 from collections import Iterable
@@ -489,6 +490,11 @@ class Connector(Configured):
 				sys.exit("Ooops: database of connector {} has to be defined as type is {}".format(self.name,self.type))
 
 
+		try:
+			self.timeout=self.conf["timeout"]
+		except:
+			self.timeout=60
+
 		if (self.type == "elasticsearch") | (self.type == "mongodb"):
 			try:
 				self.host=self.conf["host"]
@@ -500,7 +506,7 @@ class Connector(Configured):
 				self.port=self.conf["port"]
 			except:
 				self.port=9200
-			self.es=Elasticsearch(self.host+":"+str(self.port))
+			self.es=Elasticsearch(host=self.host,port=self.port,timeout=self.timeout)
 			try:
 				self.chunk_search=self.conf["chunk_search"]
 			except:
@@ -517,10 +523,7 @@ class Connector(Configured):
 		except:
 			self.sample=500
 
-		try:
-			self.timeout=self.conf["timeout"]
-		except:
-			self.timeout=20
+
 
 		try:
 			self.thread_count=self.conf["thread_count"]
@@ -1663,6 +1666,8 @@ class Recipe(Configured):
 									df_res=part['matchid_id'].apply(lambda x: {"_source" : {}})
 								except:
 									tries+=1
+									time.sleep(tries * 5) # prevents combo deny of service of elasticsearch 
+									self.log.write(msg="warning - join {} x {} retry sub-chunk {} to {}".format(self.name,self.args["dataset"],index-es.connector.chunk_search,index))
 									failure="Timeout"
 									df_res=part['matchid_id'].apply(lambda x: {"_source" : {}})
 							if (success==False):
