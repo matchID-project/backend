@@ -1068,18 +1068,11 @@ class Recipe(Configured):
 						queue[nt].join()
 					queue[nt]=Process(target=self.run_chunk,args=[i+1,df])
 					queue[nt].start()
-
-				self.log.chunk="end"
 				try:
-					with open(self.log.file, 'r') as f:
-						logtext = f.read()
-					self.errors=len(set([re.search('chunk (\d+)', line).group(1) for line in logtext.split("\n") if "Ooops" in line]))
+					for thread in queue.keys():
+						queue[thread].join()
 				except:
-					self.errors=err()
-				if (self.errors > 0):
-					self.log.write(msg="Recipe {} finished with errors on {} chunks".format(self.name,self.errors))
-				else:
-					self.log.write(msg="Recipe {} successfully fininshed with no error".format(self.name))
+					pass
 
 		except SystemExit:
 			try:
@@ -1087,7 +1080,8 @@ class Recipe(Configured):
 					queue[thread].terminate()
 			except:
 				pass
-			self.chunk="end"
+
+			self.log.chunk="end"
 			self.log.write(error="Recipe {} aborted via SIGTERM".format(self.name),exit=True)
 		except:
 			if (self.test==True):
@@ -1111,8 +1105,28 @@ class Recipe(Configured):
 			except:
 				pass
 
-			# recipes to run after
-			self.run_deps(self.after)
+		# recipes to run after
+		self.run_deps(self.after)
+
+		chunk_number = self.log.chunk
+
+		self.log.chunk="end"
+		try:
+			with open(self.log.file, 'r') as f:
+				logtext = f.read().split("\n")
+			self.errors=len(set([re.search('chunk (\d+)', line).group(1) for line in logtext if "Ooops" in line]))
+			self.processed=sum([int(re.search('proceed (\d+) rows', line).group(1)) for line in logtext if "proceed" in line])
+			self.written=sum([int(re.search('wrote (\d+)', line).group(1)) for line in logtext if "wrote" in line])
+
+		except:				
+			self.errors=err()
+			self.processed = 0
+			self.written = 0
+		if (self.errors > 0):
+			self.log.write(msg="Recipe {} finished with errors on {} chunks (i.e. max {} errors out of {}) - {} lines written".format(self.name,self.errors,self.errors*self.input.connector.chunk,self.processed, self.written))
+		else:
+			self.log.write(msg="Recipe {} successfully fininshed with no error, {} lines processed, {} lines written".format(self.name, self.processed, self.written))
+
 
 
 	def select_columns(self,df=None,arg="select"):
