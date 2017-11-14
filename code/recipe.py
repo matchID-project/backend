@@ -1709,7 +1709,7 @@ class Recipe(Configured):
 						# #self.log.write("debug: {}".format(df_res))
 						df_res['matchid_hit_matches_unfiltered']=df_res['total']
 						#df_res.drop(['total','failed','successful','max_score'],axis=1,inplace=True)
-						df_res.drop(['failed','successful'],axis=1,inplace=True)
+						df_res.drop(['failed','successful','skipped'],axis=1,inplace=True)
 						df=pd.concat([df.reset_index(drop=True),df_res],axis=1)
 						#self.log.write("after ES request:{}".format(df.shape))
 
@@ -1741,7 +1741,7 @@ class Recipe(Configured):
 									prefix=self.args["prefix"]
 								except:
 									prefix="hit_"
-								df['hits']=df['hits'].apply(lambda x: {} if (x == "") else x['_source'] )
+								df['hits']=df['hits'].apply(lambda x: {} if (x == "") else deepupdate(x['_source'],{'score': x['_score']}))
 
 								unnest=Recipe('unnest',args={"select": ['hits'],"prefix": prefix})
 								unnest.init(df=df,parent=self,test=self.test)
