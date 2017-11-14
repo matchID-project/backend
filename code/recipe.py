@@ -137,7 +137,7 @@ def toJson(x = None):
 	if (x == ""):
 		return x
 	try:
-		return json.loads(x)
+		return [json.loads(x)]
 	except:
 		return x
 
