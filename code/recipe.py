@@ -765,7 +765,11 @@ class Dataset(Configured):
 						error=err()
 						if ('"errors":false' in error):
 							self.log.write(msg="elasticsearch SerializationError but no error")
-						else:
+							processed+=size
+						elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]',error)))):
+							self.log.write(msg="elasticsearch JSONDecodeError but found no error")
+							processed+=size
+						else:							
 							self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=error)
 					except:
 						self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=err())
