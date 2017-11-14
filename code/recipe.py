@@ -1183,7 +1183,7 @@ class Recipe(Configured):
 							try:
 								df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
 							except:
-								a=df.apply(lambda row: tuple(safeeval(step[col],row)), axis=1)
+								a=df.apply(lambda row: [safeeval(step[col],row)],axis=1)
 								df[col]=a
 						elif (type(step[col])==list):
 							multicol=[unicode(x) for x in step[col]]
