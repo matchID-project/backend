@@ -137,7 +137,7 @@ def toJson(x = None):
 	if (x == ""):
 		return x
 	try:
-		return json.loads(x)
+		return [json.loads(x)]
 	except:
 		return x
 
@@ -765,7 +765,11 @@ class Dataset(Configured):
 						error=err()
 						if ('"errors":false' in error):
 							self.log.write(msg="elasticsearch SerializationError but no error")
-						else:
+							processed+=size
+						elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]',error)))):
+							self.log.write(msg="elasticsearch JSONDecodeError but found no error")
+							processed+=size
+						else:							
 							self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=error)
 					except:
 						self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=err())
@@ -1183,7 +1187,7 @@ class Recipe(Configured):
 							try:
 								df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
 							except:
-								a=df.apply(lambda row: tuple(safeeval(step[col],row)), axis=1)
+								a=df.apply(lambda row: [safeeval(step[col],row)],axis=1)
 								df[col]=a
 						elif (type(step[col])==list):
 							multicol=[unicode(x) for x in step[col]]
@@ -2094,7 +2098,10 @@ class DatasetApi(Resource):
 	 		ds.select={"query":{"function_score": {"query":ds.select["query"],"random_score":{}}}}
 		ds.init_reader()
 		try:
-			df=next(ds.reader,"").head(n=ds.connector.sample).reset_index(drop=True)
+			df=next(ds.reader,"")
+			if (type(df) == str):
+				return {"data":[{"error": "error: no such file {}".format(ds.file)}]}
+			df=df.head(n=ds.connector.sample).reset_index(drop=True)
 			#df.fillna('',inplace=True)
 			return {"data": list(df.fillna("").T.to_dict().values())}
 		except:
@@ -2260,13 +2267,15 @@ class RecipeRun(Resource):
 				r.errors = result["errors"]
 
 			except:
-				return {"data": [{"result": "empty"}], "log": "Ooops: {}".format(err())}
+				return {"data": [{"result": "failed"}], "log": "Ooops: {}".format(err())}
 			if isinstance(r.df, pd.DataFrame):
 				df=r.df.fillna("")
+				if (r.df.shape[0]==0):
+					return {"data": [{"result": "empty"}], "log": result["log"]}
 				try:
 					return jsonize({"data": df.T.to_dict().values(), "log": result["log"]})
 				except:
-					df=df.applymap(lambda x: str(x))
+					df=df.applymap(lambda x: unicode(x))
 					return jsonize({"data": df.T.to_dict().values(), "log": result["log"]})
 			else:
 				return {"data": [{"result": "empty"}], "log": result["log"]}
