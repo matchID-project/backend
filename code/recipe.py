@@ -743,36 +743,49 @@ class Dataset(Configured):
 			size=df.shape[0]
 			if (self.connector.type == "elasticsearch"):
 					df=df.fillna("")
-					if ('_id' in df.columns) & (self.mode == 'update'):
-						records=df.drop(['_id'],axis=1).T.to_dict()
-						ids=df['_id'].T.to_dict()
-						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
-					else:
-						if ('_id' in df.columns):
-							records=df.drop(['_id'],axis=1).T.to_dict()
-						else:
-							records=df.T.to_dict()
-						actions=[{'_op_type': 'index','_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+					if ('_id' not in df.columns) | (self.mode != 'update'):
+						df['_id']=df.apply(lambda row: sha1(row), axis=1)
+					records=df.drop(['_id'],axis=1).T.to_dict()
+					ids=df['_id'].T.to_dict()
+					actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 
-					try:
-						if (self.connector.thread_count>1):
-							deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
-						else:
-							helpers.bulk(self.connector.es,actions)
-						self.log.write("inserted {} lines to {}:{}/{}".format(size,self.connector.host,self.connector.port,self.table))
-						processed+=size
-					except elasticsearch.SerializationError:
-						error=err()
-						if ('"errors":false' in error):
-							self.log.write(msg="elasticsearch SerializationError but no error")
+					tries=0
+					success=False
+					failure=None
+					max_tries=4
+					while(tries<max_tries):
+						try:
+							if (self.connector.thread_count>1):
+								deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
+							else:
+								helpers.bulk(self.connector.es,actions)
 							processed+=size
-						elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]',error)))):
-							self.log.write(msg="elasticsearch JSONDecodeError but found no error")
-							processed+=size
-						else:							
-							self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=error)
-					except:
+							max_tries=tries
+							success=True							
+						except elasticsearch.SerializationError:
+							tries=max_tries
+							error=err()
+							if ('"errors":false' in error):
+								self.log.write(msg="elasticsearch SerializationError but no error")
+								processed+=size
+								success=True
+							elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]',error)))):
+								self.log.write(msg="elasticsearch JSONDecodeError but found no error")
+								processed+=size
+								success=True
+						except ConnectionTimeout:
+							error=err()
+							tries+=1
+							time.sleep(tries * 5) # prevents combo deny of service of elasticsearch 
+							self.log.write("elasticsearch bulk ConnctionTimeout warning {}:{}/{}".format(self.connector.host,self.connector.port,self.table))
+						except:
+							tries=max_tries
+							error=err()	
+					if (success==False):					
 						self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=err())
+					else:
+						self.log.write("inserted {} lines to {}:{}/{}".format(size,self.connector.host,self.connector.port,self.table))
+
 			elif (self.connector.type == "filesystem"):
 				self.log.write("filesystem write {}".format(self.name))
 				if (self.type == "csv"):
@@ -1671,10 +1684,10 @@ class Recipe(Configured):
 							tries=0
 							success=False
 							failure=None
-							max_tries=3
+							max_tries=4
 							while(tries<max_tries):
 								try:
-									res=es.connector.es.msearch(bulk)
+									res=es.connector.es.msearch(bulk, request_timeout=10+10*tries)
 									df_res = pd.concat(map(pd.DataFrame.from_dict, res['responses']), axis=1)['hits'].T.reset_index(drop=True)
 									max_tries=tries
 									success=True
@@ -1696,7 +1709,7 @@ class Recipe(Configured):
 						# #self.log.write("debug: {}".format(df_res))
 						df_res['matchid_hit_matches_unfiltered']=df_res['total']
 						#df_res.drop(['total','failed','successful','max_score'],axis=1,inplace=True)
-						df_res.drop(['failed','successful'],axis=1,inplace=True)
+						df_res.drop(['failed','successful','skipped'],axis=1,inplace=True)
 						df=pd.concat([df.reset_index(drop=True),df_res],axis=1)
 						#self.log.write("after ES request:{}".format(df.shape))
 
@@ -1728,7 +1741,7 @@ class Recipe(Configured):
 									prefix=self.args["prefix"]
 								except:
 									prefix="hit_"
-								df['hits']=df['hits'].apply(lambda x: {} if (x == "") else x['_source'] )
+								df['hits']=df['hits'].apply(lambda x: {} if (x == "") else deepupdate(x['_source'],{'score': x['_score']}))
 
 								unnest=Recipe('unnest',args={"select": ['hits'],"prefix": prefix})
 								unnest.init(df=df,parent=self,test=self.test)
