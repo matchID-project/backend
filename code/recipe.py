@@ -70,12 +70,12 @@ from werkzeug.wsgi import DispatcherMiddleware
 import parsers
 
 
-global manager, jobs, inmemory, log, conf
+global manager, jobs, inmemory, log, conf, levCache
 
 manager = Manager()
 inmemory={}
 jobs = {}
-
+levCache={}
 
 
 def err():
@@ -321,10 +321,24 @@ def levenshtein(s1, s2):
 		s2=""
 	if len(s1) < len(s2):
 		return levenshtein(s2, s1)
-
-	# len(s1) >= len(s2)
+	#choosen
 	if len(s2) == 0:
 		return len(s1)
+
+	return jellyfish.levenshtein_distance(unicode(s1),unicode(s2))
+
+	# cached version
+	try:
+		return levCache[tuple(s1,s2)]
+	except:
+		pass
+
+	levCache[tuple([s1,s2])] = jellyfish.levenshtein_distance(unicode(s1),unicode(s2))	
+	return levCache[tuple([s1,s2])]
+
+	#original
+	# len(s1) >= len(s2)
+
 	previous_row = range(len(s2) + 1)
 	for i, c1 in enumerate(s1):
 		current_row = [i + 1]
