@@ -2114,9 +2114,18 @@ class DatasetApi(Resource):
 	def get(self,dataset):
 		'''get json of a configured dataset'''
 		read_conf()
-		try:
-			return conf["datasets"][dataset]
-		except:
+		if (dataset in conf["datasets"].keys()):
+			try:
+				response = dict(conf["datasets"][dataset])
+				try:
+					ds=Dataset(dataset)
+					response["type"] = ds.connector.type
+				except:
+					pass
+				return response
+			except:
+				api.abort(500)
+		else:
 			api.abort(404)
 
 	def post(self,dataset):
