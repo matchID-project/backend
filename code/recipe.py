@@ -2166,27 +2166,58 @@ class pushToValidation(Resource):
 		'''action = validation : configure the frontend to point to this dataset'''
 		if (action=="validation"):
 			if (not(dataset in conf["datasets"].keys())):
-				api.abort(404)
+				return api.abort(404,{"dataset": dataset, "status": "dataset not found"})
 			if not("validation" in conf["datasets"][dataset].keys()):
-				api.abort(403)
-			if (conf["datasets"][dataset]["validation"]==True):
+				return api.abort(403,{"dataset": dataset, "status": "validation not allowed"})
+			if ((conf["datasets"][dataset]["validation"]==True)|(isinstance(conf["datasets"][dataset]["validation"], OrderedDict))):
 				try:
 					props = {}
-					for config in conf["global"]["validation"].keys():
+					try:
+						cfg=deepupdate(conf["global"]["validation"],conf["datasets"][dataset]["validation"])
+					except:
+						cfg=conf["global"]["validation"]
+					for config in cfg.keys():
 						configfile=os.path.join(conf["global"]["paths"]["validation"],secure_filename(config+".json"))
 						dic={
 							"prefix": conf["global"]["api"]["prefix"],
 							"domain": conf["global"]["api"]["domain"],
 							"dataset": dataset
 						}
-						props[config] = replace_dict(conf["global"]["validation"][config],dic)
+						props[config] = replace_dict(cfg[config],dic)
 						# with open(configfile, 'w') as outfile:
 						# 	json.dump(props[config],outfile,indent=2)
 					return {"dataset": dataset, "status": "to validation", "props": props}
 				except :
 						return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
 			else:
-				return api.abort(403,{"dataset": dataset, "status": "no validation allowed"})
+				return api.abort(403,{"dataset": dataset, "status": "validation not allowed"})
+		elif (action=="search"):
+			if (not(dataset in conf["datasets"].keys())):
+				return api.abort(404,{"dataset": dataset, "status": "dataset not found"})
+			if not("search" in conf["datasets"][dataset].keys()):
+				return api.abort(403,{"dataset": dataset, "status": "search not allowed"})
+			if ((conf["datasets"][dataset]["search"]==True)|(isinstance(conf["datasets"][dataset]["search"], OrderedDict))):
+				try:
+					props = {}
+					try:
+						cfg=deepupdate(conf["global"]["search"],conf["datasets"][dataset]["search"])
+					except:
+						cfg=conf["global"]["search"]
+					for config in cfg.keys():
+						configfile=os.path.join(conf["global"]["paths"]["search"],secure_filename(config+".json"))
+						dic={
+							"prefix": conf["global"]["api"]["prefix"],
+							"domain": conf["global"]["api"]["domain"],
+							"dataset": dataset
+						}
+						props[config] = replace_dict(cfg[config],dic)
+						# with open(configfile, 'w') as outfile:
+						# 	json.dump(props[config],outfile,indent=2)
+					return {"dataset": dataset, "status": "to search", "props": props}
+				except :
+						return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
+			else:
+				return api.abort(403,{"dataset": dataset, "status": "search not allowed"})
 
 		else:
 			api.abort(404)
