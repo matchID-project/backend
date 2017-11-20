@@ -2,13 +2,13 @@ recipes:
   french_name_normalize:
     steps:
       - eval:
-        - matchid_name_first: matchid_name_first_src if (type(matchid_name_first_src)==list) else [matchid_name_first_src]
+        - matchid_name_first: matchid_name_first_src if (type(matchid_name_first_src)==list) else re.compile("\s+").split(matchid_name_first_src) if (not re.search(r'^(jean|marie)',matchid_name_first_src,re.IGNORECASE)) else [matchid_name_first_src]
         - matchid_name_last: matchid_name_last_src if (type(matchid_name_last_src)==list) else [matchid_name_last_src]       
       - normalize:
           select: matchid_name_(last|first)$
       - eval: #dedup
-        - matchid_name_first: list(set(matchid_name_first))
-        - matchid_name_last: list(set(matchid_name_last))
+        - matchid_name_first: list(OrderedDict.fromkeys(matchid_name_first))
+        - matchid_name_last: list(OrderedDict.fromkeys(matchid_name_last))
       - eval:
         # perpare fort matching (*match) & stats (_first & _second)
         - matchid_name_norm: list(set().union(matchid_name_last,matchid_name_first))
