@@ -57,9 +57,9 @@ recipes:
       - eval:    
           - matchid_location_latitude: geopoint(matchid_location_city_geopoint_2d)[0] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_latitude
           - matchid_location_longitude: geopoint(matchid_location_city_geopoint_2d)[1] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_longitude
-
-      - to_integer: 
-          select: .*(surface|population)$
+      - to_float: 
+          select: ^matchid_location_(latitude|longitude)$
+          na_value: 90
 
 
   algeria_city:
@@ -94,6 +94,9 @@ recipes:
       - eval:    
           - matchid_location_latitude: geopoint(matchid_location_city_geopoint_2d)[0] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_latitude
           - matchid_location_longitude: geopoint(matchid_location_city_geopoint_2d)[1] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_longitude
+      - to_float: 
+          select: ^matchid_location_(latitude|longitude)$
+          na_value: 90
       - delete:
           select: matchid_location_city_alg.*
       - to_integer: 
@@ -133,6 +136,9 @@ recipes:
       - eval:    
           - matchid_location_latitude: geopoint(matchid_location_city_geopoint_2d)[0] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_latitude
           - matchid_location_longitude: geopoint(matchid_location_city_geopoint_2d)[1] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_longitude
+      - to_float: 
+          select: ^matchid_location_(latitude|longitude)$
+          na_value: 90
       - to_integer: 
           select: .*(surface|population)$
 
