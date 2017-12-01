@@ -1000,7 +1000,29 @@ class Recipe(Configured):
 		except:
 			return "down"
 
-	def run_chunk(self,i,df):
+
+	def write(self,i,df):
+		self.log.chunk=i
+		self.input.processed+=self.output.write(i,df)
+		self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
+
+
+	def write_queue(self, queue):
+		exit=False
+		while (exit==False):
+			try:
+				res=queue.get()
+				if (type(res)==bool):
+					exit=True
+				else:
+					self.write(res[0],res[1])
+			except:
+				self.log.write("waiting to write - {}".format(self.name))				
+				time.sleep(1)
+				pass
+
+	def run_chunk(self,i,df,queue=None):
+		df.rename(columns=lambda x: x.strip(), inplace=True)
 		# if ((self.name == "join") & (i<=conf["global"]["threads_by_job"]) & (i>1)):
 		# 	#stupid but working hack to leave time for inmemory preload of first thread first chunk
 		# 	#the limit is if the treatment of a chunk takes more than 30s... better workaround has to be found
@@ -1021,11 +1043,14 @@ class Recipe(Configured):
 						return df
 				except:
 					self.log.write(msg="error while calling {} in {}".format(recipe.name,self.name),error=err())
-		if ((self.output.name != "inmemory") & (self.test==False)):
-			#df.fillna('',inplace=True)
-			#print self.name,self.input.name,i,self.input.processed,self.output.name
-			self.input.processed+=self.output.write(i,df)
-			self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
+			if ((self.output.name != "inmemory") & (self.test==False)):
+				if (queue != None):
+					queue.put([i,df])
+					#self.log.write("computation of chunk {} done, queued for write".format(i))
+				else:
+					# threads the writing, to optimize cpu usage, as write generate idle time
+					write_job = Process(target=self.write, args=[i,df])
+					write_job.start()
 		return df
 
 	def run_deps(self,recipes):
@@ -1091,9 +1116,6 @@ class Recipe(Configured):
 			else:
 				self.df=pd.concat([df for df in self.input.reader])
 
-			# removes trailing space in columns
-			self.df.rename(columns=lambda x: x.strip(), inplace=True)
-
 			# runs the recipe
 			self.df=self.run_chunk(0,self.df)
 
@@ -1108,25 +1130,43 @@ class Recipe(Configured):
 				# 	for future in concurrent.futures.as_completed(future_to_df):
 				# 		pass
 				# # process to parallelization with multiprocessing lib
-				queue={}
+				run_queue=[]
+				write_queue=Queue()
+				# create the writer queue
+				write_thread=Process(target=self.write_queue,args=[write_queue])
+				write_thread.start()
+
+				write_threads=[]
 				for i, df in enumerate(self.input.reader):
-					# removes trailing space in columns
-					df.rename(columns=lambda x: x.strip(), inplace=True)
-					nt= i%self.threads
-					if (nt in queue.keys()):
-						queue[nt].join()
-					queue[nt]=Process(target=self.run_chunk,args=[i+1,df])
-					queue[nt].start()
+					self.log.chunk="main_thread"
+					# wait if running queue is full
+					if (len(run_queue)==self.threads):
+						while (len(run_queue)==self.threads):
+							run_queue =[t for t in run_queue if t[1].is_alive()]
+							time.sleep(1)
+
+					run_thread=Process(target=self.run_chunk,args=[i+1,df,write_queue])
+					run_thread.start()
+					run_queue.append([i+1,run_thread])
+
 				try:
-					for thread in queue.keys():
-						queue[thread].join()
+					# joining all threaded jobs
+					for thread in run_queue:
+						thread[1].join()
+					while(write_queue.qsize()>0):
+						time.sleep(1)
+					write_queue.put(True)
+					write_thread.join()
 				except:
+					self.log.write("{}".format(err()))
 					pass
 
 		except SystemExit:
 			try:
-				for thread in queue.keys():
-					queue[thread].terminate()
+				for thread in run_queue:
+					thread[1].terminate()
+				for thread in write_threads:
+					thread[1].terminate()
 			except:
 				pass
 
