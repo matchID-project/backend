@@ -27,9 +27,9 @@ from elasticsearch import Elasticsearch, helpers
 import pandas as pd
 
 #### parallelize
-import concurrent.futures
+# import concurrent.futures
 #import threading
-from multiprocessing import Process, Manager
+from multiprocessing import Process, Manager, Pool, Pipe, Queue
 
 import uuid
 
@@ -749,12 +749,15 @@ class Dataset(Configured):
 		if (self.name == "inmemory"):
 			return size
 		processed=0
+		i=0
 		if (size <= self.connector.chunk):
 			df_list=[df]
 		else:
 			df_list=np.array_split(df,list(range(self.connector.chunk,size,self.connector.chunk)))
 		for df in df_list:
+			i+=1
 			size=df.shape[0]
+
 			if (self.connector.type == "elasticsearch"):
 					df=df.fillna("")
 					if ('_id' not in df.columns) | (self.mode != 'update'):
@@ -762,43 +765,56 @@ class Dataset(Configured):
 					records=df.drop(['_id'],axis=1).T.to_dict()
 					ids=df['_id'].T.to_dict()
 					actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
-
-					tries=0
-					success=False
-					failure=None
-					max_tries=4
-					while(tries<max_tries):
-						try:
-							if (self.connector.thread_count>1):
-								deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
+					try:
+						tries=0
+						success=False
+						failure=None
+						max_tries=4
+						#self.log.write("try to instert subchunk {} of {} lines to {}/{}".format(i,size,self.connector.name,self.table))
+						while(tries<max_tries):
+							try:
+								if (self.connector.thread_count>1):
+									deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
+								else:
+									helpers.bulk(self.connector.es,actions)
+								processed+=size
+								max_tries=tries
+								success=True							
+							except elasticsearch.SerializationError:
+								error=err()
+								if ('"errors":false' in error):
+									#processed+=size
+									tries+=1
+									time.sleep(random.random() * (4 ** tries)) # prevents combo deny of service of elasticsearch 
+								elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]',error)))):
+									tries=max_tries
+									self.log.write(msg="elasticsearch JSONDecodeError but found no error")
+									#processed+=size
+								else:
+									tries=max_tries
+							except elasticsearch.ConnectionTimeout:
+								error=err()
+								tries+=1
+								time.sleep(random.random() * (4 ** tries)) # prevents combo deny of service of elasticsearch 
+								#self.log.write("elasticsearch bulk ConnectionTimeout warning {}/{}".format(self.connector.name,self.table))
+							except elasticsearch.helpers.BulkIndexError:
+								error=err()
+								if ('es_rejected_execution_exception' in error):
+									tries+=1
+									time.sleep(random.random() * (4 ** tries)) # prevents combo deny of service of elasticsearch 									
+							except:
+								tries=max_tries
+								error=err()
+						if (success==False):					
+							self.log.write(msg="elasticsearch bulk of subchunk {} failed {}/{}".format(i,self.connector.name,self.table),error=error)
+	#						self.log.write("couldnt insert {} lines to {}/{}".format(size,self.connector.name,self.table))
+						else:
+							if (tries > 0):
+								self.log.write("inserted subchunk {}, {} lines to {}/{} on {}th try".format(i,size,self.connector.name,self.table,tries+1))
 							else:
-								helpers.bulk(self.connector.es,actions)
-							processed+=size
-							max_tries=tries
-							success=True							
-						except elasticsearch.SerializationError:
-							tries=max_tries
-							error=err()
-							if ('"errors":false' in error):
-								self.log.write(msg="elasticsearch SerializationError but no error")
-								processed+=size
-								success=True
-							elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]',error)))):
-								self.log.write(msg="elasticsearch JSONDecodeError but found no error")
-								processed+=size
-								success=True
-						except ConnectionTimeout:
-							error=err()
-							tries+=1
-							time.sleep(tries * 5) # prevents combo deny of service of elasticsearch 
-							self.log.write("elasticsearch bulk ConnctionTimeout warning {}:{}/{}".format(self.connector.host,self.connector.port,self.table))
-						except:
-							tries=max_tries
-							error=err()	
-					if (success==False):					
-						self.log.write("elasticsearch bulk failed {}:{}/{}".format(self.connector.host,self.connector.port,self.table),error=err())
-					else:
-						self.log.write("inserted {} lines to {}:{}/{}".format(size,self.connector.host,self.connector.port,self.table))
+								self.log.write("inserted subchunk {}, {} lines to {}/{}".format(i,size,self.connector.name,self.table))
+					except:
+						self.log.write(msg="elasticsearch bulk of subchunk {} failed {}/{}".format(i,self.connector.name,self.table),error=err())
 
 			elif (self.connector.type == "filesystem"):
 				self.log.write("filesystem write {}".format(self.name))
