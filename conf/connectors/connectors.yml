@@ -13,7 +13,7 @@ connectors:
   elasticsearch:
     type: elasticsearch
     host: elasticsearch
-    thread_count: 1
+    thread_count: 3
     chunk: 500
     chunk_search: 20
     port: 9200
