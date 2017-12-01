@@ -520,7 +520,7 @@ class Connector(Configured):
 				self.port=self.conf["port"]
 			except:
 				self.port=9200
-			self.es=Elasticsearch(host=self.host,port=self.port,timeout=self.timeout)
+			self.es=Elasticsearch(self.host,port=self.port,timeout=self.timeout)
 			try:
 				self.chunk_search=self.conf["chunk_search"]
 			except:
