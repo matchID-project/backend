@@ -982,6 +982,8 @@ class Recipe(Configured):
 
 	def stop_job(self):
 		self.job.terminate()
+		time.sleep(5)
+		self.job.terminate()
 		return
 
 	def job_status(self):
@@ -2383,8 +2385,9 @@ class RecipeRun(Resource):
 		elif (action=="stop"):
 			try:
 				if (recipe in list(jobs.keys())):
-					jobs[recipe].stop_job()
-					return {"recipe": recipe, "status": "stopped"}
+					thread=Process(jobs[recipe].stop_job())
+					thread.start()
+					return {"recipe": recipe, "status": "stopping"}
 			except:
 				api.abort(404)
 
