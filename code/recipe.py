@@ -773,10 +773,10 @@ class Dataset(Configured):
 						#self.log.write("try to instert subchunk {} of {} lines to {}/{}".format(i,size,self.connector.name,self.table))
 						while(tries<max_tries):
 							try:
-								if (self.connector.thread_count>1):
-									deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
-								else:
-									helpers.bulk(self.connector.es,actions)
+								# if (self.connector.thread_count>1):
+								# 	deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
+								# else:
+								helpers.bulk(self.connector.es,actions)
 								processed+=size
 								max_tries=tries
 								success=True							
@@ -1009,16 +1009,35 @@ class Recipe(Configured):
 
 	def write_queue(self, queue):
 		exit=False
+		w_queue=[]
+		try:
+			max_threads=self.output.connector.thread_count
+		except:
+			max_threads=1
+		self.log.write("init queue with {} threads".format(max_threads))
 		while (exit==False):
 			try:
 				res=queue.get()
 				if (type(res)==bool):
 					exit=True
 				else:
-					self.write(res[0],res[1])
+					#self.log.write("current queue has {} threads".format(len(w_queue)))
+					if (len(w_queue)==max_threads):
+						while (len(w_queue)==max_threads):
+							w_queue =[t for t in w_queue if t.is_alive()]
+							time.sleep(0.05)						
+					t=Process(target=self.write,args=[res[0],res[1]])
+					t.start()
+					w_queue.append(t)
+					time.sleep(0.05)
 			except:
 				self.log.write("waiting to write - {}".format(self.name))				
 				time.sleep(1)
+				pass
+			try:
+				for thread in write_queue:
+					thread.join()
+			except:
 				pass
 
 	def run_chunk(self,i,df,queue=None):
@@ -1045,7 +1064,7 @@ class Recipe(Configured):
 					self.log.write(msg="error while calling {} in {}".format(recipe.name,self.name),error=err())
 			if ((self.output.name != "inmemory") & (self.test==False)):
 				if (queue != None):
-					queue.put([i,df])
+					queue.put_nowait([i,df])
 					#self.log.write("computation of chunk {} done, queued for write".format(i))
 				else:
 					# threads the writing, to optimize cpu usage, as write generate idle time
@@ -1143,7 +1162,7 @@ class Recipe(Configured):
 					if (len(run_queue)==self.threads):
 						while (len(run_queue)==self.threads):
 							run_queue =[t for t in run_queue if t[1].is_alive()]
-							time.sleep(1)
+							time.sleep(0.05)
 
 					run_thread=Process(target=self.run_chunk,args=[i+1,df,write_queue])
 					run_thread.start()
