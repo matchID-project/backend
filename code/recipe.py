@@ -782,7 +782,6 @@ class Dataset(Configured):
 								# 	deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
 								# else:
 								helpers.bulk(self.connector.es,actions)
-								processed+=size
 								max_tries=tries
 								success=True							
 							except elasticsearch.SerializationError:
@@ -811,9 +810,10 @@ class Dataset(Configured):
 								tries=max_tries
 								error=err()
 						if (success==False):					
-							self.log.write(msg="elasticsearch bulk of subchunk {} failed {}/{}".format(i,self.connector.name,self.table),error=error)
+							self.log.write(msg="elasticsearch bulk of subchunk {} failed after {} tries {}/{}".format(i,tries,self.connector.name,self.table),error=error)
 	#						self.log.write("couldnt insert {} lines to {}/{}".format(size,self.connector.name,self.table))
 						else:
+							processed+=size
 							if (tries > 0):
 								self.log.write("inserted subchunk {}, {} lines to {}/{} on {}th try".format(i,size,self.connector.name,self.table,tries+1))
 							else:
