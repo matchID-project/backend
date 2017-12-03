@@ -456,16 +456,21 @@ class Log(object):
 			self.writer
 		except:
 			return
+		if (type(self.chunk) ==  int):
+			prefix="chunk "
+		else:
+			prefix=""
+
 		if (level<=self.level):
 			t = datetime.datetime.now()
 			d = (t-self.start)
 			if (error != None):
 				if (msg != None):
-					fmsg="{} - {} - chunk {} : {} - Ooops: {} - {}".format(t,d,self.chunk,WHERE(1),msg,error)
+					fmsg="{} - {} - {}{} : {} - Ooops: {} - {}".format(t,d,prefix,self.chunk,WHERE(1),msg,error)
 				else:
-					fmsg="{} - {} - chunk {} : {} - Ooops: {}".format(t,d,self.chunk,WHERE(1),error)
+					fmsg="{} - {} - {}{} : {} - Ooops: {}".format(t,d,prefix,self.chunk,WHERE(1),error)
 			else:
-				fmsg="{} - {} - chunk {} : {} - {}".format(t,d,self.chunk,WHERE(1),msg)
+				fmsg="{} - {} - {}{} : {} - {}".format(t,d,prefix,self.chunk,WHERE(1),msg)
 			try:
 				if (self.verbose==True):
 					print(fmsg)
@@ -507,7 +512,7 @@ class Connector(Configured):
 		try:
 			self.timeout=self.conf["timeout"]
 		except:
-			self.timeout=60
+			self.timeout=10
 
 		if (self.type == "elasticsearch") | (self.type == "mongodb"):
 			try:
@@ -777,7 +782,6 @@ class Dataset(Configured):
 								# 	deque(helpers.parallel_bulk(self.connector.es,actions,thread_count=self.connector.thread_count))
 								# else:
 								helpers.bulk(self.connector.es,actions)
-								processed+=size
 								max_tries=tries
 								success=True							
 							except elasticsearch.SerializationError:
@@ -806,9 +810,10 @@ class Dataset(Configured):
 								tries=max_tries
 								error=err()
 						if (success==False):					
-							self.log.write(msg="elasticsearch bulk of subchunk {} failed {}/{}".format(i,self.connector.name,self.table),error=error)
+							self.log.write(msg="elasticsearch bulk of subchunk {} failed after {} tries {}/{}".format(i,tries,self.connector.name,self.table),error=error)
 	#						self.log.write("couldnt insert {} lines to {}/{}".format(size,self.connector.name,self.table))
 						else:
+							processed+=size
 							if (tries > 0):
 								self.log.write("inserted subchunk {}, {} lines to {}/{} on {}th try".format(i,size,self.connector.name,self.table,tries+1))
 							else:
@@ -1001,13 +1006,17 @@ class Recipe(Configured):
 			return "down"
 
 
-	def write(self,i,df):
+	def write(self,i,df,supervisor=None):
 		self.log.chunk=i
+		if (supervisor!=None):
+			supervisor[i]="writing"
 		self.input.processed+=self.output.write(i,df)
+		if (supervisor!=None):
+			supervisor[i]="done"
 		self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
 
 
-	def write_queue(self, queue):
+	def write_queue(self, queue, supervisor=None):
 		exit=False
 		w_queue=[]
 		try:
@@ -1023,24 +1032,28 @@ class Recipe(Configured):
 				else:
 					#self.log.write("current queue has {} threads".format(len(w_queue)))
 					if (len(w_queue)==max_threads):
+						supervisor[res[0]]="write_queue"
 						while (len(w_queue)==max_threads):
-							w_queue =[t for t in w_queue if t.is_alive()]
-							time.sleep(0.05)						
-					t=Process(target=self.write,args=[res[0],res[1]])
-					t.start()
-					w_queue.append(t)
+							w_queue =[t for t in w_queue if (t[1].is_alive() & (supervisor[t[0]]=="writing"))]
+							time.sleep(0.05)					
+					supervisor[res[0]]="writing"
+					thread=Process(target=self.write,args=[res[0],res[1],supervisor])
+					thread.start()
+					w_queue.append([res[0],thread])
 					time.sleep(0.05)
 			except:
-				self.log.write("waiting to write - {}".format(self.name))				
+				# self.log.write("waiting to write - {}, {}".format(self.name, w_queue))				
 				time.sleep(1)
 				pass
-			try:
-				for thread in write_queue:
-					thread.join()
-			except:
-				pass
+		try:
+			while (len(w_queue)>0):
+				w_queue =[t for t in w_queue if (t[1].is_alive() & (supervisor[t[0]]=="writing"))]
+		except:
+			pass
 
-	def run_chunk(self,i,df,queue=None):
+	def run_chunk(self,i,df,queue=None,supervisor=None):
+		if (supervisor != None):
+			supervisor[i]="run_chunk"
 		df.rename(columns=lambda x: x.strip(), inplace=True)
 		# if ((self.name == "join") & (i<=conf["global"]["threads_by_job"]) & (i>1)):
 		# 	#stupid but working hack to leave time for inmemory preload of first thread first chunk
@@ -1064,6 +1077,8 @@ class Recipe(Configured):
 					self.log.write(msg="error while calling {} in {}".format(recipe.name,self.name),error=err())
 			if ((self.output.name != "inmemory") & (self.test==False)):
 				if (queue != None):
+					if (supervisor != None):
+						supervisor[i]="run_done"
 					queue.put_nowait([i,df])
 					#self.log.write("computation of chunk {} done, queued for write".format(i))
 				else:
@@ -1111,8 +1126,22 @@ class Recipe(Configured):
 				self.log.write(msg="Finished {} with no error".format(r.name))
 
 
-	def run(self,head=None):
+	def supervise(self,queue,supervisor):
+		self.log.chunk="supervisor"
+		if ("supervisor_interval" in self.conf.keys()):
+			wait = self.conf["supervisor_interval"]
+			while True:
+				try:
+					writing=len([x for x in supervisor.keys() if (supervisor[x] == "writing") ])
+					running=len([x for x in supervisor.keys() if (supervisor[x] == "run_chunk") ])
+					self.log.write("threads - running: {}/{} - writing: {}/{}/{} ".format(running,self.threads,writing,self.output.connector.thread_count,queue.qsize()))
+					time.sleep(wait)
+				except:
+					time.sleep(0.05)
+					pass		
 
+
+	def run(self,head=None, write_queue=None, supervisor=None):
 		# recipes to run before
 		self.run_deps(self.before)
 
@@ -1136,12 +1165,26 @@ class Recipe(Configured):
 				self.df=pd.concat([df for df in self.input.reader])
 
 			# runs the recipe
-			self.df=self.run_chunk(0,self.df)
 
 			if (self.test==True):
 				# end of work if in test mode
+				self.df=self.run_chunk(0,self.df)
 				return self.df
 			else:
+				try:
+					if (supervisor == None):
+						supervisor= manager.dict()
+					if (write_queue == None):
+						write_queue=Queue()
+					# create the writer queue
+					supervisor_thread=Process(target=self.supervise,args=[write_queue,supervisor])
+					supervisor_thread.start()
+					write_thread=Process(target=self.write_queue,args=[write_queue,supervisor])
+					write_thread.start()
+
+					self.df=self.run_chunk(0,self.df, write_queue, supervisor)
+				except:
+					self.log.write("{}".format(err()))
 				# proceed to the whole dataset with // threads
 				# # concurrent futures version - only scales to +30% !
 				# with concurrent.futures.ThreadPoolExecutor(max_workers=conf["global"]["threads_by_job"]) as executor:
@@ -1149,33 +1192,44 @@ class Recipe(Configured):
 				# 	for future in concurrent.futures.as_completed(future_to_df):
 				# 		pass
 				# # process to parallelization with multiprocessing lib
-				run_queue=[]
-				write_queue=Queue()
-				# create the writer queue
-				write_thread=Process(target=self.write_queue,args=[write_queue])
-				write_thread.start()
+				try:
+					run_queue=[]
 
-				write_threads=[]
-				for i, df in enumerate(self.input.reader):
-					self.log.chunk="main_thread"
-					# wait if running queue is full
-					if (len(run_queue)==self.threads):
-						while (len(run_queue)==self.threads):
-							run_queue =[t for t in run_queue if t[1].is_alive()]
-							time.sleep(0.05)
+					write_threads=[]
+					for i, df in enumerate(self.input.reader):
+						supervisor[i+1]="started"
+						self.log.chunk="main_thread"
+						# wait if running queue is full
+						if (len(run_queue)==self.threads):
+							supervisor[i+1]="run_queued"
+							while (len(run_queue)==self.threads):
+								try:
+									run_queue =[t for t in run_queue if (t[1].is_alive() & (supervisor[t[0]]=="run_chunk"))]
+								except:
+									pass
+								time.sleep(0.05)
+						supervisor[i+1]="run_chunk"
+						run_thread=Process(target=self.run_chunk,args=[i+1,df,write_queue,supervisor])
+						run_thread.start()
+						run_queue.append([i+1,run_thread])
 
-					run_thread=Process(target=self.run_chunk,args=[i+1,df,write_queue])
-					run_thread.start()
-					run_queue.append([i+1,run_thread])
-
+				except:
+					self.log.write("{}".format(err()))
 				try:
 					# joining all threaded jobs
-					for thread in run_queue:
-						thread[1].join()
+					while (len(run_queue)>0):
+						try:
+							run_queue =[t for t in run_queue if (t[1].is_alive() & (supervisor[t[0]]=="run_chunk"))]
+						except:
+							pass
+						time.sleep(0.05)
+					self.log.chunk = "end"
+					self.log.write("end of compute, flushing results")				
 					while(write_queue.qsize()>0):
 						time.sleep(1)
 					write_queue.put(True)
 					write_thread.join()
+					supervisor_thread.terminate()
 				except:
 					self.log.write("{}".format(err()))
 					pass
@@ -1186,6 +1240,7 @@ class Recipe(Configured):
 					thread[1].terminate()
 				for thread in write_threads:
 					thread[1].terminate()
+				supervisor_thread.terminate()
 			except:
 				pass
 
@@ -1207,11 +1262,6 @@ class Recipe(Configured):
 			else:
 				if (len(self.steps)>0):
 					self.log.write(msg="while running {} - {}".format(self.name),error=err())
-			try:
-				for thread in queue.keys():
-					queue[thread].terminate()
-			except:
-				pass
 
 		# recipes to run after
 		self.run_deps(self.after)
@@ -1653,7 +1703,6 @@ class Recipe(Configured):
 					inmemory[ds]=Dataset(self.args["dataset"])
 					inmemory[ds].init_reader()
 					inmemory[ds].df=pd.concat([dx for dx in inmemory[ds].reader]).reset_index(drop=True)
-
 
 				# collects useful columns
 				if ("select" in list(self.args.keys())):
