@@ -512,7 +512,7 @@ class Connector(Configured):
 		try:
 			self.timeout=self.conf["timeout"]
 		except:
-			self.timeout=60
+			self.timeout=10
 
 		if (self.type == "elasticsearch") | (self.type == "mongodb"):
 			try:
