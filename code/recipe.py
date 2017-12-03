@@ -456,16 +456,21 @@ class Log(object):
 			self.writer
 		except:
 			return
+		if (type(self.chunk) ==  int):
+			prefix="chunk "
+		else:
+			prefix=""
+
 		if (level<=self.level):
 			t = datetime.datetime.now()
 			d = (t-self.start)
 			if (error != None):
 				if (msg != None):
-					fmsg="{} - {} - chunk {} : {} - Ooops: {} - {}".format(t,d,self.chunk,WHERE(1),msg,error)
+					fmsg="{} - {} - {}{} : {} - Ooops: {} - {}".format(t,d,prefix,self.chunk,WHERE(1),msg,error)
 				else:
-					fmsg="{} - {} - chunk {} : {} - Ooops: {}".format(t,d,self.chunk,WHERE(1),error)
+					fmsg="{} - {} - {}{} : {} - Ooops: {}".format(t,d,prefix,self.chunk,WHERE(1),error)
 			else:
-				fmsg="{} - {} - chunk {} : {} - {}".format(t,d,self.chunk,WHERE(1),msg)
+				fmsg="{} - {} - {}{} : {} - {}".format(t,d,prefix,self.chunk,WHERE(1),msg)
 			try:
 				if (self.verbose==True):
 					print(fmsg)
