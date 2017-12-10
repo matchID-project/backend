@@ -531,6 +531,15 @@ class Connector(Configured):
 			except:
 				self.chunk_search=1000
 
+			try:
+				self.max_tries = self.conf["max_tries"]
+			except:
+				self.max_tries = 4
+
+			try:
+				self.safe = self.conf["safe"]
+			except:
+				self.safe = True
 
 		try:
 			self.chunk=self.conf["chunk"]
@@ -601,6 +610,38 @@ class Dataset(Configured):
 				self.body=json.loads(json.dumps(self.conf["body"]))
 			except:
 				self.body={}
+
+			# inherited properties from connector, than can be overrided
+			try:
+				self.max_tries = self.conf["max_tries"]
+			except:
+				self.max_tries = self.connector.max_tries
+
+			try:
+				self.safe = self.conf["safe"]
+			except:
+				self.safe = self.connector.safe
+
+			try:
+				self.timeout = self.conf["timeout"]
+			except:
+				self.timeout = self.connector.timeout
+
+			try:
+				self.thread_count=self.conf["thread_count"]
+			except:
+				self.thread_count=self.connector.thread_count
+
+			try:
+				self.chunk=self.conf["chunk"]
+			except:
+				self.chunk=self.connector.chunk
+
+			try:
+				self.chunk_search=self.conf["chunk_search"]
+			except:
+				self.chunk_search=self.connector.chunk_search
+
 
 		if (self.connector.type == "filesystem"):
 			self.select=None
@@ -765,16 +806,20 @@ class Dataset(Configured):
 
 			if (self.connector.type == "elasticsearch"):
 					df=df.fillna("")
-					if ('_id' not in df.columns) | (self.mode != 'update'):
-						df['_id']=df.apply(lambda row: sha1(row), axis=1)
-					records=df.drop(['_id'],axis=1).T.to_dict()
-					ids=df['_id'].T.to_dict()
-					actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+					if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode != 'update'):
+						# unsafe insert speed enable to speed up
+						actions=[{'_op_type': 'index', '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+					else:
+						if ('_id' not in df.columns) | (self.mode != 'update'):
+								df['_id']=df.apply(lambda row: sha1(row), axis=1)
+						records=df.drop(['_id'],axis=1).T.to_dict()
+						ids=df['_id'].T.to_dict()
+						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 					try:
 						tries=0
 						success=False
 						failure=None
-						max_tries=4
+						max_tries=self.max_tries
 						#self.log.write("try to instert subchunk {} of {} lines to {}/{}".format(i,size,self.connector.name,self.table))
 						while(tries<max_tries):
 							try:
@@ -1020,7 +1065,7 @@ class Recipe(Configured):
 		exit=False
 		w_queue=[]
 		try:
-			max_threads=self.output.connector.thread_count
+			max_threads=self.output.thread_count
 		except:
 			max_threads=1
 		self.log.write("init queue with {} threads".format(max_threads))
@@ -1128,13 +1173,14 @@ class Recipe(Configured):
 
 	def supervise(self,queue,supervisor):
 		self.log.chunk="supervisor"
+		supervisor["end"]=False
 		if ("supervisor_interval" in self.conf.keys()):
 			wait = self.conf["supervisor_interval"]
-			while True:
+			while (supervisor["end"]==False):
 				try:
 					writing=len([x for x in supervisor.keys() if (supervisor[x] == "writing") ])
 					running=len([x for x in supervisor.keys() if (supervisor[x] == "run_chunk") ])
-					self.log.write("threads - running: {}/{} - writing: {}/{}/{} ".format(running,self.threads,writing,self.output.connector.thread_count,queue.qsize()))
+					self.log.write("threads - running: {}/{} - writing: {}/{}/{} ".format(running,self.threads,writing,queue.qsize(),self.output.thread_count))
 					time.sleep(wait)
 				except:
 					time.sleep(0.05)
@@ -1171,81 +1217,75 @@ class Recipe(Configured):
 				self.df=self.run_chunk(0,self.df)
 				return self.df
 			else:
-				try:
-					if (supervisor == None):
-						supervisor= manager.dict()
-					if (write_queue == None):
-						write_queue=Queue()
-					# create the writer queue
-					supervisor_thread=Process(target=self.supervise,args=[write_queue,supervisor])
-					supervisor_thread.start()
-					write_thread=Process(target=self.write_queue,args=[write_queue,supervisor])
-					write_thread.start()
+				if (supervisor == None):
+					supervisor= manager.dict()
+				if (write_queue == None):
+					write_queue=Queue()
+				# create the writer queue
+				supervisor_thread=Process(target=self.supervise,args=[write_queue,supervisor])
+				supervisor_thread.start()
+				write_thread=Process(target=self.write_queue,args=[write_queue,supervisor])
+				write_thread.start()
+				run_queue=[]
 
-					self.df=self.run_chunk(0,self.df, write_queue, supervisor)
-				except:
-					self.log.write("{}".format(err()))
-				# proceed to the whole dataset with // threads
-				# # concurrent futures version - only scales to +30% !
-				# with concurrent.futures.ThreadPoolExecutor(max_workers=conf["global"]["threads_by_job"]) as executor:
-				# 	future_to_df={executor.submit(self.run_chunk,i,df): df for i, df in enumerate(self.input.reader)}
-				# 	for future in concurrent.futures.as_completed(future_to_df):
-				# 		pass
-				# # process to parallelization with multiprocessing lib
-				try:
-					run_queue=[]
+				self.df=self.run_chunk(0,self.df, write_queue, supervisor)
 
-					write_threads=[]
-					for i, df in enumerate(self.input.reader):
-						supervisor[i+1]="started"
-						self.log.chunk="main_thread"
-						# wait if running queue is full
-						if (len(run_queue)==self.threads):
-							supervisor[i+1]="run_queued"
-							while (len(run_queue)==self.threads):
-								try:
-									run_queue =[t for t in run_queue if (t[1].is_alive() & (supervisor[t[0]]=="run_chunk"))]
-								except:
-									pass
-								time.sleep(0.05)
-						supervisor[i+1]="run_chunk"
-						run_thread=Process(target=self.run_chunk,args=[i+1,df,write_queue,supervisor])
-						run_thread.start()
-						run_queue.append([i+1,run_thread])
+				
 
-				except:
-					self.log.write("{}".format(err()))
-				try:
-					# joining all threaded jobs
-					while (len(run_queue)>0):
-						try:
-							run_queue =[t for t in run_queue if (t[1].is_alive() & (supervisor[t[0]]=="run_chunk"))]
-						except:
-							pass
-						time.sleep(0.05)
-					self.log.chunk = "end"
-					self.log.write("end of compute, flushing results")				
-					while(write_queue.qsize()>0):
-						time.sleep(1)
-					write_queue.put(True)
-					write_thread.join()
-					supervisor_thread.terminate()
-				except:
-					self.log.write("{}".format(err()))
-					pass
+				for i, df in enumerate(self.input.reader):
+					supervisor[i+1]="started"
+					self.log.chunk="main_thread"
+					# wait if running queue is full
+					if (len(run_queue)==self.threads):
+						supervisor[i+1]="run_queued"
+						while (len(run_queue)==self.threads):
+							try:
+								run_queue =[t for t in run_queue if (t[1].is_alive() & (supervisor[t[0]]=="run_chunk"))]
+							except:
+								pass
+							time.sleep(0.05)
+					supervisor[i+1]="run_chunk"
+					run_thread=Process(target=self.run_chunk,args=[i+1,df,write_queue,supervisor])
+					run_thread.start()
+					run_queue.append([i+1,run_thread])
+
+				# joining all threaded jobs
+				while (len(run_queue)>0):
+					try:
+						run_queue =[t for t in run_queue if (t[1].is_alive() & (supervisor[t[0]]=="run_chunk"))]
+					except:
+						pass
+					time.sleep(0.05)
+				self.log.chunk = "end"
+				self.log.write("end of compute, flushing results")				
+				while(write_queue.qsize()>0):
+					time.sleep(1)
+				write_queue.put(True)
+				write_thread.join()
+				supervisor["end"]=True
+				supervisor_thread.terminate()
 
 		except SystemExit:
 			try:
-				for thread in run_queue:
-					thread[1].terminate()
-				for thread in write_threads:
-					thread[1].terminate()
+				self.log.write("terminating ...")
+				write_queue.put(True)
+				write_thread.terminate()
+				supervisor["end"]=True
 				supervisor_thread.terminate()
+
+				for t in run_queue:
+					try:
+						self.log.write("terminating chunk {}".format(t[0]))
+						t[1].terminate()
+					except:
+						pass
 			except:
 				pass
 
 			self.log.chunk="end"
+			time.sleep(1)
 			self.log.write(error="Recipe {} aborted via SIGTERM".format(self.name),exit=True)
+			return
 		except:
 			if (self.test==True):
 				error=err()
@@ -1340,6 +1380,8 @@ class Recipe(Configured):
 							# self.log.write("Ooops: output shape {} to {}".format(dh.shape, df.shape),exit=False)
 							try:
 								df[col]=df.apply(lambda row: safeeval(step[col],row), axis=1)
+							except SystemExit:
+								return df	
 							except:
 								a=df.apply(lambda row: [safeeval(step[col],row)],axis=1)
 								df[col]=a
@@ -1368,6 +1410,8 @@ class Recipe(Configured):
 				if (len(partial_col_err)>0):
 					self.log.write(error="warning in {} : {}/{} errors in {}".format(self.name,nerr_total,df.shape[0],partial_col_err),exit=False)
 			return df
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="problem in {} - {} - {}".format(self.name,col,step[col]),error=err(),exit=False)
 			return df
@@ -1397,9 +1441,11 @@ class Recipe(Configured):
 		# fully shuffles columnes and lines
 		try:
 			return df.apply(np.random.permutation)
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="problem in {} - {}".format(self.name),error=err(),exit=False)
-
+			return df
 
 	def internal_build_model(self,df=None):
 		# callable recipe for building method
@@ -1486,10 +1532,11 @@ class Recipe(Configured):
 				except:
 					self.log.write(msg="couldn't save model in {}".format(self.name),error=err(),exit=False)
 
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="problem while building model from numerical: {} and categorical: {} to {} in {}".format(self.numerical,self.categorical,self.target,self.name),error=err(),exit=False)
 			return df
-
 		return df
 
 	def internal_apply_model(self,df=None):
@@ -1548,6 +1595,8 @@ class Recipe(Configured):
 
 			df[self.target]=clf.predict(X)
 			df[self.target]=df[self.target].apply(lambda x: round(100*x))
+		except SystemExit:
+			return df	
 
 		except:
 			self.log.write(msg="problem while applying model from numerical: {} and categorical: {} to {} in {}".format(self.numerical,self.categorical,self.target,self.name),error=err(),exit=False)
@@ -1566,6 +1615,8 @@ class Recipe(Configured):
 				df=df[df.matchid_selection_xykfsd == True]
 				del df["matchid_selection_xykfsd"]
 			return df[self.cols]
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
@@ -1577,6 +1628,8 @@ class Recipe(Configured):
 		try:
 			df[self.cols]=df[self.cols].applymap(lambda x: np.nan if (str(x) == "") else int(x))
 			return df
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
@@ -1587,6 +1640,8 @@ class Recipe(Configured):
 		try:
 			df[self.cols]=df[self.cols].applymap(lambda x: tuple(x) if (type(x) == list) else x)
 			return df
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
@@ -1597,6 +1652,8 @@ class Recipe(Configured):
 		try:
 			df[self.cols]=df[self.cols].applymap(lambda x: list(x) if (type(x) == tuple) else x)
 			return df
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
@@ -1612,6 +1669,8 @@ class Recipe(Configured):
 		try:
 			df[self.cols]=df[self.cols].applymap(lambda x: na_value if (str(x) == "") else float(x))
 			return df
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
@@ -1627,6 +1686,8 @@ class Recipe(Configured):
 		try:
 			df[self.cols]=df[self.cols].applymap(lambda x: ngrams(tokenize(normalize(x)), n))
 			return df
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
@@ -1650,6 +1711,8 @@ class Recipe(Configured):
 			# for col in self.cols:
 			# 	del df[col]
 			return df
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
@@ -1678,6 +1741,8 @@ class Recipe(Configured):
 			# 	self.cols = [x for x in self.cols if x not in self.args["apply"].keys()]
 			# 	dfg=df.groupby(self.cols)
 			# 	df=pd.concat([dfg.apply(lambda x: safeeval((self.args["apply"][col]),{"x": x})) for col in self.args["apply"].keys()])
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err())
 		return df
@@ -1828,7 +1893,7 @@ class Recipe(Configured):
 							tries=0
 							success=False
 							failure=None
-							max_tries=4
+							max_tries=self.connector.max_tries
 							while(tries<max_tries):
 								try:
 									res=es.connector.es.msearch(bulk, request_timeout=10+10*tries)
@@ -1893,6 +1958,8 @@ class Recipe(Configured):
 						pass
 				else:
 					return df
+		except SystemExit:
+			return df	
 		except:
 			self.log.write("join {} x {} failed : {}".format(self.name,self.args["dataset"],err()))
 		return df.fillna('')
@@ -1910,6 +1977,8 @@ class Recipe(Configured):
 			for col in self.cols:
 				df_list.append(df[col].apply(pd.Series).add_prefix(prefix))
 			return pd.concat(df_list,axis=1).drop(self.cols,axis=1)
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(error=err())
 			return df
@@ -1923,6 +1992,8 @@ class Recipe(Configured):
 		try:
 			df[target] = df[self.cols].apply(lambda x: x.to_json(), axis=1)
 			df=self.internal_delete(df)
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(error=err())
 		return df
@@ -1958,6 +2029,8 @@ class Recipe(Configured):
 				}).assign(**{col:np.concatenate(df[col].values) for col in self.cols}) \
 				.append(df.loc[lens==0, idx_cols]).fillna(fill_na) \
 				.loc[:, df.columns]
+		except SystemExit:
+			return df	
 		except:
 			self.log.write(error=err())
 			return df
