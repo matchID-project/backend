@@ -531,6 +531,15 @@ class Connector(Configured):
 			except:
 				self.chunk_search=1000
 
+			try:
+				self.max_tries = self.conf["max_tries"]
+			except:
+				self.max_tries = 4
+
+			try:
+				self.safe = self.conf["safe"]
+			except:
+				self.safe = True
 
 		try:
 			self.chunk=self.conf["chunk"]
@@ -601,6 +610,38 @@ class Dataset(Configured):
 				self.body=json.loads(json.dumps(self.conf["body"]))
 			except:
 				self.body={}
+
+			# inherited properties from connector, than can be overrided
+			try:
+				self.max_tries = self.conf["max_tries"]
+			except:
+				self.max_tries = self.connector.max_tries
+
+			try:
+				self.safe = self.conf["safe"]
+			except:
+				self.safe = self.connector.safe
+
+			try:
+				self.timeout = self.conf["timeout"]
+			except:
+				self.timeout = self.connector.timeout
+
+			try:
+				self.thread_count=self.conf["thread_count"]
+			except:
+				self.thread_count=self.connector.thread_count
+
+			try:
+				self.chunk=self.conf["chunk"]
+			except:
+				self.chunk=self.connector.chunk
+
+			try:
+				self.chunk_search=self.conf["chunk_search"]
+			except:
+				self.chunk_search=self.connector.chunk_search
+
 
 		if (self.connector.type == "filesystem"):
 			self.select=None
@@ -1020,7 +1061,7 @@ class Recipe(Configured):
 		exit=False
 		w_queue=[]
 		try:
-			max_threads=self.output.connector.thread_count
+			max_threads=self.output.thread_count
 		except:
 			max_threads=1
 		self.log.write("init queue with {} threads".format(max_threads))
