@@ -1173,13 +1173,14 @@ class Recipe(Configured):
 
 	def supervise(self,queue,supervisor):
 		self.log.chunk="supervisor"
+		supervisor["end"]=False
 		if ("supervisor_interval" in self.conf.keys()):
 			wait = self.conf["supervisor_interval"]
-			while True:
+			while (supervisor["end"]==False):
 				try:
 					writing=len([x for x in supervisor.keys() if (supervisor[x] == "writing") ])
 					running=len([x for x in supervisor.keys() if (supervisor[x] == "run_chunk") ])
-					self.log.write("threads - running: {}/{} - writing: {}/{}/{} ".format(running,self.threads,writing,self.output.connector.thread_count,queue.qsize()))
+					self.log.write("threads - running: {}/{} - writing: {}/{}/{} ".format(running,self.threads,writing,queue.qsize(),self.output.thread_count))
 					time.sleep(wait)
 				except:
 					time.sleep(0.05)
