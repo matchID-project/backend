@@ -1893,7 +1893,7 @@ class Recipe(Configured):
 							tries=0
 							success=False
 							failure=None
-							max_tries=4
+							max_tries=self.connector.max_tries
 							while(tries<max_tries):
 								try:
 									res=es.connector.es.msearch(bulk, request_timeout=10+10*tries)
