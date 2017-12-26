@@ -841,11 +841,11 @@ class Dataset(Configured):
 									tries+=1
 									time.sleep(random.random() * (4 ** tries)) # prevents combo deny of service of elasticsearch 
 								elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]',error)))):
-									tries=max_tries
+									max_tries=tries
 									self.log.write(msg="elasticsearch JSONDecodeError but found no error")
 									#processed+=size
 								else:
-									tries=max_tries
+									max_tries=tries
 							except elasticsearch.ConnectionTimeout:
 								error=err()
 								tries+=1
@@ -1149,7 +1149,7 @@ class Recipe(Configured):
 			self.log.write("proceed {} rows from {} with recipe {}".format(df.shape[0],self.input.name,self.name))
 		if (self.type == "internal"):
 			df=getattr(self.__class__,"internal_"+self.name)(self,df=df)
-		elif(len(self.steps)>0):
+		elif((len(self.steps)>0) | ("steps" in self.conf.keys())):
 			for recipe in self.steps:
 				try:
 					self.log.write("{} > {}".format(self.name,recipe.name),level=2)
@@ -1213,6 +1213,7 @@ class Recipe(Configured):
 
 	def supervise(self,queue,supervisor):
 		self.log.chunk="supervisor"
+		self.log.write("initiating supervisor")
 		supervisor["end"]=False
 		if ("supervisor_interval" in self.conf.keys()):
 			wait = self.conf["supervisor_interval"]
@@ -1333,14 +1334,14 @@ class Recipe(Configured):
 					self.df=df
 				except:
 					self.df=None
-				if (len(self.steps)>0):
+				if ((len(self.steps)>0) | ("steps" in self.conf.keys())):
 					self.log.write(msg="in main loop of {} {}".format(self.name,str(self.input.select)),error=error)
 				else:
 					if((len(self.before)+len(self.after))==0):
 						self.log.write(error="a recipe should contain a least a steps, before, run or after section")
 				return self.df
 			else:
-				if (len(self.steps)>0):
+				if (len(self.steps)>0 | ("steps" in self.conf.keys())):
 					self.log.write(msg="while running {} - {}".format(self.name),error=err())
 
 		# recipes to run after
@@ -1956,7 +1957,7 @@ class Recipe(Configured):
 							tries=0
 							success=False
 							failure=None
-							max_tries=self.connector.max_tries
+							max_tries=es.connector.max_tries
 							while(tries<max_tries):
 								try:
 									res=es.connector.es.msearch(bulk, request_timeout=10+10*tries)
