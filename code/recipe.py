@@ -733,11 +733,14 @@ class Dataset(Configured):
 						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,names=self.names,skiprows=self.skiprows,
 						prefix=self.prefix,iterator=True,index_col=False,keep_default_na=False) for file in self.files)
 				elif (self.type == "fwf"):
-					# with gzip.open(self.file, mode="r") as fh:
-					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,
 					self.reader=itertools.chain.from_iterable(pd.read_fwf(file,chunksize=self.connector.chunk,skiprows=self.skiprows,
 						encoding=self.encoding,delimiter=self.sep,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
 						iterator=True,keep_default_na=False) for file in self.files)
+				elif (self.type == "hdf"):
+					self.reader=itertools.chain.from_iterable(pd.read_hdf(file,chunksize=self.connector.chunk) for file in self.files)
+				elif (self.type == "msgpack"):
+					self.reader=itertools.chain.from_iterable(pd.read_msgpack(file,iterator=True, encoding=self.encoding) for file in self.files)
+
 			elif (self.connector.type == "elasticsearch"):
 				self.reader= self.scanner()
 		else:
@@ -869,7 +872,7 @@ class Dataset(Configured):
 						self.log.write(msg="elasticsearch bulk of subchunk {} failed {}/{}".format(i,self.connector.name,self.table),error=err())
 
 			elif (self.connector.type == "filesystem"):
-				self.log.write("filesystem write {}".format(self.name))
+				# self.log.write("filesystem write {}".format(self.name))
 				if (self.type == "csv"):
 					try:
 						if self.compression == 'infer':
@@ -892,7 +895,20 @@ class Dataset(Configured):
 					except:
 						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))
 					pass
-				pass
+				elif (self.type == "hdf"):
+					try:
+						df.to_hdf(self.file,key=self.name,mode='a', format='table')
+					except:
+						self.log.write("write to hdf failed writing {} : {}".format(self.file,err()))						
+				elif (self.type == "msgpack"):
+					try:
+						df.to_msgpack(self.file, append = True, encoding=self.encoding)
+					except:
+						self.log.write("write to msgpack failed writing {} : {}".format(self.file,err()))						
+				else:
+					self.log.write("no method for writing to {} with type {}".format(self.file, self.type))						
+
+
 		return processed
 
 class Recipe(Configured):
@@ -1079,7 +1095,7 @@ class Recipe(Configured):
 		self.log.chunk=i
 		if (supervisor!=None):
 			supervisor[i]="writing"
-		self.input.processed+=self.output.write(i,df)
+		self.input.processed+=self.output.write(i, df)
 		if (supervisor!=None):
 			supervisor[i]="done"
 		self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
