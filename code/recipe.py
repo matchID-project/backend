@@ -41,6 +41,8 @@ import numpy as np
 #ml dependencies
 from sklearn.utils import shuffle
 import sklearn.ensemble
+import igraph
+# from graph_tool.all import *
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction import DictVectorizer
@@ -1691,6 +1693,29 @@ class Recipe(Configured):
 		except:
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
+
+	def internal_clique(self,df=None):
+
+		try:
+			self.select_columns(df=df,arg="edges")
+			edges_cols = self.cols
+			# if (len(edges_cols)>2):
+			# 	self.log.write(msg="igraph",error="no more thant 2 cols for edges")
+			self.select_columns(df=df,arg="weigths")
+			weigths_cols = self.cols
+			graph = igraph.Graph()
+			verbose = 1000
+			rows = df.shape[0]
+			i = 0
+			for row in df.iterrows():
+				i += 1
+				graph.add_edge(int(row[edges_cols[0]]), int(row[edges_cols[1]]), weight=row[weigths_cols[0]])
+				if ((i % verbose) == 0):
+					self.log.write("loading graph :  {} / {}".format(i,rows))
+			self.log.write("loded graph :  {} links".format(rows))
+		except:
+			self.log.write(msg="",error=err())
+		return df
 
 	# def internal_sql(self,df=None):
 	# 	if True:
