@@ -41,6 +41,8 @@ import numpy as np
 #ml dependencies
 from sklearn.utils import shuffle
 import sklearn.ensemble
+import igraph
+# from graph_tool.all import *
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction import DictVectorizer
@@ -590,6 +592,16 @@ class Dataset(Configured):
 		except:
 			log.write(error="table of dataset {} has to be defined".format(self.name))
 
+		try:
+			self.thread_count=self.conf["thread_count"]
+		except:
+			self.thread_count=self.connector.thread_count
+
+		try:
+			self.chunk=self.conf["chunk"]
+		except:
+			self.chunk=self.connector.chunk
+
 		if (self.connector.type == "elasticsearch"):
 			try:
 				self.select=self.conf["select"]
@@ -626,16 +638,6 @@ class Dataset(Configured):
 				self.timeout = self.conf["timeout"]
 			except:
 				self.timeout = self.connector.timeout
-
-			try:
-				self.thread_count=self.conf["thread_count"]
-			except:
-				self.thread_count=self.connector.thread_count
-
-			try:
-				self.chunk=self.conf["chunk"]
-			except:
-				self.chunk=self.connector.chunk
 
 			try:
 				self.chunk_search=self.conf["chunk_search"]
@@ -731,11 +733,14 @@ class Dataset(Configured):
 						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,names=self.names,skiprows=self.skiprows,
 						prefix=self.prefix,iterator=True,index_col=False,keep_default_na=False) for file in self.files)
 				elif (self.type == "fwf"):
-					# with gzip.open(self.file, mode="r") as fh:
-					# self.reader=pd.read_fwf(gzip.open(self.file,mode='rt'),chunksize=self.connector.chunk,skiprows=self.skiprows,
 					self.reader=itertools.chain.from_iterable(pd.read_fwf(file,chunksize=self.connector.chunk,skiprows=self.skiprows,
 						encoding=self.encoding,delimiter=self.sep,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
 						iterator=True,keep_default_na=False) for file in self.files)
+				elif (self.type == "hdf"):
+					self.reader=itertools.chain.from_iterable(pd.read_hdf(file,chunksize=self.connector.chunk) for file in self.files)
+				elif (self.type == "msgpack"):
+					self.reader=itertools.chain.from_iterable(pd.read_msgpack(file,iterator=True, encoding=self.encoding) for file in self.files)
+
 			elif (self.connector.type == "elasticsearch"):
 				self.reader= self.scanner()
 		else:
@@ -743,7 +748,7 @@ class Dataset(Configured):
 
 	def scanner(self,**kwargs):
 		self.select=json.loads(json.dumps(self.select))
-		scan=helpers.scan(client=self.connector.es, query=self.select, index=self.table, doc_type=self.doc_type,preserve_order=True,size=self.connector.chunk)
+		scan=helpers.scan(client=self.connector.es, query=self.select, index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
 
 		hits=[]
 		ids=[]
@@ -751,7 +756,7 @@ class Dataset(Configured):
 			hits.append(item)
 			ids.append(item['_id'])
 
-			if (((j+1)%self.connector.chunk)==0):
+			if (((j+1)%self.chunk)==0):
 				df=pd.concat(map(pd.DataFrame.from_dict, hits), axis=1)['_source'].T.reset_index(drop=True)
 				df['_id']=ids
 				hits=[]
@@ -790,16 +795,16 @@ class Dataset(Configured):
 					pass
 		return None
 
-	def write(self,chunk=0,df=None):
+	def write(self, chunk=0, df=None):
 		size=df.shape[0]
 		if (self.name == "inmemory"):
 			return size
 		processed=0
 		i=0
-		if (size <= self.connector.chunk):
+		if (size <= self.chunk):
 			df_list=[df]
 		else:
-			df_list=np.array_split(df,list(range(self.connector.chunk,size,self.connector.chunk)))
+			df_list=np.array_split(df,list(range(self.chunk,size,self.chunk)))
 		for df in df_list:
 			i+=1
 			size=df.shape[0]
@@ -836,11 +841,11 @@ class Dataset(Configured):
 									tries+=1
 									time.sleep(random.random() * (4 ** tries)) # prevents combo deny of service of elasticsearch 
 								elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]',error)))):
-									tries=max_tries
+									max_tries=tries
 									self.log.write(msg="elasticsearch JSONDecodeError but found no error")
 									#processed+=size
 								else:
-									tries=max_tries
+									max_tries=tries
 							except elasticsearch.ConnectionTimeout:
 								error=err()
 								tries+=1
@@ -867,7 +872,7 @@ class Dataset(Configured):
 						self.log.write(msg="elasticsearch bulk of subchunk {} failed {}/{}".format(i,self.connector.name,self.table),error=err())
 
 			elif (self.connector.type == "filesystem"):
-				self.log.write("filesystem write {}".format(self.name))
+				# self.log.write("filesystem write {}".format(self.name))
 				if (self.type == "csv"):
 					try:
 						if self.compression == 'infer':
@@ -890,7 +895,20 @@ class Dataset(Configured):
 					except:
 						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))
 					pass
-				pass
+				elif (self.type == "hdf"):
+					try:
+						df.to_hdf(self.file,key=self.name,mode='a', format='table')
+					except:
+						self.log.write("write to hdf failed writing {} : {}".format(self.file,err()))						
+				elif (self.type == "msgpack"):
+					try:
+						df.to_msgpack(self.file, append = True, encoding=self.encoding)
+					except:
+						self.log.write("write to msgpack failed writing {} : {}".format(self.file,err()))						
+				else:
+					self.log.write("no method for writing to {} with type {}".format(self.file, self.type))						
+
+
 		return processed
 
 class Recipe(Configured):
@@ -937,6 +955,17 @@ class Recipe(Configured):
 			except:
 				self.input.chunked=True
 
+			try:
+				self.input.chunk=self.conf["input"]["chunk"]
+			except:
+				pass
+
+			try:
+				self.input.thread_count=self.conf["input"]["thread_count"]
+			except:
+				pass
+
+
 		except:
 			self.input=Dataset("inmemory",parent=self)
 			self.input.select=None
@@ -981,6 +1010,17 @@ class Recipe(Configured):
 				self.output.mode=self.conf["output"]["mode"]
 			except:
 				self.output.mode='create'
+
+			try:
+				self.output.chunk=self.conf["output"]["chunk"]
+			except:
+				pass
+
+			try:
+				self.output.thread_count=self.conf["output"]["thread_count"]
+			except:
+				pass
+
 		except:
 			self.output=Dataset("inmemory",parent=self)
 
@@ -1055,7 +1095,7 @@ class Recipe(Configured):
 		self.log.chunk=i
 		if (supervisor!=None):
 			supervisor[i]="writing"
-		self.input.processed+=self.output.write(i,df)
+		self.input.processed+=self.output.write(i, df)
 		if (supervisor!=None):
 			supervisor[i]="done"
 		self.log.write("wrote {} to {} after recipe {}".format(df.shape[0],self.output.name,self.name))
@@ -1068,7 +1108,7 @@ class Recipe(Configured):
 			max_threads=self.output.thread_count
 		except:
 			max_threads=1
-		self.log.write("init queue with {} threads".format(max_threads))
+		self.log.write("initiating queue with {} threads".format(max_threads))
 		while (exit==False):
 			try:
 				res=queue.get()
@@ -1109,7 +1149,7 @@ class Recipe(Configured):
 			self.log.write("proceed {} rows from {} with recipe {}".format(df.shape[0],self.input.name,self.name))
 		if (self.type == "internal"):
 			df=getattr(self.__class__,"internal_"+self.name)(self,df=df)
-		elif(len(self.steps)>0):
+		elif((len(self.steps)>0) | ("steps" in self.conf.keys())):
 			for recipe in self.steps:
 				try:
 					self.log.write("{} > {}".format(self.name,recipe.name),level=2)
@@ -1173,6 +1213,7 @@ class Recipe(Configured):
 
 	def supervise(self,queue,supervisor):
 		self.log.chunk="supervisor"
+		self.log.write("initiating supervisor")
 		supervisor["end"]=False
 		if ("supervisor_interval" in self.conf.keys()):
 			wait = self.conf["supervisor_interval"]
@@ -1293,14 +1334,14 @@ class Recipe(Configured):
 					self.df=df
 				except:
 					self.df=None
-				if (len(self.steps)>0):
+				if ((len(self.steps)>0) | ("steps" in self.conf.keys())):
 					self.log.write(msg="in main loop of {} {}".format(self.name,str(self.input.select)),error=error)
 				else:
 					if((len(self.before)+len(self.after))==0):
 						self.log.write(error="a recipe should contain a least a steps, before, run or after section")
 				return self.df
 			else:
-				if (len(self.steps)>0):
+				if (len(self.steps)>0 | ("steps" in self.conf.keys())):
 					self.log.write(msg="while running {} - {}".format(self.name),error=err())
 
 		# recipes to run after
@@ -1692,6 +1733,29 @@ class Recipe(Configured):
 			self.log.write(msg="{}".format(self.cols),error=err(),exit=False)
 			return df
 
+	def internal_clique(self,df=None):
+
+		try:
+			self.select_columns(df=df,arg="edges")
+			edges_cols = self.cols
+			# if (len(edges_cols)>2):
+			# 	self.log.write(msg="igraph",error="no more thant 2 cols for edges")
+			self.select_columns(df=df,arg="weigths")
+			weigths_cols = self.cols
+			graph = igraph.Graph()
+			verbose = 1000
+			rows = df.shape[0]
+			i = 0
+			for row in df.iterrows():
+				i += 1
+				graph.add_edge(int(row[edges_cols[0]]), int(row[edges_cols[1]]), weight=row[weigths_cols[0]])
+				if ((i % verbose) == 0):
+					self.log.write("loading graph :  {} / {}".format(i,rows))
+			self.log.write("loded graph :  {} links".format(rows))
+		except:
+			self.log.write(msg="",error=err())
+		return df
+
 	# def internal_sql(self,df=None):
 	# 	if True:
 	# 		if ("query" in self.args.keys()):
@@ -1893,7 +1957,7 @@ class Recipe(Configured):
 							tries=0
 							success=False
 							failure=None
-							max_tries=self.connector.max_tries
+							max_tries=es.connector.max_tries
 							while(tries<max_tries):
 								try:
 									res=es.connector.es.msearch(bulk, request_timeout=10+10*tries)
@@ -2039,8 +2103,10 @@ class Recipe(Configured):
 		self.select_columns(df=df)
 		if ("format" in self.args.keys()):
 			#parse string do datetime i.e. 20001020 + %Y%m%d => 2000-10-20T00:00:00Z
-			df[self.cols]=df[self.cols].applymap(lambda x:
-				parsedate(x,self.args["format"]))
+			for col in self.cols:
+				df[col]=pd.to_datetime(df[col], errors='coerce', format=self.args["format"])
+			#df[self.cols]=df[self.cols].applymap(lambda x:
+			#	parsedate(x,self.args["format"]))
 
 		return df
 
