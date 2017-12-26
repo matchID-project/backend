@@ -2103,8 +2103,10 @@ class Recipe(Configured):
 		self.select_columns(df=df)
 		if ("format" in self.args.keys()):
 			#parse string do datetime i.e. 20001020 + %Y%m%d => 2000-10-20T00:00:00Z
-			df[self.cols]=df[self.cols].applymap(lambda x:
-				parsedate(x,self.args["format"]))
+			for col in self.cols:
+				df[col]=pd.to_datetime(df[col], errors='coerce', format=self.args["format"])
+			#df[self.cols]=df[self.cols].applymap(lambda x:
+			#	parsedate(x,self.args["format"]))
 
 		return df
 
