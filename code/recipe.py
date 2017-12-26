@@ -592,6 +592,16 @@ class Dataset(Configured):
 		except:
 			log.write(error="table of dataset {} has to be defined".format(self.name))
 
+		try:
+			self.thread_count=self.conf["thread_count"]
+		except:
+			self.thread_count=self.connector.thread_count
+
+		try:
+			self.chunk=self.conf["chunk"]
+		except:
+			self.chunk=self.connector.chunk
+
 		if (self.connector.type == "elasticsearch"):
 			try:
 				self.select=self.conf["select"]
@@ -628,16 +638,6 @@ class Dataset(Configured):
 				self.timeout = self.conf["timeout"]
 			except:
 				self.timeout = self.connector.timeout
-
-			try:
-				self.thread_count=self.conf["thread_count"]
-			except:
-				self.thread_count=self.connector.thread_count
-
-			try:
-				self.chunk=self.conf["chunk"]
-			except:
-				self.chunk=self.connector.chunk
 
 			try:
 				self.chunk_search=self.conf["chunk_search"]
@@ -745,7 +745,7 @@ class Dataset(Configured):
 
 	def scanner(self,**kwargs):
 		self.select=json.loads(json.dumps(self.select))
-		scan=helpers.scan(client=self.connector.es, query=self.select, index=self.table, doc_type=self.doc_type,preserve_order=True,size=self.connector.chunk)
+		scan=helpers.scan(client=self.connector.es, query=self.select, index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
 
 		hits=[]
 		ids=[]
@@ -753,7 +753,7 @@ class Dataset(Configured):
 			hits.append(item)
 			ids.append(item['_id'])
 
-			if (((j+1)%self.connector.chunk)==0):
+			if (((j+1)%self.chunk)==0):
 				df=pd.concat(map(pd.DataFrame.from_dict, hits), axis=1)['_source'].T.reset_index(drop=True)
 				df['_id']=ids
 				hits=[]
@@ -792,16 +792,16 @@ class Dataset(Configured):
 					pass
 		return None
 
-	def write(self,chunk=0,df=None):
+	def write(self, chunk=0, df=None):
 		size=df.shape[0]
 		if (self.name == "inmemory"):
 			return size
 		processed=0
 		i=0
-		if (size <= self.connector.chunk):
+		if (size <= self.chunk):
 			df_list=[df]
 		else:
-			df_list=np.array_split(df,list(range(self.connector.chunk,size,self.connector.chunk)))
+			df_list=np.array_split(df,list(range(self.chunk,size,self.chunk)))
 		for df in df_list:
 			i+=1
 			size=df.shape[0]
@@ -939,6 +939,17 @@ class Recipe(Configured):
 			except:
 				self.input.chunked=True
 
+			try:
+				self.input.chunk=self.conf["input"]["chunk"]
+			except:
+				pass
+
+			try:
+				self.input.thread_count=self.conf["input"]["thread_count"]
+			except:
+				pass
+
+
 		except:
 			self.input=Dataset("inmemory",parent=self)
 			self.input.select=None
@@ -983,6 +994,17 @@ class Recipe(Configured):
 				self.output.mode=self.conf["output"]["mode"]
 			except:
 				self.output.mode='create'
+
+			try:
+				self.output.chunk=self.conf["output"]["chunk"]
+			except:
+				pass
+
+			try:
+				self.output.thread_count=self.conf["output"]["thread_count"]
+			except:
+				pass
+
 		except:
 			self.output=Dataset("inmemory",parent=self)
 
@@ -1070,7 +1092,7 @@ class Recipe(Configured):
 			max_threads=self.output.thread_count
 		except:
 			max_threads=1
-		self.log.write("init queue with {} threads".format(max_threads))
+		self.log.write("initiating queue with {} threads".format(max_threads))
 		while (exit==False):
 			try:
 				res=queue.get()
