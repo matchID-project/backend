@@ -95,7 +95,7 @@ recipes:
   scoring_sex:
     steps:   
       - eval:
-        - matchid_hit_score_sex: 1 if (str(matchid_sex) == str(hit_matchid_sex)) else 0  
+        - matchid_hit_score_sex: 1 if (float(matchid_sex) == float(hit_matchid_sex)) else 0  
   scoring_final:
     steps:   
       - eval:
