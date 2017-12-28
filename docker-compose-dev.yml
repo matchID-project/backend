@@ -27,7 +27,7 @@ services:
       - backend
       - frontend
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/matchid.conf
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
     ports:
       - "80:80"
     restart: always
