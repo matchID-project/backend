@@ -3,10 +3,11 @@
 
 
 ### import basics
-import sys, os, io, fnmatch, re, datetime, hashlib, unicodedata, shutil
+import sys, os, io, re, datetime, hashlib, unicodedata, shutil
+from werkzeug.utils import secure_filename
+from cStringIO import StringIO
 
 import traceback
-from cStringIO import StringIO
 import yaml as y
 import json
 import itertools
@@ -35,13 +36,12 @@ import uuid
 
 ### datascience dependecies
 #dataprep with pandas
-import automata
 import random
 import numpy as np
 #ml dependencies
 from sklearn.utils import shuffle
 import sklearn.ensemble
-import igraph
+import networkx
 # from graph_tool.all import *
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -52,39 +52,11 @@ from sklearn.metrics import roc_auc_score
 from sklearn.externals import joblib
 from numpy import array
 
-#ngram with nltk
-from nltk.util import ngrams
-#from nltk.tokenize import WhitespaceTokenizer
-
-# geodistance computation
-from geopy.distance import vincenty
-# from decimal import *
-# from fuzzywuzzy import fuzz, process
-# from fastcomp import compare
-import jellyfish
-
-### api
-from flask import Flask,jsonify,Response, abort,request
-from flask_restplus import Resource,Api,reqparse
-from werkzeug.utils import secure_filename
-from werkzeug.serving import run_simple
-from werkzeug.wsgi import DispatcherMiddleware
-import parsers
-
-
-global manager, jobs, inmemory, log, conf, levCache
-
-manager = Manager()
-inmemory={}
-jobs = {}
-levCache={}
-
-
-def err():
-	#exc_info=sys.exc_info()
-	exc_type, exc_obj, exc_tb = sys.exc_info()
-	return "{} : {} line {}".format(str(exc_type),exc_obj,exc_tb.tb_lineno)
-	#return "{}".format(traceback.print_exception(*exc_info))
+# matchID imports
+import config
+from log import Log, err
+import automata
+from tools import *
 
 def fwf_format(row,widths,sep=""):
 	return sep.join([row[col].ljust(widths[i]-len(sep)) for i,col in enumerate(row.keys())])
@@ -116,382 +88,13 @@ def to_fwf(df, fname, widths=None,sep="",header=False,names=None,append=False,en
 		else:
 			raise
 
-def parsedate(x="",format="%Y%m%d"):
-	try:
-		return datetime.datetime.strptime(x,format)
-	except:
-		return None
-
-def WHERE( back = 0 ):
-    frame = sys._getframe( back + 1 )
-    return "{}".format(frame.f_code.co_name)
-    # return "%s/%s %s()" % ( os.path.basename( frame.f_code.co_filename ),
-                        # frame.f_lineno, frame.f_code.co_name )
-
-def jsonDumps(j=None,encoding='utf8'):
-    return simplejson.dumps(j, ensure_ascii=False, encoding=encoding,ignore_nan=True)
-
-def toJson(x = None):
-	if (x == None):
-		return ""
-	if ((type(x) != unicode) & (type(x) != str)):
-		return x
-	if (x == ""):
-		return x
-	try:
-		return [json.loads(x)]
-	except:
-		return x
-
-
-def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict):
-	class OrderedLoader(Loader):
-		pass
-	def construct_mapping(loader, node):
-		loader.flatten_mapping(node)
-		return object_pairs_hook(loader.construct_pairs(node))
-	OrderedLoader.add_constructor(
-		y .resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-		construct_mapping)
-	return y.load(stream, OrderedLoader)
-
-
-def deepupdate(original, update):
-	"""
-    Recursively update a dict.
-    Subdict's won't be overwritten but also updated.
-    """
-	for key, value in original.iteritems():
-	# python3 for key, value in original.items():
-		if key not in update:
-			update[key] = value
-		elif isinstance(value, dict):
-			deepupdate(value, update[key])
-	return update
-
-def check_conf(cfg,project,source):
-	for key in list(["recipes","datasets","connectors"]):
-		if (key in cfg.keys()):
-			for obj in cfg[key]:
-				cfg[key][obj]["source"]=source
-				cfg[key][obj]["project"]=project
-
-	return cfg
-
-def read_conf():
-	global conf
-	try:
-		conf_dir=conf["global"]["conf"]
-	except:
-		conf_dir="conf"
-
-	cfg={"global":{"projects":{}}}
-
-	cfg=read_conf_dir(conf_dir,cfg)
-
-	try:
-		projects=next(os.walk(cfg["global"]["paths"]["projects"]))[1]
-		for project in projects:
-			project=os.path.join(cfg["global"]["paths"]["projects"],project)
-			cfg=read_conf_dir(project,cfg)
-
-	except:
-		print err()
-
-	conf=cfg
-
-def read_conf_dir(conf_dir,cfg):
-	project=os.path.basename(conf_dir)
-	cfg["global"]["projects"][project] = {"path": conf_dir,"files":{}}
-	for root, dirnames, filenames in os.walk(conf_dir):
-		#print root,dirnames,filenames
-		subpath=root.replace(conf_dir+"/","") if (conf_dir != root) else ""
-		for filename in fnmatch.filter(filenames, '*.yml'):
-			conf_file=os.path.join(root, filename)
-			filename=os.path.join(subpath,filename)
-			cfg["global"]["projects"][project]["files"][filename]="not checked"
-
-			with open(conf_file) as reader:
-				try:
-					update=ordered_load(reader)
-					update=check_conf(update,project,filename)
-					cfg=deepupdate(cfg,update)
-					cfg["global"]["projects"][project]["files"][filename]="yaml is ok"
-				except:
-					cfg["global"]["projects"][project]["files"][filename]="yaml is ko - "+err()
-	return cfg
-
-def geopoint(geopoint):
-	try:
-		return tuple(float(x) for x in geopoint.replace("POINT(","").replace(")","").split(" ")[::-1])
-	except:
-		return ""
-
-def union(x):
-	return list(x)
-
-def distance(a,b):
-	try:
-		return round(10*vincenty(geopoint(a),geopoint(b)).kilometers)/10
-	except:
-		return ""
-
-
-
-def replace_regex(x,regex):
-	if (type(x)==str) | (type(x)==unicode):
-		for r in regex:
-			x=r[0].sub(r[1],x)
-	elif (type(x)==list):
-		x=[replace_regex(z,regex) for z in x]
-	elif (type(x)==dict):
-		x=dict((k,replace_regex(v,regex)) for (k,v) in x.items())
-	return x
-
-def replace_dict(x,dic):
-	if (type(x)==str) | (type(x)==unicode):
-		if x in list(dic.keys()):
-			return dic[x]
-	elif (type(x)==list):
-		x=[replace_dict(z,dic) for z in x]
-	elif ((type(x)==dict) | (type(x).__name__=="OrderedDict")):
-		x=dict((k,replace_dict(v,dic)) for (k,v) in x.items())
-	return x
-
-def sha1(row):
-	return hashlib.sha1(str(row)).hexdigest()
-
-def ngrams(x,n = [3]):
-	if (type(x) == list):
-		return flatten([ngrams(z, n) for z in x])
-	elif ((type(x)==unicode)|(type(x)==str)):
-		return flatten([[x[i:i+p] for i in xrange(len(x)-p+1)] for p in n])
-
-
-
-def flatten(x):
-    if (type(x) == list):
-        return [a for i in x for a in flatten(i)]
-    else:
-        return list([x])
-
-def tokenize (x=None):
-	if (type(x)==list):
-		return flatten([tokenize(z) for z in x])
-	elif ((type(x)==unicode) | (type(x)==str)):
-		return re.split('\s\s*',x)
-	else:
-		return tokenize(str(x))
-
-
-def normalize(x=None):
-	if (type(x)==unicode):
-		x=unicodedata.normalize('NFKD', x).encode('ascii', 'ignore')
-	if (type(x)==str):
-		x=re.sub('[^A-Za-z0-9]+', ' ', x.lower())
-		x=re.sub('\s+', ' ', x)
-		x=re.sub('^\s+$', '', x)
-	elif (type(x)==list):
-		x=filter(None,[normalize(z) for z in x])
-		# if (len(x)==1):
-		# 	x=x[0]
-		# elif(len(x)==0):
-		# 	x=""
-	return x
-
-
-def jw(s1,s2):
-	maxi=0
-	if (type(s1)==list):
-		for s in s1:
-			maxi=max(maxi,jw(s,s2))
-		return maxi
-	if (type(s2)==list):
-		for s in s2:
-			maxi=max(maxi,jw(s1,s))
-		return maxi
-	if (type(s1) == str):
-		s1 = unicode(s1)
-	if (type(s2) == str):
-		s2 = unicode(s2)
-	return round(100*jellyfish.jaro_winkler(s1,s2))/100
-
-def levenshtein(s1, s2):
-	if (not s1):
-		s1=""
-	if (not s2):
-		s2=""
-	if len(s1) < len(s2):
-		return levenshtein(s2, s1)
-	#choosen
-	if len(s2) == 0:
-		return len(s1)
-
-	return jellyfish.levenshtein_distance(unicode(s1),unicode(s2))
-
-	# cached version
-	try:
-		return levCache[tuple(s1,s2)]
-	except:
-		pass
-
-	levCache[tuple([s1,s2])] = jellyfish.levenshtein_distance(unicode(s1),unicode(s2))	
-	return levCache[tuple([s1,s2])]
-
-	#original
-	# len(s1) >= len(s2)
-
-	previous_row = range(len(s2) + 1)
-	for i, c1 in enumerate(s1):
-		current_row = [i + 1]
-		for j, c2 in enumerate(s2):
-			insertions = previous_row[j + 1] + 1 # j+1 instead of j since previous_row and current_row are one character longer
-			deletions = current_row[j] + 1       # than s2
-			substitutions = previous_row[j] + (c1 != c2)
-			current_row.append(min(insertions, deletions, substitutions))
-		previous_row = current_row
-
-	return previous_row[-1]
-
-def levenshtein_norm(s1,s2):
-	if True:
-		if (type(s1)==list):
-			maxi=0
-			for s in s1:
-				maxi=max(maxi,levenshtein_norm(s,s2))
-			return maxi
-
-		if (type(s2)==list):
-			maxi=0
-			for s in s2:
-				maxi=max(maxi,levenshtein_norm(s1,s))
-			return maxi
-		maxi=0
-		return max(maxi,round(100-100*float(levenshtein(s1,s2))/(1+min(len(s1),len(s2))))/100)
-
-	else:
-		return 0
-
-def safeeval(expression=None,row=None,verbose=True,defaut=""):
-	cell = None
-	locals().update(row)
-	try:
-		if ('cell' in expression):
-			exec expression
-		else:
-			cell = eval(expression)
-
-		return cell
-	except:
-		if (verbose):
-			return "Ooops in exec('{}'): {}".format(expression,err())
-		else:
-			return default
-
-
-def match_lv1(x, list_strings):
-	best_match = None
-	best_score = 3
-	for current_string in list_strings:
-		current_score = compare(x, current_string)
-		if (current_score==0):
-			return current_string
-		elif (current_score>0 & current_score < best_score):
-			best_match=current_string
-			best_score=current_score
-
-	if best_score >= 2:
-		return None
-	return best_match
-
-def match_jw(x, list_strings):
-	best_match = None
-	best_score = 0
-
-	for current_string in list_strings:
-		current_score = jellyfish.jaro_winkler(unicode(x), unicode(current_string))
-		if(current_score > best_score):
-			best_score = current_score
-			best_match = current_string
-
-	if (best_score>=0.95):
-		return best_match
-	else:
-		return None
-
-class Log(object):
-	def __init__(self,name=None,test=False):
-		self.name=name
-		self.chunk="init"
-		self.test=test
-		self.start=datetime.datetime.now()
-		self.writer=sys.stdout
-		if (self.test==True):
-			self.writer=StringIO()
-			self.level=2
-		else:
-			if ("log" in conf["global"].keys()):
-				try:
-					self.dir=conf["global"]["log"]["dir"]
-				except:
-					self.dir=""
-				self.file="{}./{}-{}.log".format(self.dir,datetime.datetime.now().isoformat(),self.name)
-
-				try :
-					self.writer=open(self.file,"w+")
-				except:
-					self.writer=sys.stdout
-
-			try:
-				self.level=conf["global"]["log"]["level"]
-			except:
-				self.level=1
-
-		try:
-			self.verbose=conf["global"]["log"]["verbose"]
-
-		except:
-			self.verbose=False
-
-	def write(self,msg=None,error=None,exit=False,level=1):
-		try:
-			self.writer
-		except:
-			return
-		if (type(self.chunk) ==  int):
-			prefix="chunk "
-		else:
-			prefix=""
-
-		if (level<=self.level):
-			t = datetime.datetime.now()
-			d = (t-self.start)
-			if (error != None):
-				if (msg != None):
-					fmsg="{} - {} - {}{} : {} - Ooops: {} - {}".format(t,d,prefix,self.chunk,WHERE(1),msg,error)
-				else:
-					fmsg="{} - {} - {}{} : {} - Ooops: {}".format(t,d,prefix,self.chunk,WHERE(1),error)
-			else:
-				fmsg="{} - {} - {}{} : {} - {}".format(t,d,prefix,self.chunk,WHERE(1),msg)
-			try:
-				if (self.verbose==True):
-					print(fmsg)
-			except:
-				pass
-
-			self.writer.write(fmsg+"\n")
-			self.writer.flush()
-			if (exit):
-				#os._exit(1)
-				sys.exit(fmsg)
-			return fmsg
 
 class Configured(object):
 	def __init__(self,family=None,name=None):
 		self.name=name
 		self.family=family
 		try:
-			self.conf=conf[family][name]
+			self.conf=config.conf[family][name]
 		except:
 			sys.exit("Ooops: {} not found in {} conf".format(self.name,self.family))
 
@@ -719,7 +322,7 @@ class Dataset(Configured):
 		try:
 			self.log=self.parent.log
 		except:
-			self.log=log
+			self.log=config.log
 
 		if True:
 			if (self.name == "inmemory"):
@@ -771,7 +374,7 @@ class Dataset(Configured):
 		try:
 			self.log=self.parent.log
 		except:
-			self.log=log
+			self.log=config.log
 
 		#currently only manage elasticsearch injection
 		if (self.name == "inmemory"):
@@ -930,7 +533,7 @@ class Recipe(Configured):
 				self.args=args
 				return
 			else:
-				self.log = log
+				self.log = config.log
 				self.log.write(error="can't couldn't find recipe {} in conf and no internal_{} function".format(self.name,self.name),exit=True)
 
 		#initiate input connection : creater a reader or use inmemory dataset
@@ -977,7 +580,7 @@ class Recipe(Configured):
 			self.threads=self.conf["threads"]
 		except:
 			try:
-				self.threads=conf["global"]["threads_by_job"]
+				self.threads=config.conf["global"]["threads_by_job"]
 			except:
 				self.threads=1
 
@@ -1046,7 +649,9 @@ class Recipe(Configured):
 				self.log=Log(self.name,test=test)
 
 		except:
-			self.log.write(error="couldn't init log for recipe {}".format(self.name),exit=True)
+			if (self.log == None):
+				self.log = config.log
+			self.log.write(msg="couldn't init log for recipe {}".format(self.name),error=err(),exit=True)
 		try:
 			self.input.init_reader(df=df)
 		except:
@@ -1140,7 +745,7 @@ class Recipe(Configured):
 		if (supervisor != None):
 			supervisor[i]="run_chunk"
 		df.rename(columns=lambda x: x.strip(), inplace=True)
-		# if ((self.name == "join") & (i<=conf["global"]["threads_by_job"]) & (i>1)):
+		# if ((self.name == "join") & (i<=config.conf["global"]["threads_by_job"]) & (i>1)):
 		# 	#stupid but working hack to leave time for inmemory preload of first thread first chunk
 		# 	#the limit is if the treatment of a chunk takes more than 30s... better workaround has to be found
 		# 	time.sleep(30)
@@ -1187,7 +792,7 @@ class Recipe(Configured):
 				thread=True
 			jobs[recipe]=Recipe(recipe)
 			jobs[recipe].init()
-			jobs[recipe].result = manager.dict()			
+			jobs[recipe].result = config.manager.dict()			
 			jobs[recipe].set_job(Process(target=thread_job,args=[jobs[recipe], jobs[recipe].result]))
 			jobs[recipe].start_job()
 			self.log.write(msg="run {}".format(recipe))
@@ -1236,7 +841,7 @@ class Recipe(Configured):
 			try:
 				head=self.conf["test_chunk_size"]
 			except:
-				head=conf["global"]["test_chunk_size"]
+				head=config.conf["global"]["test_chunk_size"]
 		#log("initiating recipe {}".format(self.name))
 		self.df=[]
 		self.input.processed=0
@@ -1259,7 +864,7 @@ class Recipe(Configured):
 				return self.df
 			else:
 				if (supervisor == None):
-					supervisor= manager.dict()
+					supervisor= config.manager.dict()
 				if (write_queue == None):
 					write_queue=Queue()
 				# create the writer queue
@@ -1526,7 +1131,7 @@ class Recipe(Configured):
 					self.model[arg]=json.loads(json.dumps(self.args["model"][arg]))
 				except:
 					try:
-						self.model[arg]=json.loads(json.dumps(conf["machine_learning"]["model"][arg]))
+						self.model[arg]=json.loads(json.dumps(config.conf["machine_learning"]["model"][arg]))
 					except:
 						pass
 
@@ -1563,11 +1168,11 @@ class Recipe(Configured):
 			self.log.write("{}\n{}".format(self.numerical,self.categorical))
 			if (self.test==False):
 				try:
-					filename=os.path.join(conf["global"]["paths"]["models"],secure_filename(self.model["name"]+".model"))
+					filename=os.path.join(config.conf["global"]["paths"]["models"],secure_filename(self.model["name"]+".model"))
 					joblib.dump(best_clf, filename)
-					# filename=os.path.join(conf["global"]["paths"]["models"],secure_filename(self.model["name"]+".cat"))
+					# filename=os.path.join(config.conf["global"]["paths"]["models"],secure_filename(self.model["name"]+".cat"))
 					# joblib.dump(prep_cat,filename)
-					# filename=os.path.join(conf["global"]["paths"]["models"],secure_filename(self.model["name"]+".num"))
+					# filename=os.path.join(config.conf["global"]["paths"]["models"],secure_filename(self.model["name"]+".num"))
 					# joblib.dump(prep_num,filename)
 					self.log.write("Saved model {}".format(self.model["name"]))
 				except:
@@ -1618,11 +1223,11 @@ class Recipe(Configured):
 
 
 			#load model
-			filename=os.path.join(conf["global"]["paths"]["models"],secure_filename(self.args["name"]+".model"))
+			filename=os.path.join(config.conf["global"]["paths"]["models"],secure_filename(self.args["name"]+".model"))
 			clf=joblib.load(filename)
-			# filename=os.path.join(conf["global"]["paths"]["models"],secure_filename(self.args["name"]+".cat"))
+			# filename=os.path.join(config.conf["global"]["paths"]["models"],secure_filename(self.args["name"]+".cat"))
 			# prep_cat=joblib.load(filename)
-			# filename=os.path.join(conf["global"]["paths"]["models"],secure_filename(self.args["name"]+".num"))
+			# filename=os.path.join(config.conf["global"]["paths"]["models"],secure_filename(self.args["name"]+".num"))
 			# prep_num=joblib.load(filename)
 
 
@@ -1826,12 +1431,12 @@ class Recipe(Configured):
 				# a flush method should be created
 				try:
 					# inmemory cache
-					inmemory[ds].df
+					config.inmemory[ds].df
 				except:
 					self.log.write("Creating cache for join with dataset {} in {}".format(ds,self.name))
-					inmemory[ds]=Dataset(self.args["dataset"])
-					inmemory[ds].init_reader()
-					inmemory[ds].df=pd.concat([dx for dx in inmemory[ds].reader]).reset_index(drop=True)
+					config.inmemory[ds]=Dataset(self.args["dataset"])
+					config.inmemory[ds].init_reader()
+					config.inmemory[ds].df=pd.concat([dx for dx in config.inmemory[ds].reader]).reset_index(drop=True)
 
 				# collects useful columns
 				if ("select" in list(self.args.keys())):
@@ -1846,28 +1451,28 @@ class Recipe(Configured):
 						#initiate levenstein matcher (beta : not optimized)
 						#this method remains in memory
 						try:
-							inmemory[ds].matcher
+							config.inmemory[ds].matcher
 						except:
-							inmemory[ds].matcher={}
+							config.inmemory[ds].matcher={}
 						for col in list(self.args["fuzzy"].keys()):
 							try:
-								inmemory[ds].matcher[self.args["fuzzy"][col]]
+								config.inmemory[ds].matcher[self.args["fuzzy"][col]]
 							except:
 								self.log.write("Creating automata cache for fuzzy join on column {} of dataset {} in {}".format(col,ds,self.name))
-								words=sorted(set(inmemory[ds].df[self.args["fuzzy"][col]].tolist()))
-								inmemory[ds].matcher[self.args["fuzzy"][col]]=automata.Matcher(words)
+								words=sorted(set(config.inmemory[ds].df[self.args["fuzzy"][col]].tolist()))
+								config.inmemory[ds].matcher[self.args["fuzzy"][col]]=automata.Matcher(words)
 
 				# caches filtered version of the dataset				
 				try:
-					join_df = inmemory[ds].filtered[sha1(cols)]
+					join_df = config.inmemory[ds].filtered[sha1(cols)]
 				except:
 					try:
 						self.log.write("Creating filtered cache for join with dataset {} in {}".format(ds,self.name))
-						inmemory[ds].filtered
+						config.inmemory[ds].filtered
 					except:
-						inmemory[ds].filtered = {}
-					inmemory[ds].filtered[sha1(cols)] = inmemory[ds].df[cols]
-					join_df = inmemory[ds].filtered[sha1(cols)]
+						config.inmemory[ds].filtered = {}
+					config.inmemory[ds].filtered[sha1(cols)] = config.inmemory[ds].df[cols]
+					join_df = config.inmemory[ds].filtered[sha1(cols)]
 
 				if ("fuzzy" in list(self.args.keys())):
 					for col in list(self.args["fuzzy"].keys()):
@@ -1881,7 +1486,7 @@ class Recipe(Configured):
 							#a full openfst precompile automata would be still faster but not coded for now
 							df[col+"_match"]=df[col].map(lambda x: 
 								next(itertools.chain.from_iterable(
-									automata.find_all_matches(x, dist,inmemory[ds].matcher[self.args["fuzzy"][col]])
+									automata.find_all_matches(x, dist, config.inmemory[ds].matcher[self.args["fuzzy"][col]])
 									for dist in range(2)),""))
 						elif (fuzzy_method=="jellyfish"):
 							#using jellyfish jaro winkler
@@ -2138,7 +1743,7 @@ class Recipe(Configured):
 			try:
 				head=self.args["head"]
 			except :
-				head=conf["global"]["test_chunk_size"]
+				head=config.conf["global"]["test_chunk_size"]
 
 			self.select_columns(df=df)
 			return df[self.cols].head(n=head)
@@ -2158,539 +1763,3 @@ def thread_job(recipe=None, result={}):
 	except:
 		pass
 
-def jsonize(j=None):
-	# return Response(json.dumps(js),status=200, mimetype='application/json')
-	return jsonify(j)
-
-
-def allowed_upload_file(filename=None):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in conf["global"]["data_extensions"]
-
-
-def allowed_conf_file(filename=None):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in conf["global"]["recipe_extensions"]
-
-
-
-read_conf()
-
-app = Flask(__name__)
-api=Api(app,version="0.1",title="matchID API",description="API for data matching developpement")
-app.config['APPLICATION_ROOT']=conf["global"]["api"]["prefix"]
-
-@api.route('/conf/', endpoint='conf' )
-class Conf(Resource):
-	def get(self):
-		'''get all configured elements
-		Lists all configured elements of the backend, as described in the yaml files :
-		- global configuration
-		- projects :
-		  - datasets
-		  - recipes'''
-		try:
-			read_conf()
-			return conf["global"]
-		except:
-			return {"error": "problem while reading conf"}
-
-@api.route('/upload/', endpoint='upload')
-class Upload(Resource):
-	def get(self):
-		'''list uploaded resources'''
-		return list([filenames for root, dirnames, filenames in os.walk(conf["global"]["paths"]["upload"])])[0]
-
-	@api.expect(parsers.upload_parser)
-	def post(self):
-		'''upload multiple tabular data files, .gz or .txt or .csv'''
-		response={"upload_status":{}}
-		args = parsers.upload_parser.parse_args()
-		for file in args['file']:
-			if (allowed_upload_file(file.filename)):
-				try:
-					file.save(os.path.join(conf["global"]["paths"]["upload"], secure_filename(file.filename)))
-					response["upload_status"][file.filename]="ok"
-				except:
-					response["upload_status"][file.filename]=err()
-			else:
-				response["upload_status"][file.filename]="extension not allowed"
-		return response
-
-@api.route('/upload/<file>', endpoint='upload/<file>')
-@api.doc(parmas={'file': 'file name of a previously uploaded file'})
-class actionFile(Resource):
-	def get(self,file):
-		'''get back uploaded file'''
-		filetype="unknown"
-		pfile=os.path.join(conf["global"]["paths"]["upload"],file)
-		try:
-			df=pd.read_csv(pfile,nrows=100)
-			filetype="csv"
-		except:
-			pass
-		return {"file": file, "type_guessed": filetype}
-
-	def delete(self,file):
-		'''deleted uploaded file'''
-		try:
-			pfile=os.path.join(conf["global"]["paths"]["upload"],file)
-			os.remove(pfile)
-			return {"file": file, "status": "deleted"}
-		except:
-			api.abort(404,{"file": file, "status": err()})
-
-
-@api.route('/conf/<project>/', endpoint='conf/<project>')
-@api.doc(parms={'project': 'name of a project'})
-class DirectoryConf(Resource):
-	def get(self,project):
-		'''get configuration files of a project'''
-		read_conf()
-		if project in list(conf["global"]["projects"].keys()):
-			return conf["global"]["projects"][project]
-		else:
-			api.abort(404)
-
-	@api.expect(parsers.conf_parser)
-	def post(self,project):
-		'''(KO) import a zipped project'''
-		if (directory != "conf"):
-			response={"upload_status":{}}
-			args = parsers.conf_parser.parse_args()
-			for file in args['file']:
-				if (allowed_conf_file(file.filename)):
-					try:
-						file.save(os.path.join(conf["global"]["paths"]["conf"][project], secure_filename(file.filename)))
-						response["upload_status"][file.filename]="ok"
-					except:
-						response["upload_status"][file.filename]=err()
-				else:
-					response["upload_status"][file.filename]="extension not allowed"
-				read_conf()
-				response["yaml_validator"]=conf["global"]["projects"][project]
-			return response
-		else:
-			api.abort(403)
-
-	def put(self,project):
-		'''create a project'''
-		if (project == "conf"):
-			api.abort(403)
-		elif project in conf["global"]["projects"].keys():
-			api.abort(400, 'project "{}" already exists'.format(project))
-		else:
-			try:
-				dirname=os.path.join(conf["global"]["paths"]["projects"],project)
-				os.mkdir(dirname)
-				os.mkdir(os.path.join(dirname,'recipes'))
-				os.mkdir(os.path.join(dirname,'datasets'))
-				read_conf()
-				return {"message": "{} successfully created".format(project)}
-			except:
-				api.abort(400,err())
-
-	def delete(self,project):
-		'''delete a project'''
-		if (project == "conf"):
-			api.abort(403)
-		elif project in conf["global"]["projects"].keys():
-			response={project: "not deleted"}
-			try:
-				dirname=os.path.join(conf["global"]["paths"]["projects"],project)
-				shutil.rmtree(dirname)
-				response[project]="deleted"
-			except:
-				response[project]="deletion failed - "+err()
-			read_conf()
-			#response["yaml_validator"]=conf["global"]["projects"][project]
-			return response
-		else:
-			api.abort(404)
-
-@api.route('/conf/<project>/<path:file>', endpoint='conf/<project>/<path:file>')
-class FileConf(Resource):
-	def get(self,project,file):
-		'''get a text/yaml configuration file from project'''
-		try:
-			read_conf()
-			if (file in conf["global"]["projects"][project]["files"]):
-				try:
-					pfile=os.path.join(conf["global"]["projects"][project]["path"],file)
-					with open(pfile) as f:
-						return Response(f.read(),mimetype="text/plain")
-				except:
-					api.abort(404)
-			else:
-				api.abort(404)
-		except:
-			api.abort(404)
-
-	def delete(self,project,file):
-		'''delete a text/yaml configuration file from project'''
-		if (project != "conf"):
-			if (file in conf["global"]["projects"][project]["files"]):
-				try:
-					pfile=os.path.join(conf["global"]["projects"][project]["path"],file)
-					os.remove(pfile)
-					read_conf()
-					return jsonize({"conf": project, "file":file, "status": "removed"})
-				except:
-					api.abort(403)
-
-	@api.expect(parsers.yaml_parser)
-	def post(self,project,file):
-		'''upload a text/yaml configuration file to a project'''
-		if (project != "project"):
-			args = parsers.yaml_parser.parse_args()
-			filecontent=args['yaml']
-			if (allowed_conf_file(file)):
-				try:
-					test = ordered_load(filecontent)
-				except:
-					api.abort(400,{file: {"saved" : "ko - "+err()}})
-
-				try:
-					pfile=os.path.join(conf["global"]["projects"][project]["path"],file)
-					with open(pfile,'w') as f:
-						f.write(filecontent.encode("utf-8", 'ignore'))
-					response={file: {"saved": "ok"}}
-					read_conf()
-					response[file]["yaml_validator"]=conf["global"]["projects"][project]["files"][file]
-					return response
-				except:
-					api.abort(400,{file: {"saved" : "ko - "+err()}})
-			else:
-				api.abort(403)
-		else:
-			api.abort(403)
-
-
-
-@api.route('/datasets/', endpoint='datasets')
-class ListDatasets(Resource):
-	def get(self):
-		'''get json of all configured datasets'''
-		read_conf()
-		return conf["datasets"]
-
-@api.route('/datasets/<dataset>/', endpoint='datasets/<dataset>')
-class DatasetApi(Resource):
-	def get(self,dataset):
-		'''get json of a configured dataset'''
-		read_conf()
-		if (dataset in conf["datasets"].keys()):
-			try:
-				response = dict(conf["datasets"][dataset])
-				try:
-					ds=Dataset(dataset)
-					response["type"] = ds.connector.type
-				except:
-					pass
-				return response
-			except:
-				api.abort(500)
-		else:
-			api.abort(404)
-
-	def post(self,dataset):
-		'''get sample of a configured dataset, number of rows being configured in connector.samples'''
-		ds=Dataset(dataset)
-		if (ds.connector.type == "elasticsearch"):
-	 		ds.select={"query":{"function_score": {"query":ds.select["query"],"random_score":{}}}}
-		ds.init_reader()
-		try:
-			df=next(ds.reader,"")
-			if (type(df) == str):
-				return {"data":[{"error": "error: no such file {}".format(ds.file)}]}
-			df=df.head(n=ds.connector.sample).reset_index(drop=True)
-			#df.fillna('',inplace=True)
-			return {"data": list(df.fillna("").T.to_dict().values())}
-		except:
-			return {"data":[{"error": "error: {} {}".format(err(),ds.file)}]}
-
-	def delete(self,dataset):
-		'''delete the content of a dataset (currently only working on elasticsearch datasets)'''
-		ds=Dataset(dataset)
-		if (ds.connector.type == "elasticsearch"):
-			try:
-				ds.connector.es.indices.delete(index=ds.table, ignore=[400, 404])
-				log.write("detete {}:{}/{}".format(ds.connector.host,ds.connector.port,ds.table))
-				ds.connector.es.indices.create(index=ds.table)
-				log.write("create {}:{}/{}".format(ds.connector.host,ds.connector.port,ds.table))
-				return {"status": "ok"}
-			except:
-				return {"status": "ko - " + err()}
-		else:
-			return api.abort(403)
-
-
-@api.route('/datasets/<dataset>/<action>', endpoint='datasets/<dataset>/<action>')
-class pushToValidation(Resource):
-	def put(self,dataset,action):
-		'''action = validation : configure the frontend to point to this dataset'''
-		if (action=="validation"):
-			if (not(dataset in conf["datasets"].keys())):
-				return api.abort(404,{"dataset": dataset, "status": "dataset not found"})
-			if not("validation" in conf["datasets"][dataset].keys()):
-				return api.abort(403,{"dataset": dataset, "status": "validation not allowed"})
-			if ((conf["datasets"][dataset]["validation"]==True)|(isinstance(conf["datasets"][dataset]["validation"], OrderedDict))):
-				try:
-					props = {}
-					try:
-						cfg=deepupdate(conf["global"]["validation"],conf["datasets"][dataset]["validation"])
-					except:
-						cfg=conf["global"]["validation"]
-					for config in cfg.keys():
-						configfile=os.path.join(conf["global"]["paths"]["validation"],secure_filename(config+".json"))
-						dic={
-							"prefix": conf["global"]["api"]["prefix"],
-							"domain": conf["global"]["api"]["domain"],
-							"dataset": dataset
-						}
-						props[config] = replace_dict(cfg[config],dic)
-						# with open(configfile, 'w') as outfile:
-						# 	json.dump(props[config],outfile,indent=2)
-					return {"dataset": dataset, "status": "to validation", "props": props}
-				except :
-						return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
-			else:
-				return api.abort(403,{"dataset": dataset, "status": "validation not allowed"})
-		elif (action=="search"):
-			if (not(dataset in conf["datasets"].keys())):
-				return api.abort(404,{"dataset": dataset, "status": "dataset not found"})
-			if not("search" in conf["datasets"][dataset].keys()):
-				return api.abort(403,{"dataset": dataset, "status": "search not allowed"})
-			if ((conf["datasets"][dataset]["search"]==True)|(isinstance(conf["datasets"][dataset]["search"], OrderedDict))):
-				try:
-					props = {}
-					try:
-						cfg=deepupdate(conf["global"]["search"],conf["datasets"][dataset]["search"])
-					except:
-						cfg=conf["global"]["search"]
-					for config in cfg.keys():
-						configfile=os.path.join(conf["global"]["paths"]["search"],secure_filename(config+".json"))
-						dic={
-							"prefix": conf["global"]["api"]["prefix"],
-							"domain": conf["global"]["api"]["domain"],
-							"dataset": dataset
-						}
-						props[config] = replace_dict(cfg[config],dic)
-						# with open(configfile, 'w') as outfile:
-						# 	json.dump(props[config],outfile,indent=2)
-					return {"dataset": dataset, "status": "to search", "props": props}
-				except :
-						return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
-			else:
-				return api.abort(403,{"dataset": dataset, "status": "search not allowed"})
-
-		else:
-			api.abort(404)
-
-	def post(self,dataset,action):
-		'''(KO) search into the dataset'''
-		if (action=="_search"):
-			return {"status": "in dev"}
-		else:
-			api.abort(403)
-
-	def get(self,dataset,action):
-		'''(KO) does nothing yet'''
-		if (action=="yaml"):
-			return
-
-
-@api.route('/recipes/', endpoint='recipes')
-class ListRecipes(Resource):
-	def get(self):
-		'''get json of all configured recipes'''
-		return conf["recipes"]
-
-@api.route('/recipes/<recipe>/', endpoint='recipes/<recipe>')
-class RecipeApi(Resource):
-	def get(self,recipe):
-		'''get json of a configured recipe'''
-		try:
-			return conf["recipes"][recipe]
-		except:
-			api.abort(404)
-
-
-@api.route('/recipes/<recipe>/<action>', endpoint='recipes/<recipe>/<action>')
-class RecipeRun(Resource):
-	def get(self,recipe,action):
-		'''retrieve information on a recipe
-		** action ** possible values are :
-		- ** status ** : get status (running or not) of a recipe
-		- ** log ** : get log of a running recipe'''
-		if (action=="status"):
-			#get status of job
-			try:
-				return {"recipe":recipe, "status": jobs[str(recipe)].job_status()}
-			except:
-				return {"recipe":recipe, "status": "down"}
-		elif (action=="log"):
-			#get logs
-			try:
-				# try if there is a current log
-				with open(jobs[recipe].log.file, 'r') as f:
-					response = f.read()
-					return Response(response,mimetype="text/plain")
-			except:
-				try:
-					# search for a previous log
-					a = conf["recipes"][recipe] # check if recipe is declared
-					logfiles = [os.path.join(conf["global"]["log"]["dir"],f)
-								for f in os.listdir(conf["global"]["log"]["dir"])
-								if re.match(r'^.*-' + recipe + '.log$',f)]
-					logfiles.sort()
-					file = logfiles[-1]
-					with open(file, 'r') as f:
-						response = f.read()
-						return Response(response,mimetype="text/plain")
-				except:
-					api.abort(404)
-		api.abort(403)
-
-	@api.expect(parsers.live_parser)
-	def post(self,recipe,action):
-		'''apply recipe on posted data
-		** action ** possible values are :
-		- ** apply ** : apply recipe on posted data
-		'''
-		if (action=="apply"):
-			args = parsers.live_parser.parse_args()
-			file=args['file']
-			if not (allowed_upload_file(file.filename)):
-				api.abort(403)
-			r=Recipe(recipe)
-			r.input.chunked=False
-			r.input.file=file.stream
-			r.init(test=True)
-			r.run()
-			if isinstance(r.df, pd.DataFrame):
-				df=r.df.fillna("")
-				try:
-					return jsonize({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
-				except:
-					df=df.applymap(lambda x: str(x))
-					return jsonize({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
-			else:
-				return {"log": r.log.writer.getvalue()}
-
-
-	def put(self,recipe,action):
-		'''test, run or stop recipe
-		** action ** possible values are :
-		- ** test ** : test recipe on sample data
-		- ** run ** : run the recipe
-		- ** stop ** : stop a running recipe (soft kill : it may take some time to really stop)
-		'''
-		read_conf()
-		if (action=="test"):
-			try: 
-				result = manager.dict()
-				r=Recipe(recipe)
-				r.init(test=True)
-				r.set_job(Process(target=thread_job,args=[r, result]))
-				r.start_job()
-				r.join_job()
-				r.df = result["df"]
-				r.log = result["log"]
-				r.errors = result["errors"]
-
-			except:
-				return {"data": [{"result": "failed"}], "log": "Ooops: {}".format(err())}
-			if isinstance(r.df, pd.DataFrame):
-				df=r.df.fillna("")
-				if (r.df.shape[0]==0):
-					return {"data": [{"result": "empty"}], "log": result["log"]}
-				try:
-					return jsonize({"data": df.T.to_dict().values(), "log": result["log"]})
-				except:
-					df=df.applymap(lambda x: unicode(x))
-					return jsonize({"data": df.T.to_dict().values(), "log": result["log"]})
-			else:
-				return {"data": [{"result": "empty"}], "log": result["log"]}
-		elif (action=="run"):
-			#run recipe (gives a job)
-			try:
-				if (recipe in list(jobs.keys())):
-					status=jobs[recipe].job_status()
-					if (status=="up"):
-						return {"recipe": recipe, "status": status}
-			except:
-				api.abort(403)
-
-			jobs[recipe]=Recipe(recipe)
-			jobs[recipe].init()
-
-			# jobs[recipe].set_job(threading.Thread(target=thread_job,args=[jobs[recipe]]))
-			jobs[recipe].set_job(Process(target=thread_job,args=[jobs[recipe]]))
-			jobs[recipe].start_job()
-			return {"recipe":recipe, "status": "new job"}
-		elif (action=="stop"):
-			try:
-				if (recipe in list(jobs.keys())):
-					thread=Process(jobs[recipe].stop_job())
-					thread.start()
-					return {"recipe": recipe, "status": "stopping"}
-			except:
-				api.abort(404)
-
-
-@api.route('/jobs/', endpoint='jobs')
-class jobsList(Resource):
-	def get(self):
-		'''retrieve jobs list
-		'''
-		# response = jobs.keys()
-		response = {"running": [], "done": []}
-		for recipe, job in jobs.iteritems():
-			status = job.job_status()
-			try: 
-				if (status != "down"):
-					response["running"].append({ "recipe": recipe,
-												 "file": re.sub(r".*/","", job.log.file),
-												 "date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
-												  })
-			except:
-				response["running"]=[{"error": "while trying to get running jobs list"}]
-		logfiles = [f
-							for f in os.listdir(conf["global"]["log"]["dir"])
-							if re.match(r'^.*.log$',f)]
-		for file in logfiles:
-			recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
-			date = re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log", file, re.IGNORECASE).group(1)
-			if (recipe in conf["recipes"].keys()):
-				try:
-					if (response["running"][recipe]["date"] != date):
-						try:
-							response["done"].append({"recipe": recipe, "date": date, "file": file})
-						except:
-							response["done"]=[{"recipe": recipe, "date": date, "file": file}]
-				except:
-					try:
-						response["done"].append({"recipe": recipe, "date": date, "file": file})
-					except:
-						response["done"]=[{"recipe": recipe, "date": date, "file": file}]
-
-		return response
-
-if __name__ == '__main__':
-	read_conf()
-	app.config['DEBUG'] = conf["global"]["api"]["debug"]
-
-	log=Log("main")
-
-	# recipe="dataprep_snpc"
-	# r=Recipe(recipe)
-	# r.init()
-	# r.run()
-
-    # Load a dummy app at the root URL to give 404 errors.
-    # Serve app at APPLICATION_ROOT for localhost development.
-	application = DispatcherMiddleware(Flask('dummy_app'), {
-		app.config['APPLICATION_ROOT']: app,
-	})
-	run_simple(conf["global"]["api"]["host"], conf["global"]["api"]["port"], application, processes=conf["global"]["api"]["processes"], use_reloader=conf["global"]["api"]["use_reloader"])
