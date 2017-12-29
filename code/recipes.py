@@ -843,22 +843,25 @@ class Recipe(Configured):
 			except:
 				head=config.conf["global"]["test_chunk_size"]
 		#log("initiating recipe {}".format(self.name))
-		self.df=[]
+		self.df = pd.DataFrame()
 		self.input.processed=0
 		try:
 			# for i, df in enumerate(self.input.reader):
 			# 	self.run_chunk(i,df,test)
 			#first lauch the first chunk for initialization of "inmemory" datasets, then iterate with // threads
-			if (self.input.chunked==True):
+			if ((self.input.chunked==True) | (self.test==True)):
 				self.df=next(self.input.reader,"")
 				if(self.test==True):
 					self.df=self.df.head(n=head)
 			else:
-				self.df=pd.concat([df for df in self.input.reader])
+				self.log.write("reading whole input before processing recipe")
+				for i, df in enumerate(self.input.reader):
+					self.log.chunk = i
+					self.df = pd.concat([self.df,df])
+					self.log.write(msg = "loaded {} rows".format(self.df.shape[0]))
 
 			# runs the recipe
-
-			if (self.test==True):
+			if (self.test==True): # test mode
 				# end of work if in test mode
 				self.df=self.run_chunk(0,self.df)
 				return self.df
