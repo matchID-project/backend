@@ -41,7 +41,7 @@ import numpy as np
 #ml dependencies
 from sklearn.utils import shuffle
 import sklearn.ensemble
-import networkx
+import networkx as nx
 # from graph_tool.all import *
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
@@ -1344,22 +1344,53 @@ class Recipe(Configured):
 	def internal_clique(self,df=None):
 
 		try:
-			self.select_columns(df=df,arg="edges")
-			edges_cols = self.cols
-			# if (len(edges_cols)>2):
-			# 	self.log.write(msg="igraph",error="no more thant 2 cols for edges")
-			self.select_columns(df=df,arg="weigths")
-			weigths_cols = self.cols
-			graph = igraph.Graph()
-			verbose = 1000
-			rows = df.shape[0]
-			i = 0
-			for row in df.iterrows():
-				i += 1
-				graph.add_edge(int(row[edges_cols[0]]), int(row[edges_cols[1]]), weight=row[weigths_cols[0]])
-				if ((i % verbose) == 0):
-					self.log.write("loading graph :  {} / {}".format(i,rows))
-			self.log.write("loded graph :  {} links".format(rows))
+			self.select_columns(df=df)
+			nodes = self.cols
+			if (len(nodes)>2):
+				self.log.write(msg="nodes columns {}".format(nodes),error="2 columns exactly are required")
+
+			try:
+				prefix=self.args["prefix"]
+			except:
+				prefix="graph_"					
+
+			try:
+				to_compute=list(OrderedDict.fromkeys(list[["degree","connected_component"],self.args["compute"]]))
+			except:
+				to_compute=["degree"]
+
+			# create graph from links
+			graph = nx.Graph()
+			graph.add_edges_from(zip(df[nodes[0]].values.tolist(),df[nodes[1]].values.tolist()))
+
+
+			#compute every factor to compute
+			computed = []
+			for method in to_compute:
+				try:
+					computed.append(pd.Series(getattr(nx,method)(graph), name = prefix+method))
+				except:
+					self.log.write(msg="computing {}".format(method),error=err())
+
+
+			# generate cluster/clique 
+			id = {}
+			cluster_nodes = {}
+			for cluster in nx.connected_components(graph):
+				cluster_id = sha1(uuid.uuid4())
+				for node in cluster:
+					id[node] = cluster_id
+					cluster_nodes[node] = sorted(cluster)
+
+			computed.append(pd.Series(id, name=prefix+"clique_id"))
+			computed.append(pd.Series(cluster_nodes, name=prefix+"clique"))
+
+			df_graph = pd.concat(computed, axis=1)
+			df_graph[prefix+"clique_size"] = df_graph.groupby([prefix+"clique_id"])[prefix+"clique_id"].transform('count')
+
+			df_graph.reset_index(inplace = True)
+			df_graph.rename(columns={"index": nodes[0]}, inplace = True)
+			df=df.merge(df_graph, on = nodes[0], how='left')
 		except:
 			self.log.write(msg="",error=err())
 		return df
