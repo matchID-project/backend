@@ -20,6 +20,13 @@ from log import err
 import json
 
 
+
+def float_val(x):
+	try:
+		return float(x)
+	except:
+		return 0
+
 def deepupdate(original, update):
 	"""
     Recursively update a dict.
