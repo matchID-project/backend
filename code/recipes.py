@@ -351,23 +351,24 @@ class Dataset(Configured):
 
 	def scanner(self,**kwargs):
 		self.select=json.loads(json.dumps(self.select))
-		scan=helpers.scan(client=self.connector.es, query=self.select, index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
+		scan=helpers.scan(client=self.connector.es, scroll=u'1d', clear_scroll=False, query=self.select, index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
 
 		hits=[]
 		ids=[]
+		labels = ['_id','_source']
 		for j,item in enumerate(scan):
+			item = (item['_id'], item['_source'])
 			hits.append(item)
-			ids.append(item['_id'])
 
 			if (((j+1)%self.chunk)==0):
-				df=pd.concat(map(pd.DataFrame.from_dict, hits), axis=1)['_source'].T.reset_index(drop=True)
-				df['_id']=ids
+				df=pd.DataFrame.from_records(hits, columns = labels)
+				df=pd.concat([df['_id'],df['_source'].apply(pd.Series)],axis=1)
 				hits=[]
 				ids=[]
 				yield df
 		if (len(hits)>0):
-			df=pd.concat(map(pd.DataFrame.from_dict, hits), axis=1)['_source'].T.reset_index(drop=True)
-			df['_id']=ids
+			df=pd.DataFrame.from_records(hits, columns = labels)
+			df=pd.concat([df['_id'],df['_source'].apply(pd.Series)],axis=1)
 			yield df
 
 	def init_writer(self):
