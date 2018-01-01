@@ -2,7 +2,7 @@ global:
   api:
     prefix: /matchID/api/v0
     port: 8081
-    domain: alpha.matchID
+    domain: ':80' 
     host: 0.0.0.0
     use_reloader: True
     processes: 1
