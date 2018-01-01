@@ -41,6 +41,7 @@ from werkzeug.wsgi import DispatcherMiddleware
 # matchID imports
 import parsers
 import config
+from tools import replace_dict
 from recipes import *
 from log import Log, err
 
@@ -308,8 +309,15 @@ class DatasetApi(Resource):
 
 @api.route('/datasets/<dataset>/<action>', endpoint='datasets/<dataset>/<action>')
 class pushToValidation(Resource):
+	def get(self,dataset,action):
+		'''(KO) does nothing yet'''
+		if (action=="yaml"):
+			return
 	def put(self,dataset,action):
 		'''action = validation : configure the frontend to point to this dataset'''
+		import config
+		config.init()
+		config.read_conf()
 		if (action=="validation"):
 			if (not(dataset in config.conf["datasets"].keys())):
 				return api.abort(404,{"dataset": dataset, "status": "dataset not found"})
@@ -322,14 +330,14 @@ class pushToValidation(Resource):
 						cfg=deepupdate(config.conf["global"]["validation"],config.conf["datasets"][dataset]["validation"])
 					except:
 						cfg=config.conf["global"]["validation"]
-					for config in cfg.keys():
-						configfile=os.path.join(config.conf["global"]["paths"]["validation"],secure_filename(config+".json"))
+					for conf in cfg.keys():
+						configfile=os.path.join(config.conf["global"]["paths"]["validation"],secure_filename(conf+".json"))
 						dic={
 							"prefix": config.conf["global"]["api"]["prefix"],
 							"domain": config.conf["global"]["api"]["domain"],
 							"dataset": dataset
 						}
-						props[config] = replace_dict(cfg[config],dic)
+						props[conf] = replace_dict(cfg[conf],dic)
 						# with open(configfile, 'w') as outfile:
 						# 	json.dump(props[config],outfile,indent=2)
 					return {"dataset": dataset, "status": "to validation", "props": props}
@@ -375,10 +383,7 @@ class pushToValidation(Resource):
 		else:
 			api.abort(403)
 
-	def get(self,dataset,action):
-		'''(KO) does nothing yet'''
-		if (action=="yaml"):
-			return
+
 
 
 @api.route('/recipes/', endpoint='recipes')
