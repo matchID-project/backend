@@ -856,10 +856,15 @@ class Recipe(Configured):
 					self.df=self.df.head(n=head)
 			else:
 				self.log.write("reading whole input before processing recipe")
+				self.df = []
+				size = 0
 				for i, df in enumerate(self.input.reader):
 					self.log.chunk = i
-					self.df = pd.concat([self.df,df])
-					self.log.write(msg = "loaded {} rows".format(self.df.shape[0]))
+					self.df.append(df)
+					size = size + df.shape[0]
+					self.log.write(msg = "loaded {} rows".format(size))
+				self.df = pd.concat(self.df)
+				self.log.write(msg = "concatenated {} rows".format(size))
 
 			# runs the recipe
 			if (self.test==True): # test mode
