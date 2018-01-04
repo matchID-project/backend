@@ -283,13 +283,21 @@ class DatasetApi(Resource):
 		ds.init_reader()
 		try:
 			df=next(ds.reader,"")
+			schema=df.dtypes.apply(lambda x: str(x)).to_dict()
 			if (type(df) == str):
-				return {"data":[{"error": "error: no such file {}".format(ds.file)}]}
+				try :
+					return {"data":[{"error": "error: no such file {}".format(ds.file)}]}
+				except:
+					return {"data":[{"error": "error: no such table {}".format(ds.table)}]}
 			df=df.head(n=ds.connector.sample).reset_index(drop=True)
-			#df.fillna('',inplace=True)
-			return {"data": list(df.fillna("").T.to_dict().values())}
+			return {"data": list(df.fillna("").T.to_dict().values()), "schema": schema}
 		except:
-			return {"data":[{"error": "error: {} {}".format(err(),ds.file)}]}
+			error=err()
+			try:
+				return {"data":[{"error": "error: {} {}".format(error,ds.file)}]}
+			except:
+				return {"data":[{"error": "error: {} {}".format(error,ds.table)}]}
+
 
 	def delete(self,dataset):
 		'''delete the content of a dataset (currently only working on elasticsearch datasets)'''
