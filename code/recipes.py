@@ -6,6 +6,9 @@
 import sys, os, io, re, datetime, hashlib, unicodedata, shutil
 from werkzeug.utils import secure_filename
 from cStringIO import StringIO
+from sqlalchemy import create_engine, Column, Integer, Sequence, String, Date, Float, BIGINT
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
 import traceback
 import yaml as y
@@ -156,12 +159,16 @@ class Connector(Configured):
 		except:
 			self.sample=500
 
-
-
 		try:
 			self.thread_count=self.conf["thread_count"]
 		except:
 			self.thread_count=1
+
+		if (self.type == "sql"):
+			self.uri = self.conf["uri"]
+			self.sql = create_engine(self.uri)
+
+
 
 class Dataset(Configured):
 	#a dataset is mainly a table linked to a pandas dataframe
@@ -185,7 +192,7 @@ class Dataset(Configured):
 		try:
 			self.connector=Connector(self.conf["connector"])
 		except:
-			log.write(error="failed to initiate connector for dataset {}".format(self.name))
+			config.log.write(msg="failed to initiate connector for dataset {}".format(self.name),error=err())
 
 		try:
 			if type(self.conf["table"]) == str:
@@ -193,7 +200,7 @@ class Dataset(Configured):
 			else:
 				self.table=self.conf["table"]["name"]
 		except:
-			log.write(error="table of dataset {} has to be defined".format(self.name))
+			config.log.write(error="table of dataset {} has to be defined".format(self.name))
 
 		try:
 			self.thread_count=self.conf["thread_count"]
@@ -332,7 +339,7 @@ class Dataset(Configured):
 					self.log.write(error="can't initiate inmemory dataset with no dataframe",exit=True)
 			elif (self.connector.type == "filesystem"):
 				if (self.type == "csv"):
-					self.reader=itertools.chain.from_iterable(pd.read_csv(file,sep=self.sep,usecols=self.select,chunksize=self.connector.chunk,
+					self.reader=itertools.chain.from_iterable(pd.read_csv(file,sep=self.sep,usecols=self.select,chunksize=self.chunk,
 						compression=self.compression,encoding=self.encoding,dtype=object,header=self.header,names=self.names,skiprows=self.skiprows,
 						prefix=self.prefix,iterator=True,index_col=False,keep_default_na=False) for file in self.files)
 				elif (self.type == "fwf"):
@@ -340,12 +347,15 @@ class Dataset(Configured):
 						encoding=self.encoding,delimiter=self.sep,compression=self.compression,dtype=object,names=self.names,widths=self.widths,
 						iterator=True,keep_default_na=False) for file in self.files)
 				elif (self.type == "hdf"):
-					self.reader=itertools.chain.from_iterable(pd.read_hdf(file,chunksize=self.connector.chunk) for file in self.files)
+					self.reader=itertools.chain.from_iterable(pd.read_hdf(file,chunksize=self.chunk) for file in self.files)
 				elif (self.type == "msgpack"):
 					self.reader=itertools.chain.from_iterable(pd.read_msgpack(file,iterator=True, encoding=self.encoding) for file in self.files)
 
 			elif (self.connector.type == "elasticsearch"):
 				self.reader= self.scanner()
+			elif (self.connector.type == "sql"):
+				self.reader= pd.read_sql_table(table_name=self.table, con = self.connector.sql, chunksize=self.chunk)
+
 		else:
 			self.log.write(msg="couldn't initiate dataset {}".format(self.name), error=err(),exit=True)
 
@@ -397,6 +407,10 @@ class Dataset(Configured):
 				except:
 					# further better except should make difference btw no existing file and unwritable
 					pass
+		elif (self.connector.type == "sql"):
+			if (self.mode == 'create'):
+				self.connector.sql.execute('DROP TABLE IF EXISTS {};'.format(self.table))
+
 		return None
 
 	def write(self, chunk=0, df=None):
@@ -465,7 +479,6 @@ class Dataset(Configured):
 								error=err()
 						if (success==False):					
 							self.log.write(msg="elasticsearch bulk of subchunk {} failed after {} tries {}/{}".format(i,tries,self.connector.name,self.table),error=error)
-	#						self.log.write("couldnt insert {} lines to {}/{}".format(size,self.connector.name,self.table))
 						else:
 							processed+=size
 							if (tries > 0):
@@ -511,6 +524,13 @@ class Dataset(Configured):
 						self.log.write("write to msgpack failed writing {} : {}".format(self.file,err()))						
 				else:
 					self.log.write("no method for writing to {} with type {}".format(self.file, self.type))						
+
+			elif (self.connector.type == "sql"):
+				try:
+					self.log.write(msg="try to write {} rows".format(df.shape[0]))
+					df.to_sql(name = self.table, con = self.connector.sql, if_exists='append', index=False, chunksize=self.chunk)
+				except:
+					self.log.write(msg="couldn't write to {}".format(self.table), error=err())
 
 
 		return processed

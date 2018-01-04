@@ -90,12 +90,11 @@ services:
       memlock:
         soft: -1
         hard: -1
-    mem_limit: 6g
+    mem_limit: 4g
     volumes:
       - ./esdata:/usr/share/elasticsearch/data
     ports:
       - 9200:9200
-
 
   kibana:
     image: kibana:latest
@@ -106,3 +105,21 @@ services:
       - "5601:5601"
     depends_on:
       - elasticsearch
+
+  postgres:
+    # build:
+    #   context: .
+    #   args:
+    #     proxy: ${https_proxy}
+    #   dockerfile: Dockerfile_postgres_cstore
+    # image: postgres_cstore
+    image: postgres:10
+    container_name: postgres
+    environment:
+      POSTGRES_PASSWORD: matchid 
+    mem_limit: 2g
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
