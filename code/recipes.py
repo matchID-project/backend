@@ -189,6 +189,8 @@ class Dataset(Configured):
 		except:
 			pass
 
+		self.filter=None
+
 		try:
 			self.connector=Connector(self.conf["connector"])
 		except:
@@ -356,6 +358,13 @@ class Dataset(Configured):
 			elif (self.connector.type == "sql"):
 				self.reader= pd.read_sql_table(table_name=self.table, con = self.connector.sql, chunksize=self.chunk)
 
+			try:
+				if (self.filter != None):
+					self.filter.init(df=self.reader, parent=self)					
+					self.reader = itertools.imap(lambda df: self.filter.run_chunk(0,df), self.reader)
+					self.log.write(msg="filtered dataset")
+			except:
+				self.log.write(msg="failed to initiate the filter", error=err())
 		else:
 			self.log.write(msg="couldn't initiate dataset {}".format(self.name), error=err(),exit=True)
 
@@ -550,6 +559,9 @@ class Recipe(Configured):
 				self.steps=[]
 				self.output=Dataset("inmemory",parent=self)
 				self.type="internal"
+				self.before = []
+				self.after = []
+				self.head = None
 				self.log=None
 				self.args=args
 				return
@@ -573,6 +585,12 @@ class Recipe(Configured):
 					self.input.select=self.conf["input"]["select"]
 			except:
 				self.input.select=None
+
+			try:
+				r = self.conf["input"]["filter"].keys()[0]
+				self.input.filter=Recipe(name=r, args=self.conf["input"]["filter"][r])
+			except:
+				self.input.filter=None
 
 			try:
 				self.input.chunked=self.conf["input"]["chunked"]
