@@ -1399,9 +1399,9 @@ class Recipe(Configured):
 				prefix="graph_"					
 
 			try:
-				to_compute=list(OrderedDict.fromkeys(list[["degree","connected_component"],self.args["compute"]]))
+				to_compute=list(set(flatten([["degree"],self.args["compute"]])))
 			except:
-				to_compute=["degree"]
+				to_compute=["degree","clustering","triangles","closeness_centrality","pagerank","square_clustering","eigenvector_centrality_numpy"]
 
 			# create graph from links
 			graph = nx.Graph()
@@ -1412,25 +1412,33 @@ class Recipe(Configured):
 			computed = []
 			for method in to_compute:
 				try:
-					computed.append(pd.Series(getattr(nx,method)(graph), name = prefix+method))
+					if (method == "degree"):
+						deg = pd.DataFrame(pd.Series(nx.degree(graph)).apply(pd.Series))
+						deg = deg.set_index(list(deg)[0]).rename(index=str, columns={list(deg)[1]: prefix+method})
+						computed.append(deg)
+					else:
+						computed.append(pd.Series(getattr(nx,method)(graph), name = prefix+method))
 				except:
 					self.log.write(msg="computing {}".format(method),error=err())
-
 
 			# generate cluster/clique 
 			id = {}
 			cluster_nodes = {}
 			for cluster in nx.connected_components(graph):
 				cluster_id = sha1(uuid.uuid4())
+				cluster = sorted(cluster)
 				for node in cluster:
 					id[node] = cluster_id
-					cluster_nodes[node] = sorted(cluster)
+					cluster_nodes[node] = cluster
+
 
 			computed.append(pd.Series(id, name=prefix+"clique_id"))
 			computed.append(pd.Series(cluster_nodes, name=prefix+"clique"))
 
+
 			df_graph = pd.concat(computed, axis=1)
 			df_graph[prefix+"clique_size"] = df_graph.groupby([prefix+"clique_id"])[prefix+"clique_id"].transform('count')
+
 
 			df_graph.reset_index(inplace = True)
 			df_graph.rename(columns={"index": nodes[0]}, inplace = True)
