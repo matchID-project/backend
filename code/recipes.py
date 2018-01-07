@@ -510,7 +510,7 @@ class Dataset(Configured):
 						df.to_csv(self.file,mode='a',index=False,sep=self.sep,
 							compression=self.compression,encoding=self.encoding,header=header)
 					except:
-						self.log.write("write to csv failed writing {} : {}".format(self.file,err()))
+						self.log.write("write to csv failed writing {}".format(self.file),err())
 				elif (self.type == "fwf"):
 					if (chunk == 0):
 						header = self.header
@@ -519,18 +519,18 @@ class Dataset(Configured):
 					try:
 						to_fwf(df,self.file,names=self.names,header=header,sep=self.sep,widths=self.widths,append=True,encoding=self.encoding,log=self.log)
 					except:
-						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))
+						self.log.write("write to fwf failed writing {}".format(self.file),err())
 					pass
 				elif (self.type == "hdf"):
 					try:
 						df.to_hdf(self.file,key=self.name,mode='a', format='table')
 					except:
-						self.log.write("write to hdf failed writing {} : {}".format(self.file,err()))						
+						self.log.write("write to hdf failed writing {}".format(self.file),err())						
 				elif (self.type == "msgpack"):
 					try:
 						df.to_msgpack(self.file, append = True, encoding=self.encoding)
 					except:
-						self.log.write("write to msgpack failed writing {} : {}".format(self.file,err()))						
+						self.log.write("write to msgpack failed writing {}".format(self.file),err())						
 				else:
 					self.log.write("no method for writing to {} with type {}".format(self.file, self.type))						
 
