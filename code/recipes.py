@@ -669,8 +669,23 @@ class Recipe(Configured):
 			except:
 				pass
 
+			try:
+				self.output.max_tries=self.conf["output"]["max_tries"]
+			except:
+				pass
+
+
 		except:
 			self.output=Dataset("inmemory",parent=self)
+
+
+		try:
+			self.write_queue_length=self.conf["write_queue_length"]
+		except:
+			try:
+				self.write_queue_length=config.conf["global"]["write_queue_length"]
+			except:
+				self.write_queue_length=50
 
 		try:
 			self.steps=[]
@@ -812,10 +827,9 @@ class Recipe(Configured):
 					self.log.write(msg="error while calling {} in {}".format(recipe.name,self.name),error=err())
 			if ((self.output.name != "inmemory") & (self.test==False)):
 				if (queue != None):
+					queue.put([i,df])
 					if (supervisor != None):
 						supervisor[i]="run_done"
-					queue.put_nowait([i,df])
-					#self.log.write("computation of chunk {} done, queued for write".format(i))
 				else:
 					# threads the writing, to optimize cpu usage, as write generate idle time
 					write_job = Process(target=self.write, args=[i,df])
@@ -898,6 +912,7 @@ class Recipe(Configured):
 				self.df=next(self.input.reader,"")
 				if(self.test==True):
 					self.df=self.df.head(n=head)
+
 			else:
 				self.log.write("reading whole input before processing recipe")
 				self.df = []
@@ -919,7 +934,12 @@ class Recipe(Configured):
 				if (supervisor == None):
 					supervisor= config.manager.dict()
 				if (write_queue == None):
-					write_queue=Queue()
+					try:
+						write_queue=Queue(self.write_queue_length)
+					except:
+						self
+						write_queue=Queue()
+
 				# create the writer queue
 				supervisor_thread=Process(target=self.supervise,args=[write_queue,supervisor])
 				supervisor_thread.start()
