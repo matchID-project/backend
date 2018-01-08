@@ -365,12 +365,13 @@ class Dataset(Configured):
 					self.log.write(msg="filtered dataset")
 			except:
 				self.log.write(msg="failed to initiate the filter", error=err())
+
 		else:
 			self.log.write(msg="couldn't initiate dataset {}".format(self.name), error=err(),exit=True)
 
 	def scanner(self,**kwargs):
 		self.select=json.loads(json.dumps(self.select))
-		scan=helpers.scan(client=self.connector.es, scroll=u'1d', clear_scroll=False, query=self.select, index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
+		scan=helpers.scan(client=self.connector.es, scroll=u'1000m', clear_scroll=False, query=self.select, index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
 
 		hits=[]
 		ids=[]
@@ -438,15 +439,18 @@ class Dataset(Configured):
 
 			if (self.connector.type == "elasticsearch"):
 					df=df.fillna("")
-					if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode != 'update'):
+					if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode == 'create'):
 						# unsafe insert speed enable to speed up
-						actions=[{'_op_type': 'index', '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+						actions=[{'_op_type': mode, '_index': self.table,'_type': self.name, '_source': dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 					else:
-						if ('_id' not in df.columns) | (self.mode != 'update'):
+						if ('_id' not in df.columns):
 								df['_id']=df.apply(lambda row: sha1(row), axis=1)
 						records=df.drop(['_id'],axis=1).T.to_dict()
 						ids=df['_id'].T.to_dict()
-						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+						if (self.mode == "update"):
+							actions=[{'_op_type': 'update', '_id': ids[it], '_index': self.table,'_type': self.name, 'doc_as_upsert' : True, 'doc': dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]							
+						else:
+							actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, '_source': dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 					try:
 						tries=0
 						success=False
@@ -510,7 +514,7 @@ class Dataset(Configured):
 						df.to_csv(self.file,mode='a',index=False,sep=self.sep,
 							compression=self.compression,encoding=self.encoding,header=header)
 					except:
-						self.log.write("write to csv failed writing {} : {}".format(self.file,err()))
+						self.log.write("write to csv failed writing {}".format(self.file),err())
 				elif (self.type == "fwf"):
 					if (chunk == 0):
 						header = self.header
@@ -519,18 +523,18 @@ class Dataset(Configured):
 					try:
 						to_fwf(df,self.file,names=self.names,header=header,sep=self.sep,widths=self.widths,append=True,encoding=self.encoding,log=self.log)
 					except:
-						self.log.write("write to fwf failed writing {} : {}".format(self.file,err()))
+						self.log.write("write to fwf failed writing {}".format(self.file),err())
 					pass
 				elif (self.type == "hdf"):
 					try:
 						df.to_hdf(self.file,key=self.name,mode='a', format='table')
 					except:
-						self.log.write("write to hdf failed writing {} : {}".format(self.file,err()))						
+						self.log.write("write to hdf failed writing {}".format(self.file),err())						
 				elif (self.type == "msgpack"):
 					try:
 						df.to_msgpack(self.file, append = True, encoding=self.encoding)
 					except:
-						self.log.write("write to msgpack failed writing {} : {}".format(self.file,err()))						
+						self.log.write("write to msgpack failed writing {}".format(self.file),err())						
 				else:
 					self.log.write("no method for writing to {} with type {}".format(self.file, self.type))						
 
@@ -607,13 +611,15 @@ class Recipe(Configured):
 			except:
 				pass
 
+			try:
+				self.input.max_tries=self.conf["input"]["max_tries"]
+			except:
+				pass
 
 		except:
 			self.input=Dataset("inmemory",parent=self)
 			self.input.select=None
 			self.input.chunked=True
-
-
 
 		try:
 			self.threads=self.conf["threads"]
@@ -663,8 +669,23 @@ class Recipe(Configured):
 			except:
 				pass
 
+			try:
+				self.output.max_tries=self.conf["output"]["max_tries"]
+			except:
+				pass
+
+
 		except:
 			self.output=Dataset("inmemory",parent=self)
+
+
+		try:
+			self.write_queue_length=self.conf["write_queue_length"]
+		except:
+			try:
+				self.write_queue_length=config.conf["global"]["write_queue_length"]
+			except:
+				self.write_queue_length=50
 
 		try:
 			self.steps=[]
@@ -806,10 +827,9 @@ class Recipe(Configured):
 					self.log.write(msg="error while calling {} in {}".format(recipe.name,self.name),error=err())
 			if ((self.output.name != "inmemory") & (self.test==False)):
 				if (queue != None):
+					queue.put([i,df])
 					if (supervisor != None):
 						supervisor[i]="run_done"
-					queue.put_nowait([i,df])
-					#self.log.write("computation of chunk {} done, queued for write".format(i))
 				else:
 					# threads the writing, to optimize cpu usage, as write generate idle time
 					write_job = Process(target=self.write, args=[i,df])
@@ -892,6 +912,7 @@ class Recipe(Configured):
 				self.df=next(self.input.reader,"")
 				if(self.test==True):
 					self.df=self.df.head(n=head)
+
 			else:
 				self.log.write("reading whole input before processing recipe")
 				self.df = []
@@ -913,7 +934,12 @@ class Recipe(Configured):
 				if (supervisor == None):
 					supervisor= config.manager.dict()
 				if (write_queue == None):
-					write_queue=Queue()
+					try:
+						write_queue=Queue(self.write_queue_length)
+					except:
+						self
+						write_queue=Queue()
+
 				# create the writer queue
 				supervisor_thread=Process(target=self.supervise,args=[write_queue,supervisor])
 				supervisor_thread.start()
@@ -1399,9 +1425,14 @@ class Recipe(Configured):
 				prefix="graph_"					
 
 			try:
-				to_compute=list(set(flatten([["degree"],self.args["compute"]])))
+				if (self.args["compute"] == None):
+					to_compute=[]
+				elif (self.args["compute"] == "all"):
+					to_compute=["clique_list","degree","clustering","triangles","closeness_centrality","pagerank","square_clustering","eigenvector_centrality_numpy"]
+				else:
+					to_compute=list(set(flatten([["clique_list"],self.args["compute"]])))
 			except:
-				to_compute=["degree","clustering","triangles","closeness_centrality","pagerank","square_clustering","eigenvector_centrality_numpy"]
+				to_compute=[]
 
 			# create graph from links
 			graph = nx.Graph()
@@ -1416,24 +1447,27 @@ class Recipe(Configured):
 						deg = pd.DataFrame(pd.Series(nx.degree(graph)).apply(pd.Series))
 						deg = deg.set_index(list(deg)[0]).rename(index=str, columns={list(deg)[1]: prefix+method})
 						computed.append(deg)
-					else:
+					elif (method != "clique_list"):
 						computed.append(pd.Series(getattr(nx,method)(graph), name = prefix+method))
 				except:
 					self.log.write(msg="computing {}".format(method),error=err())
 
 			# generate cluster/clique 
 			id = {}
-			cluster_nodes = {}
+			if ("clique_list" in to_compute):
+				cluster_nodes = {}
 			for cluster in nx.connected_components(graph):
 				cluster_id = sha1(uuid.uuid4())
 				cluster = sorted(cluster)
 				for node in cluster:
 					id[node] = cluster_id
-					cluster_nodes[node] = cluster
+					if ("clique_list" in to_compute):
+						cluster_nodes[node] = cluster
 
 
 			computed.append(pd.Series(id, name=prefix+"clique_id"))
-			computed.append(pd.Series(cluster_nodes, name=prefix+"clique"))
+			if ("clique_list" in to_compute):
+				computed.append(pd.Series(cluster_nodes, name=prefix+"clique"))
 
 
 			df_graph = pd.concat(computed, axis=1)
@@ -1648,7 +1682,7 @@ class Recipe(Configured):
 							tries=0
 							success=False
 							failure=None
-							max_tries=es.connector.max_tries
+							max_tries=es.max_tries
 							while(tries<max_tries):
 								try:
 									res=es.connector.es.msearch(bulk, request_timeout=10+10*tries)

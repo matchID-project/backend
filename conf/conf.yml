@@ -8,6 +8,7 @@ global:
     processes: 1
     debug: True
   threads_by_job: 2
+  write_queue_length: 100
   paths:
     conf: conf #optionnal self-link
     projects: projects
