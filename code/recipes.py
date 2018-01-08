@@ -439,15 +439,18 @@ class Dataset(Configured):
 
 			if (self.connector.type == "elasticsearch"):
 					df=df.fillna("")
-					if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode != 'update'):
+					if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode == 'create'):
 						# unsafe insert speed enable to speed up
-						actions=[{'_op_type': 'index', '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+						actions=[{'_op_type': mode, '_index': self.table,'_type': self.name, '_source': dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 					else:
-						if ('_id' not in df.columns) | (self.mode != 'update'):
+						if ('_id' not in df.columns):
 								df['_id']=df.apply(lambda row: sha1(row), axis=1)
 						records=df.drop(['_id'],axis=1).T.to_dict()
 						ids=df['_id'].T.to_dict()
-						actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, "_source": dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+						if (self.mode == "update"):
+							actions=[{'_op_type': 'update', '_id': ids[it], '_index': self.table,'_type': self.name, 'doc_as_upsert' : True, 'doc': dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]							
+						else:
+							actions=[{'_op_type': 'index', '_id': ids[it], '_index': self.table,'_type': self.name, '_source': dict((k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
 					try:
 						tries=0
 						success=False
