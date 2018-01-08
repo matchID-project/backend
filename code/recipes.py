@@ -1425,9 +1425,14 @@ class Recipe(Configured):
 				prefix="graph_"					
 
 			try:
-				to_compute=list(set(flatten([["degree"],self.args["compute"]])))
+				if (self.args["compute"] == None):
+					to_compute=[]
+				elif (self.args["compute"] == "all"):
+					to_compute=["clique_list","degree","clustering","triangles","closeness_centrality","pagerank","square_clustering","eigenvector_centrality_numpy"]
+				else:
+					to_compute=list(set(flatten([["clique_list"],self.args["compute"]])))
 			except:
-				to_compute=["degree","clustering","triangles","closeness_centrality","pagerank","square_clustering","eigenvector_centrality_numpy"]
+				to_compute=[]
 
 			# create graph from links
 			graph = nx.Graph()
@@ -1442,24 +1447,27 @@ class Recipe(Configured):
 						deg = pd.DataFrame(pd.Series(nx.degree(graph)).apply(pd.Series))
 						deg = deg.set_index(list(deg)[0]).rename(index=str, columns={list(deg)[1]: prefix+method})
 						computed.append(deg)
-					else:
+					elif (method != "clique_list"):
 						computed.append(pd.Series(getattr(nx,method)(graph), name = prefix+method))
 				except:
 					self.log.write(msg="computing {}".format(method),error=err())
 
 			# generate cluster/clique 
 			id = {}
-			cluster_nodes = {}
+			if ("clique_list" in to_compute):
+				cluster_nodes = {}
 			for cluster in nx.connected_components(graph):
 				cluster_id = sha1(uuid.uuid4())
 				cluster = sorted(cluster)
 				for node in cluster:
 					id[node] = cluster_id
-					cluster_nodes[node] = cluster
+					if ("clique_list" in to_compute):
+						cluster_nodes[node] = cluster
 
 
 			computed.append(pd.Series(id, name=prefix+"clique_id"))
-			computed.append(pd.Series(cluster_nodes, name=prefix+"clique"))
+			if ("clique_list" in to_compute):
+				computed.append(pd.Series(cluster_nodes, name=prefix+"clique"))
 
 
 			df_graph = pd.concat(computed, axis=1)
