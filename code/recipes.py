@@ -365,12 +365,13 @@ class Dataset(Configured):
 					self.log.write(msg="filtered dataset")
 			except:
 				self.log.write(msg="failed to initiate the filter", error=err())
+
 		else:
 			self.log.write(msg="couldn't initiate dataset {}".format(self.name), error=err(),exit=True)
 
 	def scanner(self,**kwargs):
 		self.select=json.loads(json.dumps(self.select))
-		scan=helpers.scan(client=self.connector.es, scroll=u'1d', clear_scroll=False, query=self.select, index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
+		scan=helpers.scan(client=self.connector.es, scroll=u'1000m', clear_scroll=False, query=self.select, index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
 
 		hits=[]
 		ids=[]
