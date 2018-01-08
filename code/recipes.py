@@ -611,13 +611,15 @@ class Recipe(Configured):
 			except:
 				pass
 
+			try:
+				self.input.max_tries=self.conf["input"]["max_tries"]
+			except:
+				pass
 
 		except:
 			self.input=Dataset("inmemory",parent=self)
 			self.input.select=None
 			self.input.chunked=True
-
-
 
 		try:
 			self.threads=self.conf["threads"]
@@ -1652,7 +1654,7 @@ class Recipe(Configured):
 							tries=0
 							success=False
 							failure=None
-							max_tries=es.connector.max_tries
+							max_tries=es.max_tries
 							while(tries<max_tries):
 								try:
 									res=es.connector.es.msearch(bulk, request_timeout=10+10*tries)
