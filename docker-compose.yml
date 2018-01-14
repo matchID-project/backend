@@ -1,0 +1,25 @@
+version: '2'
+
+services:
+  backend:
+    build:
+      context: .
+      args:
+        proxy: ${http_proxy}
+    image: matchid-backend:latest
+    container_name: matchid-backend
+    volumes:
+      - ${BACKEND}/code/:/matchid/code/
+      - ${BACKEND}/conf/:/matchid/conf/
+      - ${PROJECTS}:/matchid/projects/
+      - ${BACKEND}/log:/matchid/log/
+      - ${UPLOAD}:/matchid/upload/
+      - ${MODELS}:/matchid/models/
+      - ${BACKEND}/referential_data/:/matchid/referential_data/
+      - ${FRONTEND}/matchIdConfig:/matchid/matchIdConfig/
+    restart: always
+
+networks:
+  default:
+    external:
+      name: matchid

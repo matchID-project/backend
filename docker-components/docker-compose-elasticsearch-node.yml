@@ -1,0 +1,20 @@
+
+  esnode%N:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:latest
+    container_name: esnode%N
+    depends_on:
+      - elasticsearch
+    environment:
+      - cluster.name=matchid-cluster
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms2048m -Xmx2048m"
+      - "discovery.zen.ping.unicast.hosts=elasticsearch"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 4g
+    volumes:
+      - ${BACKEND}/esdata%N:/usr/share/elasticsearch/data
+
+
