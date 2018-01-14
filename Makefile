@@ -1,8 +1,9 @@
 export BACKEND := $(shell pwd)
 
 export FRONTEND=${BACKEND}/../frontend
-export UPLOAD=${BACKEND}/data
+export UPLOAD=${BACKEND}/upload
 export PROJECTS=${BACKEND}/projects
+export EXAMPLES=${BACKEND}/../examples
 export MODELS=${BACKEND}/models
 export LOG=${BACKEND}/log
 export DC_DIR=${BACKEND}/docker-components
@@ -13,6 +14,7 @@ lastcommit          := $(shell touch .lastcommit; cat .lastcommit)
 commit-frontend     := $(shell cd ${FRONTEND}; git rev-parse HEAD | cut -c1-8)
 lastcommit-frontend := $(shell touch ${FRONTEND}/.lastcommit; cat ${FRONTEND}/.lastcommit)
 date                := $(shell date -I)
+id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
 
 ES_NODES := 1
 PG := 'postgres'
@@ -69,8 +71,8 @@ backend: network
 	@(${NH} ${DC} up > ${LOG}/docker-backend.log) 2> /dev/null & 
 	@sleep 2 && tail ${LOG}/docker-backend.log &
 
-
 frontend-download:
+	@echo downloading frontend code
 	@mkdir -p ${FRONTEND}
 	@cd ${FRONTEND}
 	@git clone https://github.com/matchID-project/frontend . 2> /dev/null; true 
@@ -112,6 +114,17 @@ stop: backend-stop elasticsearch-stop kibana-stop postgres-stop
 start: frontend backend elasticsearch kibana postgres
 	@sleep 2 && echo all components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
+
+example-download:
+	@echo downloading example code
+	@mkdir -p ${EXAMPLES}
+	@cd ${EXAMPLES}; git clone https://github.com/matchID-project/examples . ; true
+	@pwd
+	@cd ${BACKEND}
+	@mv projects _${date}_${id}_projects 2> /dev/null; true
+	@mv upload _${date}_${id}_upload 2> /dev/null; true
+	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
+	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
 
 tuto: 
 	export UPLOAD=../tutorial/data/;
