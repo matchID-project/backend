@@ -22,6 +22,9 @@ DC := 'docker-compose'
 NH := 'nohup'
 
 
+docker-clean: stop
+	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana 
+
 clean:
 	sudo rm -rf ${FRONTEND}/dist
 	sudo mkdir -p ${UPLOAD} ${PROJECTS} ${MODELS}
@@ -74,8 +77,7 @@ backend: network
 frontend-download:
 	@echo downloading frontend code
 	@mkdir -p ${FRONTEND}
-	@cd ${FRONTEND}
-	@git clone https://github.com/matchID-project/frontend . 2> /dev/null; true 
+	@cd ${FRONTEND}; git clone https://github.com/matchID-project/frontend . 2> /dev/null; true 
 	@cd ${BACKEND}
 
 frontend-dev: frontend-download network backend elasticsearch kibana postgres
