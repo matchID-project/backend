@@ -1,0 +1,26 @@
+version: '2'
+
+networks:
+  default:
+    external:
+      name: matchid
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:latest
+    container_name: elasticsearch
+    environment:
+      - cluster.name=matchid-cluster
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms2048m -Xmx2048m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    mem_limit: 4g
+    volumes:
+      - ${BACKEND}/esdata/node1:/usr/share/elasticsearch/data
+    # ports:
+    #   - 9200:9200
+
+
