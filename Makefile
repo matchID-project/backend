@@ -113,8 +113,12 @@ frontend: frontend-build
 stop: backend-stop elasticsearch-stop kibana-stop postgres-stop 
 	@echo all components stopped
 
-start: frontend backend elasticsearch kibana postgres
+start-all: start kibana postgres
 	@sleep 2 && echo all components started, please enter following command to supervise: 
+	@echo tail log/docker-*.log
+
+start: frontend backend elasticsearch 
+	@sleep 2 && echo essential components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
 example-download:
