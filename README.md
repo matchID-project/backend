@@ -39,7 +39,7 @@ matchID uses `make` and Docker to accelerate installation of dependencies. You'l
 
 Now you just have to start matchID:
 
-``̀`
+```
 cd backend
 make start
 ```
@@ -49,17 +49,10 @@ This should :
 - build it
 - start the backend
 - start elasticsearch (required)
-- start kibana (optional, useful for exploring data insterted in elasticsearch)
-- start postgres (optional)
 
-If you have not enough memory (less than 12Go), we recommand not to start postgres neirther kibana or stop them :
+Going to your [browser](http://localhost) to check everythings works fine.
 
-```
-make postgres stop
-make kibana stop
-```
-
-# Follow the tutorial !
+As it starts many components your computer may encounter low memory [if <8Go]. Just go to next section to see how to still run matchID.
 
 You can now add you own data, but we strongly to follow the tutorial and downloading the sample use case :
 
@@ -67,7 +60,71 @@ You can now add you own data, but we strongly to follow the tutorial and downloa
 make download-example
 ```
 
-
 We recommand now you to follow the [Tutorial](https://matchid-project.github.io/tutorial).
 
+# Frequent running problems
 
+### stop matchID
+
+```
+make stop
+```
+
+### supported components
+The list of the supported components is :
+- `backend` : the api and the engine
+- `frontend`: the single-page-application in Vue.js to develop recipes
+- `elasticsearch`: the famous search engine used for fuzzy matching
+- `postgres` : not needed but useful for lower memory configuration in further 
+- `kibana`: useful for elasticsearch data analysis
+
+You can start all the components like this: 
+```
+make start-all
+```
+
+Each component can be started or stopped alone, this will for example stop postgres:
+```
+make postgres-stop
+```
+
+And this will start kibana :
+```
+make kibana
+```
+
+For example, `make start` is equivalent to `make backend frontend elasticsearch`.
+
+
+### check health of components
+Each docker components logs its actions to `log/docker-component.log`. So you can easily check heath of all components like this:
+
+```
+tail -f log/docker-*.log
+```
+
+
+### Nginx didn't launch
+matchID use the 80 port by default. If you have another web service it may cause conflict. 
+
+Just edit `docker-components/docker-compose-run-frontend.yml` and change the docker ports "80:80" to "8080:80" to change the exposition port to 8080.
+
+You will restart the frontend like this
+
+```
+make frontend-stop frontend
+```
+
+### Clean all and retry
+
+To clean everything 
+```
+make clean docker-clean
+```
+
+### Developpement mode
+If you want to contribute to the developpement, you'll be able to fork the repo on GitHub and to lauch the dev mode (you'll perhaps have to do a `make docker-clean` first): 
+
+```
+make start-dev
+```
