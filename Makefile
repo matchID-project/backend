@@ -22,6 +22,9 @@ DC := 'docker-compose'
 NH := 'nohup'
 
 
+docker-clean: stop
+	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana 
+
 clean:
 	sudo rm -rf ${FRONTEND}/dist
 	sudo mkdir -p ${UPLOAD} ${PROJECTS} ${MODELS}
@@ -74,11 +77,10 @@ backend: network
 frontend-download:
 	@echo downloading frontend code
 	@mkdir -p ${FRONTEND}
-	@cd ${FRONTEND}
-	@git clone https://github.com/matchID-project/frontend . 2> /dev/null; true 
+	@cd ${FRONTEND}; git clone https://github.com/matchID-project/frontend . 2> /dev/null; true 
 	@cd ${BACKEND}
 
-frontend-dev: frontend-download network backend elasticsearch kibana postgres
+start-dev: frontend-download network backend elasticsearch postgres kibana
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo docker-compose up matchID frontend for dev after new commit
 	@${NH} ${DC} -f docker/docker-compose-dev.yml down
@@ -111,8 +113,12 @@ frontend: frontend-build
 stop: backend-stop elasticsearch-stop kibana-stop postgres-stop 
 	@echo all components stopped
 
-start: frontend backend elasticsearch kibana postgres
+start-all: start kibana postgres
 	@sleep 2 && echo all components started, please enter following command to supervise: 
+	@echo tail log/docker-*.log
+
+start: frontend backend elasticsearch 
+	@sleep 2 && echo essential components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
 example-download:

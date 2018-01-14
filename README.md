@@ -2,6 +2,8 @@
 
 This project aims to offer a backend to the matchID project.
 
+Full documentation is available at [https://matchid-project.github.io](https://matchid-project.github.io/).
+
 The main objective is to process one or many datasets of civil states and identify multiple matches (at least two!) of a same person.
 
 The backend basically offers the possibility to cook a dataset with a recipe, leading to a new dataset.
@@ -14,10 +16,9 @@ The scalability relies on single server multiprocessing for the **Pandas** adn *
 and cloud scalability of **elasticsearch** for large fuzzy-match use-cases.
 It aims to offer capability to match two datasets with dozens millions of records in a day on a 1U server. Further developments will be still needed for full-cloud scalability.
 
-For now the code is considered to be still in "alpha" development, and still needs some steps of refactoring and documentation to reach production readiness.
+For now the code is considered to be still in "beta" development, and still needs some steps of refactoring and documentation to reach production readiness.
 
-This package integrates a simple js web-app for helping developing your use-case (single user designed, so not to deserve a Lab of data-scientists),
-and a **Docker** configuration for accelerating your use-case design.
+This package integrates a simple page application in Vue web-app for helping developing your use-case (single user designed, so not to deserve a Lab of data-scientists), and a **Docker** configuration for accelerating your use-case design.
 
 
 # Main use cases
@@ -29,41 +30,44 @@ and a **Docker** configuration for accelerating your use-case design.
 # Running it
 Automatization (and thus documentation) is for now a future achievement
 
-First clone the project
+First clone the backend
 ```
-git clone https://github.com/eig-2017/matchID-backend.git
-```
-
-You have to clone matchID-frontend project to enable annotation for machine learning capabilities:
-```
-git clone https://github.com/eig-2017/matchID-frontend.git
+git clone https://github.com/matchID-project/backend
 ```
 
-And the matchid-examples to have some data and recipes to play with:
-```
-git clone https://github.com/eig-2017/matchID-examples.git
-```
+matchID uses `make` and Docker to accelerate installation of dependencies. You'll first have to [install Docker](https://docs.docker.com/engine/installation/) and [`docker-compose`](https://docs.docker.com/compose/).
 
-Note that machine learning is not mandatory (you can have a real serious matching only based on rules) but seriously recommended for reduction development time.
+Now you just have to start matchID:
 
-Simply run it with Docker (a >8Go configuration is recommended)
-```
-cd matchID-backend
-export FRONTEND=../matchID-frontend    # path to GitHub clone of matchID-frontend
-export PROJECTS=../matchID-examples/projects/       # path to projects
-export UPLOAD=../matchID-examples/data/       # path to upload
-export MODELS=../matchID-examples/models       # path to upload
-
-docker-compose -f docker-compose-dev.yml up --build
+``̀`
+cd backend
+make start
 ```
 
-Which launches four containers :
-- nginx (for static web files to test the backend)
-- matchid-frontend (vuejs frontend)
-- matchid-backend (python backend)
-- elasticsearch (the database)
+This should :
+- download the frontend
+- build it
+- start the backend
+- start elasticsearch (required)
+- start kibana (optional, useful for exploring data insterted in elasticsearch)
+- start postgres (optional)
 
-This configuration is intented for quick discovery and configuration and should not be ported as such into production.
+If you have not enough memory (less than 12Go), we recommand not to start postgres neirther kibana or stop them :
+
+```
+make postgres stop
+make kibana stop
+```
+
+# Follow the tutorial !
+
+You can now add you own data, but we strongly to follow the tutorial and downloading the sample use case :
+
+```
+make download-example
+```
 
 
-We recommand to follow then the [**tutorial**](docs/tutorial.md) for a first usecase.
+We recommand now you to follow the [Tutorial](https://matchid-project.github.io/tutorial).
+
+
