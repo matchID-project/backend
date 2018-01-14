@@ -4,6 +4,7 @@ export FRONTEND=${BACKEND}/../frontend
 export UPLOAD=${BACKEND}/upload
 export PROJECTS=${BACKEND}/projects
 export EXAMPLES=${BACKEND}/../examples
+export TUTORIAL=${BACKEND}/../tutorial
 export MODELS=${BACKEND}/models
 export LOG=${BACKEND}/log
 export DC_DIR=${BACKEND}/docker-components
@@ -113,11 +114,11 @@ frontend: frontend-build
 stop: backend-stop elasticsearch-stop kibana-stop postgres-stop 
 	@echo all components stopped
 
-start-all: start kibana postgres
+start-all: start postgres
 	@sleep 2 && echo all components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
-start: frontend backend elasticsearch 
+start: backend elasticsearch kibana frontend
 	@sleep 2 && echo essential components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
@@ -125,15 +126,17 @@ example-download:
 	@echo downloading example code
 	@mkdir -p ${EXAMPLES}
 	@cd ${EXAMPLES}; git clone https://github.com/matchID-project/examples . ; true
-	@pwd
-	@cd ${BACKEND}
 	@mv projects _${date}_${id}_projects 2> /dev/null; true
 	@mv upload _${date}_${id}_upload 2> /dev/null; true
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
 	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
 
-tuto: 
-	export UPLOAD=../tutorial/data/;
-	export PROJECTS=../tutorial/projects;
-	export MODELS=../tutorial/models/;
-	make start
+tuto: start
+	@mkdir -p ${TUTORIAL}/projects ${TUTORIAL}/data ${TUTORIAL}/models 
+	@mv projects _${date}_${id}_projects 2> /dev/null; true
+	@mv upload _${date}_${id}_upload 2> /dev/null; true
+	@mv models _${date}_${id}_models 2> /dev/null; true
+	@ln -s ${TUTORIAL}/projects ${BACKEND}/projects
+	@ln -s ${TUTORIAL}/data ${BACKEND}/upload
+	@ln -s ${TUTORIAL}/models ${BACKEND}/models
+
