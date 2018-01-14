@@ -80,7 +80,7 @@ frontend-download:
 	@cd ${FRONTEND}; git clone https://github.com/matchID-project/frontend . 2> /dev/null; true 
 	@cd ${BACKEND}
 
-start-dev: frontend-download network backend elasticsearch
+start-dev: frontend-download network backend elasticsearch postgres kibana
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo docker-compose up matchID frontend for dev after new commit
 	@${NH} ${DC} -f docker/docker-compose-dev.yml down
