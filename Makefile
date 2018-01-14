@@ -4,6 +4,7 @@ export FRONTEND=${BACKEND}/../frontend
 export UPLOAD=${BACKEND}/upload
 export PROJECTS=${BACKEND}/projects
 export EXAMPLES=${BACKEND}/../examples
+export TUTORIAL=${BACKEND}/../tutorial
 export MODELS=${BACKEND}/models
 export LOG=${BACKEND}/log
 export DC_DIR=${BACKEND}/docker-components
@@ -125,16 +126,17 @@ example-download:
 	@echo downloading example code
 	@mkdir -p ${EXAMPLES}
 	@cd ${EXAMPLES}; git clone https://github.com/matchID-project/examples . ; true
-	@pwd
-	@cd ${BACKEND}
 	@mv projects _${date}_${id}_projects 2> /dev/null; true
 	@mv upload _${date}_${id}_upload 2> /dev/null; true
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
 	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
 
-tuto: 
-	@export UPLOAD=../tutorial/data/
-	@export PROJECTS=../tutorial/projects
-	@export MODELS=../tutorial/models/
-	@echo mkdir -p ${UPLOAD} ${PROJECTS} ${MODELS}
-	@make start
+tuto: start
+	@mkdir -p ${TUTORIAL}/projects ${TUTORIAL}/data ${TUTORIAL}/models 
+	@mv projects _${date}_${id}_projects 2> /dev/null; true
+	@mv upload _${date}_${id}_upload 2> /dev/null; true
+	@mv models _${date}_${id}_models 2> /dev/null; true
+	@ln -s ${TUTORIAL}/projects ${BACKEND}/projects
+	@ln -s ${TUTORIAL}/data ${BACKEND}/upload
+	@ln -s ${TUTORIAL}/models ${BACKEND}/models
+
