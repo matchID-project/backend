@@ -113,11 +113,11 @@ frontend: frontend-build
 stop: backend-stop elasticsearch-stop kibana-stop postgres-stop 
 	@echo all components stopped
 
-start-all: start kibana postgres
+start-all: start postgres
 	@sleep 2 && echo all components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
-start: frontend backend elasticsearch 
+start: backend elasticsearch kibana frontend
 	@sleep 2 && echo essential components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
@@ -133,7 +133,8 @@ example-download:
 	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
 
 tuto: 
-	export UPLOAD=../tutorial/data/;
-	export PROJECTS=../tutorial/projects;
-	export MODELS=../tutorial/models/;
-	make start
+	@export UPLOAD=../tutorial/data/
+	@export PROJECTS=../tutorial/projects
+	@export MODELS=../tutorial/models/
+	@echo mkdir -p ${UPLOAD} ${PROJECTS} ${MODELS}
+	@make start
