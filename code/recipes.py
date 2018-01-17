@@ -338,7 +338,10 @@ class Dataset(Configured):
 				if (df is not None):
 					self.reader=[df]
 				else:
-					self.log.write(error="can't initiate inmemory dataset with no dataframe",exit=True)
+					if((len(self.before)+len(self.after))==0):
+						self.log.write(error="can't initiate inmemory dataset with no dataframe",exit=True)
+					else:
+						self.reader=[]
 			elif (self.connector.type == "filesystem"):
 				if (self.type == "csv"):
 					self.reader=itertools.chain.from_iterable(pd.read_csv(file,sep=self.sep,usecols=self.select,chunksize=self.chunk,
@@ -840,7 +843,7 @@ class Recipe(Configured):
 		if (len(recipes) == 0):
 			return
 		if(self.test==True):
-			self.log.write(msg="no call of full run (before/run/after) in test mode")
+			self.log.write(msg="no call of full run (before/run/after) in test mode - recipes to run: {}".format(recipes))
 			return
 
 		queue = []
@@ -849,18 +852,19 @@ class Recipe(Configured):
 			if (re.sub(r'\s*\&\s*$','',recipe) != recipe):
 				recipe=re.sub(r'\s*\&\s*$','',recipe)
 				thread=True
-			jobs[recipe]=Recipe(recipe)
-			jobs[recipe].init()
-			jobs[recipe].result = config.manager.dict()			
-			jobs[recipe].set_job(Process(target=thread_job,args=[jobs[recipe], jobs[recipe].result]))
-			jobs[recipe].start_job()
+
+			config.jobs[recipe]=Recipe(recipe)
+			config.jobs[recipe].init()
+			config.jobs[recipe].result = config.manager.dict()			
+			config.jobs[recipe].set_job(Process(target=thread_job,args=[config.jobs[recipe], config.jobs[recipe].result]))
+			config.jobs[recipe].start_job()
 			self.log.write(msg="run {}".format(recipe))
 			if (thread==True):
-				queue.append(jobs[recipe])
+				queue.append(config.jobs[recipe])
 			else:
-				jobs[recipe].join_job()
-				jobs[recipe].errors = jobs[recipe].result["errors"]
-				if (jobs[recipe].errors > 0):
+				config.jobs[recipe].join_job()
+				config.jobs[recipe].errors = config.jobs[recipe].result["errors"]
+				if (config.jobs[recipe].errors > 0):
 					self.log.write(error="Finished {} with {} errors".format(recipe,jobs[recipe].errors))
 				else:
 					self.log.write(msg="Finished {} with no error".format(recipe))
@@ -868,7 +872,7 @@ class Recipe(Configured):
 
 		for r in queue:
 			r.join_job()
-			r.errors = jobs[r.name].result["errors"]
+			r.errors = config.jobs[r.name].result["errors"]
 			if (r.errors > 0):
 				self.log.write(error="Finished {} with {} errors".format(r.name,r.errors))
 			else:
@@ -1019,8 +1023,24 @@ class Recipe(Configured):
 						self.log.write(error="a recipe should contain a least a steps, before, run or after section")
 				return self.df
 			else:
-				if (len(self.steps)>0 | ("steps" in self.conf.keys())):
-					self.log.write(msg="while running {} - {}".format(self.name),error=err())
+				error=err()
+				# if (len(self.steps)>0 | ("steps" in self.conf.keys())):
+				self.log.write(msg="while running {}".format(self.name),error=error)
+			try:
+				self.log.write("terminating ...")
+				write_queue.put(True)
+				write_thread.terminate()
+				supervisor["end"]=True
+				supervisor_thread.terminate()
+
+				for t in run_queue:
+					try:
+						self.log.write("terminating chunk {}".format(t[0]))
+						t[1].terminate()
+					except:
+						pass
+			except:
+				pass
 
 		# recipes to run after
 		self.run_deps(self.after)
