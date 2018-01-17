@@ -546,7 +546,7 @@ class jobsList(Resource):
 				if (status != "down"):
 					response["running"].append({ "recipe": recipe,
 												 "file": re.sub(r".*/","", job.log.file),
-												 "date": re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log",job.log.file,re.IGNORECASE).group(1)
+												 "date": re.sub(r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2",job.log.file)
 												  })
 			except:
 				response["running"]=[{"error": "while trying to get running jobs list"}]
@@ -555,7 +555,7 @@ class jobsList(Resource):
 							if re.match(r'^.*.log$',f)]
 		for file in logfiles:
 			recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
-			date = re.search("(\d{4}.?\d{2}.?\d{2}T?.*?)-.*.log", file, re.IGNORECASE).group(1)
+			date = re.sub(r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2", file)
 			if (recipe in config.conf["recipes"].keys()):
 				try:
 					if (response["running"][recipe]["date"] != date):
