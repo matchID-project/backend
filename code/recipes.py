@@ -33,7 +33,7 @@ import pandas as pd
 #### parallelize
 # import concurrent.futures
 #import threading
-from multiprocessing import Process, Manager, Pool, Pipe, Queue
+from multiprocessing import Process, Queue, current_process
 
 import uuid
 
@@ -701,7 +701,11 @@ class Recipe(Configured):
 		except:
 			pass
 
-	def init(self,df=None,parent=None,test=False):
+	def init(self,df=None,parent=None,test=False,callback=None):
+		try:
+			self.callback = callback
+		except:
+			pass
 		try:
 			self.test=test
 			if (parent != None):
@@ -854,16 +858,15 @@ class Recipe(Configured):
 				thread=True
 
 			config.jobs[recipe]=Recipe(recipe)
-			config.jobs[recipe].init()
-			config.jobs[recipe].result = config.manager.dict()			
-			config.jobs[recipe].set_job(Process(target=thread_job,args=[config.jobs[recipe], config.jobs[recipe].result]))
+			config.jobs[recipe].init(callback=config.manager.dict())
+			config.jobs[recipe].set_job(Process(target=thread_job,args=[config.jobs[recipe]]))
 			config.jobs[recipe].start_job()
 			self.log.write(msg="run {}".format(recipe))
 			if (thread==True):
 				queue.append(config.jobs[recipe])
 			else:
 				config.jobs[recipe].join_job()
-				config.jobs[recipe].errors = config.jobs[recipe].result["errors"]
+				config.jobs[recipe].errors = config.jobs[recipe].callback["errors"]
 				if (config.jobs[recipe].errors > 0):
 					self.log.write(error="Finished {} with {} errors".format(recipe,jobs[recipe].errors))
 				else:
@@ -872,7 +875,7 @@ class Recipe(Configured):
 
 		for r in queue:
 			r.join_job()
-			r.errors = config.jobs[r.name].result["errors"]
+			r.errors = config.jobs[r.name].callback["errors"]
 			if (r.errors > 0):
 				self.log.write(error="Finished {} with {} errors".format(r.name,r.errors))
 			else:
@@ -1890,16 +1893,27 @@ class Recipe(Configured):
 		except:
 			return df
 
-def thread_job(recipe=None, result={}):
+def thread_job(recipe=None):
 	try:
-		result["df"] = recipe.run()
-		result["errors"] = recipe.errors
-
 		try:
-			result["log"] = str(recipe.log.writer.getvalue())
+			try:
+				config.jobs_list[recipe.name] = {"status": "up", "log": recipe.log.file, "pid": os.getpid(), "callback": recipe.callback}
+			except:
+				config.jobs_list[recipe.name] = {"status": "up", "log": None, "pid": os.getpid(), "callback": recipe.callback}
+
+			recipe.callback["df"] = recipe.run()
+		except SystemExit:
+			recipe.log.write("terminating ...")
+			for p in multiprocessing.active_children():
+				p.terminate()
+		del config.jobs_list[recipe.name]
+
+		recipe.callback["errors"] = recipe.errors
+		try:
+			recipe.callback["log"] = str(recipe.log.writer.getvalue())
 		except:
 			with open(recipe.log.file, 'r') as f:
-				result["log"] = f.read()
+				recipe.callback["log"] = f.read()		
 	except:
 		pass
 

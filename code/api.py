@@ -483,29 +483,29 @@ class RecipeRun(Resource):
 		config.read_conf()
 		if (action=="test"):
 			try: 
-				result = config.manager.dict()
+				callback = config.manager.dict()
 				r=Recipe(recipe)
-				r.init(test=True)
-				r.set_job(Process(target=thread_job,args=[r, result]))
+				r.init(test=True, callback=callback)
+				r.set_job(Process(target=thread_job,args=[r]))
 				r.start_job()
 				r.join_job()
-				r.df = result["df"]
-				r.log = result["log"]
-				r.errors = result["errors"]
+				r.df = r.callback["df"]
+				r.log = r.callback["log"]
+				r.errors = r.callback["errors"]
 
 			except:
 				return {"data": [{"result": "failed"}], "log": "Ooops: {}".format(err())}
 			if isinstance(r.df, pd.DataFrame):
 				df=r.df.fillna("")
 				if (r.df.shape[0]==0):
-					return {"data": [{"result": "empty"}], "log": result["log"]}
+					return {"data": [{"result": "empty"}], "log": r.callback["log"]}
 				try:
-					return jsonify({"data": df.T.to_dict().values(), "log": result["log"]})
+					return jsonify({"data": df.T.to_dict().values(), "log": r.callback["log"]})
 				except:
 					df=df.applymap(lambda x: unicode(x))
-					return jsonify({"data": df.T.to_dict().values(), "log": result["log"]})
+					return jsonify({"data": df.T.to_dict().values(), "log": r.callback["log"]})
 			else:
-				return {"data": [{"result": "empty"}], "log": result["log"]}
+				return {"data": [{"result": "empty"}], "log": r.callback["log"]}
 		elif (action=="run"):
 			#run recipe (gives a job)
 			try:
@@ -518,8 +518,6 @@ class RecipeRun(Resource):
 
 			config.jobs[recipe]=Recipe(recipe)
 			config.jobs[recipe].init()
-
-			# jobs[recipe].set_job(threading.Thread(target=thread_job,args=[jobs[recipe]]))
 			config.jobs[recipe].set_job(Process(target=thread_job,args=[config.jobs[recipe]]))
 			config.jobs[recipe].start_job()
 			return {"recipe":recipe, "status": "new job"}
@@ -540,13 +538,16 @@ class jobsList(Resource):
 		'''
 		# response = jobs.keys()
 		response = {"running": [], "done": []}
-		for recipe, job in config.jobs.iteritems():
-			status = job.job_status()
+		for recipe in config.jobs_list.keys():
+			# logfile = config.jobs[recipe].job.log.file
+			logfile = config.jobs_list[recipe]["log"]
+			# status = job.job_status()
+			status = config.jobs_list[recipe]["status"]
 			try: 
 				if (status != "down"):
 					response["running"].append({ "recipe": recipe,
-												 "file": re.sub(r".*/","", job.log.file),
-												 "date": re.sub(r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2",job.log.file)
+												 "file": re.sub(r".*/","", logfile),
+												 "date": re.sub(r".*/(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2",logfile)
 												  })
 			except:
 				response["running"]=[{"error": "while trying to get running jobs list"}]
