@@ -11,10 +11,11 @@ from log import err
 
 
 def init():
-	global manager, jobs, inmemory, log, conf, levCache
+	global manager, jobs, inmemory, log, conf, levCache, jobs_list
 	manager = Manager()
 	inmemory={}
 	jobs = {}
+	jobs_list = manager.dict()
 	levCache={}
 	log = None
 

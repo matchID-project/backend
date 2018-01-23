@@ -43,37 +43,29 @@ elasticsearch-stop:
 
 elasticsearch: network
 ifeq "$(ES_NODES)" "1"
-	@echo docker-compose up matchID elasticsearch
 	@sudo mkdir -p esdata/node
-	@(${NH} ${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml up > ${LOG}/docker-elasticsearch.log) 2> /dev/null & 
+	${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml up --build -d
 else
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml > ${DC_FILE}-elasticsearch-huge.yml
 	@i=2; $while [$i -le $ES_NODES]; do cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$i" >> ${DC_FILE}-elasticsearch-huge.yml;done
-	@(${NH} ${DC} -f ${DC_FILE}-elasticsearch-huge.yml up > ${LOG}/docker-elasticsearch.log) 2> /dev/null & 
+	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d 
 endif
-	@sleep 2 && tail ${LOG}/docker-elasticsearch.log &
 
 kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
 kibana: network
-	@echo docker-compose up matchID kibana
-	@(${NH} ${DC} -f ${DC_FILE}-kibana.yml up > ${LOG}/docker-kibana.log) 2> /dev/null & 
-	@sleep 2 && tail ${LOG}/docker-kibana.log &
+	${DC} -f ${DC_FILE}-kibana.yml up -d 
 
 postgres-stop:
 	${DC} -f ${DC_FILE}-${PG}.yml down
 postgres: network
-	@echo docker-compose up matchID postgres
-	@(${NH} ${DC} -f ${DC_FILE}-${PG}.yml up > ${LOG}/docker-postgres.log) 2> /dev/null & 
-	@sleep 2 && tail ${LOG}/docker-postgres.log &
+	${DC} -f ${DC_FILE}-${PG}.yml up -d
 
 backend-stop:
 	${DC} down 
 backend: network
-	@echo docker-compose up matchID backend
-	@(${NH} ${DC} up > ${LOG}/docker-backend.log) 2> /dev/null & 
-	@sleep 2 && tail ${LOG}/docker-backend.log &
+	${DC} up -d 
 
 frontend-download:
 	@echo downloading frontend code
@@ -84,14 +76,13 @@ frontend-download:
 start-dev: frontend-download network backend elasticsearch postgres kibana
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo docker-compose up matchID frontend for dev after new commit
-	@${NH} ${DC} -f docker/docker-compose-dev.yml down
-	@(${NH} ${DC} -f docker/docker-compose-dev.yml up --build > ${LOG}/docker-frontend.log) 2> /dev/null & 
+	@${DC} -f docker/docker-compose-dev.yml down
+	${DC} -f docker/docker-compose-dev.yml up --build -d 
 	@echo "${commit-frontend}" > ${FRONTEND}/.lastcommit
 else
 	@echo docker-compose up matchID frontend for dev
-	@(${NH} ${DC} -f docker-compose-dev.yml up > ${LOG}/docker-frontend.log) 2> /dev/null & 
+	${DC} -f docker-compose-dev.yml up -d 
 endif
-	@sleep 2 && tail ${LOG}/docker-frontend.log &
 
 frontend-build: frontend-download network
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
@@ -108,8 +99,7 @@ frontend-stop:
 
 frontend: frontend-build
 	@echo docker-compose up matchID frontend
-	@(${NH} ${DC} -f ${DC_FILE}-run-frontend.yml up > ${LOG}/docker-frontend.log) 2> /dev/null & 
-	@sleep 2 && tail ${LOG}/docker-frontend.log &
+	${DC} -f ${DC_FILE}-run-frontend.yml up -d
 
 stop: backend-stop elasticsearch-stop kibana-stop postgres-stop 
 	@echo all components stopped
@@ -118,9 +108,11 @@ start-all: start postgres
 	@sleep 2 && echo all components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
-start: backend elasticsearch kibana frontend
-	@sleep 2 && echo essential components started, please enter following command to supervise: 
-	@echo tail log/docker-*.log
+start: elasticsearch kibana backend frontend
+	@sleep 2 && docker-compose logs
+
+log:
+	@docker-compose logs
 
 example-download:
 	@echo downloading example code
