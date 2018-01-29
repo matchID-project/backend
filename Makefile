@@ -17,11 +17,27 @@ lastcommit-frontend := $(shell touch ${FRONTEND}/.lastcommit; cat ${FRONTEND}/.l
 date                := $(shell date -I)
 id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
 
+vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262144 && echo true)
+
 ES_NODES := 1
 PG := 'postgres'
 DC := 'docker-compose'
 NH := 'nohup'
 
+
+install-prerequisites:
+ifeq ("$(wildcard /usr/bin/docker)","")
+	@echo install docker-ce, still to be tested
+	curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | sudo apt-key add -
+	sudo apt-get update
+	sudo apt-get install -y docker-ce
+endif
+ifeq ("$(wildcard /usr/local/bin/docker-compose)","")
+	@echo install docker-compose, still to be tested
+	sudo curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+	sudo chmod +x /usr/local/bin/docker-compose
+	sudo usermod -a -G docker $USER
+endif
 
 docker-clean: stop
 	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana 
@@ -41,7 +57,13 @@ elasticsearch-stop:
 	@${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml down 
 	@${DC} -f ${DC_FILE}-elasticsearch-huge.yml down
 
-elasticsearch: network
+vm_max:
+ifeq ("$(vm_max_count)", "")
+	@echo updating vm.max_map_count $(vm_max_count) to 262144
+	sudo sysctl -w vm.max_map_count=262144
+endif
+
+elasticsearch: network vm_max
 ifeq "$(ES_NODES)" "1"
 	@sudo mkdir -p esdata/node
 	${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml up --build -d
