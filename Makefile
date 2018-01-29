@@ -25,6 +25,20 @@ DC := 'docker-compose'
 NH := 'nohup'
 
 
+install-prerequisites:
+ifeq ("$(wildcard /usr/bin/docker)","")
+	@echo install docker-ce, still to be tested
+	curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | sudo apt-key add -
+	sudo apt-get update
+	sudo apt-get install -y docker-ce
+endif
+ifeq ("$(wildcard /usr/local/bin/docker-compose)","")
+	@echo install docker-compose, still to be tested
+	sudo curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+	sudo chmod +x /usr/local/bin/docker-compose
+	sudo usermod -a -G docker $USER
+endif
+
 docker-clean: stop
 	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana 
 
