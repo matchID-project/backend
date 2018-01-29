@@ -11,8 +11,8 @@ recipes:
             - (^|\s)st(\s|$): '\1saint\2'
             - ^aix pce$: aix provence
             - \s(de|en|les|le|la|du|de la|sous|sur)\s: ' '
-            - \sSS\s: '' 
-            - \sS\s: '' 
+            - \sss\s: '' 
+            - \ss\s: '' 
             - ^x$:  ''
             - \s+: ' ' 
             - œ: oe 
@@ -54,9 +54,12 @@ recipes:
           - matchid_location_city: matchid_location_city_src if ('matchid_location_city' not in row.keys()) else (matchid_location_city_src if (matchid_location_city=="") else matchid_location_city )
           - matchid_location_depcode: str("99") if ('matchid_location_depcode' not in row.keys()) else ( str("99") if (matchid_location_depcode == "") else matchid_location_depcode)
           - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history)
-#          - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
-      - to_integer: 
-          select: .*(surface|population)$
+      - eval:    
+          - matchid_location_latitude: geopoint(matchid_location_city_geopoint_2d)[0] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_latitude if ("matchid_location_country_latitude" in row.keys()) else 90
+          - matchid_location_longitude: geopoint(matchid_location_city_geopoint_2d)[1] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_longitude if ("matchid_location_country_latitude" in row.keys()) else 90
+      - to_float: 
+          select: ^matchid_location_(latitude|longitude)$
+          na_value: 90
 
 
   algeria_city:
@@ -88,7 +91,12 @@ recipes:
           - matchid_location_city_surface: matchid_location_city_surface if (matchid_location_city_alg_surface=="") else matchid_location_city_alg_surface
           - matchid_location_city_geopoint_2d: matchid_location_city_geopoint_2d if (matchid_location_city_alg_geopoint_2d=="") else matchid_location_city_alg_geopoint_2d
           - matchid_location_city_population: matchid_location_city_population if (matchid_location_city_alg_population=="") else matchid_location_city_alg_population
-#          - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
+      - eval:    
+          - matchid_location_latitude: geopoint(matchid_location_city_geopoint_2d)[0] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_latitude if ("matchid_location_country_latitude" in row.keys()) else 90
+          - matchid_location_longitude: geopoint(matchid_location_city_geopoint_2d)[1] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_longitude if ("matchid_location_country_latitude" in row.keys()) else 90
+      - to_float: 
+          select: ^matchid_location_(latitude|longitude)$
+          na_value: 90
       - delete:
           select: matchid_location_city_alg.*
       - to_integer: 
@@ -124,8 +132,13 @@ recipes:
       - eval:
           - matchid_location_city: matchid_location_city_src if ('matchid_location_city' not in row.keys()) else (matchid_location_city_src if (matchid_location_city=="") else matchid_location_city )
           - matchid_location_depcode: str("99") if ('matchid_location_depcode' not in row.keys()) else ( str("99") if (matchid_location_depcode == "") else matchid_location_depcode)
-          - matchid_location_citycode_history: list([[]]) if (matchid_location_citycode_history=="") else [json.loads(matchid_location_citycode_history)]
-     #     - matchid_location_es_geopoint_2d: list(reversed([float(x) for x in matchid_location_city_geopoint_2d.replace("POINT(","").replace(")","").split(" ")[::-1]])) if (matchid_location_city_geopoint_2d != "") else list([])
+          - matchid_location_citycode_history: list([]) if (matchid_location_citycode_history=="") else json.loads(matchid_location_citycode_history)
+      - eval:    
+          - matchid_location_latitude: geopoint(matchid_location_city_geopoint_2d)[0] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_latitude if ("matchid_location_country_latitude" in row.keys()) else 90
+          - matchid_location_longitude: geopoint(matchid_location_city_geopoint_2d)[1] if ('POINT' in matchid_location_city_geopoint_2d) else matchid_location_country_longitude if ("matchid_location_country_latitude" in row.keys()) else 90
+      - to_float: 
+          select: ^matchid_location_(latitude|longitude)$
+          na_value: 90
       - to_integer: 
           select: .*(surface|population)$
 
@@ -168,11 +181,13 @@ recipes:
           select:
             matchid_location_country: LIBCOG
             matchid_location_countrycode: CODEISO3
+            matchid_location_country_latitude: latitude
+            matchid_location_country_longitude: longitude
     
   country_label:
-    steps: 
-      - map:
-          matchid_location_country_norm: matchid_location_country_src
+    steps:         
+      - eval:
+          - matchid_location_country_norm: matchid_location_country if ("matchid_location_country" in row.keys()) else matchid_location_country_src
       - normalize: 
           select: matchid_location_country_norm
       - join:

@@ -57,10 +57,13 @@ recipes:
           # select: (.*diff.*|matchid_hit_score($|_[a-z]*))$
   scoring:
     steps:
-      - scoring_lev:
-      - eval:
-          - confiance: round(100*matchid_hit_score)        
-  scoring_lev:
+      - scoring_name_lev:
+      - scoring_location:
+      - scoring_date:
+      - scoring_sex:
+      - scoring_final:
+
+  scoring_name_lev:
     steps:   
       - eval:
         #scoring names : compute nomalized levenshtein distance and common words btw arrays of names : []x[]
@@ -70,6 +73,10 @@ recipes:
         - matchid_hit_score_name_lv_np: round(levenshtein_norm(matchid_name_first,hit_matchid_name_last)*levenshtein_norm(matchid_name_last,hit_matchid_name_first),2)   
         - matchid_hit_score_name_tokens: round(len([x for x in matchid_name_tokens if x in hit_matchid_name_tokens])*1.0 /max(1,min(len(matchid_name_tokens),len(hit_matchid_name_tokens))),2)  
         - matchid_hit_score_name: round(max(matchid_hit_score_name_lv_nn*matchid_hit_score_name_lv_pp,0.7*matchid_hit_score_name_lv_np,0.7*matchid_hit_score_name_tokens),2)
+
+  scoring_location:
+    steps:   
+      - eval:
          #scoring location
         - matchid_hit_score_location_lv_city: levenshtein_norm(matchid_location_city,hit_matchid_location_city)      
         - matchid_hit_score_location_lv_country: levenshtein_norm(matchid_location_country,hit_matchid_location_country)      
@@ -79,14 +86,23 @@ recipes:
         - matchid_hit_score_location_countrycode: 1 if (matchid_location_countrycode == hit_matchid_location_countrycode) else 0   
         - matchid_hit_distance: distance(matchid_location_city_geopoint_2d,hit_matchid_location_city_geopoint_2d)
         - matchid_hit_score_location_distance: 0 if (matchid_hit_distance == "") else round(100*40/(40+matchid_hit_distance))/100
-        # - matchid_hit_score_location_global: 0.5*max(matchid_hit_score_location_citycode,matchid_hit_score_location_lv_city)+0.25*max(matchid_hit_score_location_depcode,matchid_hit_score_location_lv_department)+0.25*max(matchid_hit_score_location_countrycode,matchid_hit_score_location_lv_country)   
         - matchid_hit_score_location: round(0.5*max(matchid_hit_score_location_citycode,matchid_hit_score_location_citycode_history,matchid_hit_score_location_lv_city,matchid_hit_score_location_distance)+0.25*matchid_hit_score_location_depcode+0.25*max(matchid_hit_score_location_countrycode,matchid_hit_score_location_lv_country),2)
+  scoring_date:
+    steps:   
+      - eval:
         #scoring date
         - matchid_hit_score_date: round(levenshtein_norm(matchid_date_birth_str,hit_matchid_date_birth_str)*(0.9 if re.search('0101$',matchid_date_birth_str) else 1),2) 
-        - matchid_hit_score_sex: 1 if (str(matchid_sex) == str(hit_matchid_sex)) else 0  
+  scoring_sex:
+    steps:   
+      - eval:
+        - matchid_hit_score_sex: 1 if (float_val(matchid_sex) == float_val(hit_matchid_sex)) else 0  
+  scoring_final:
+    steps:   
+      - eval:
         - matchid_hit_score: round(1.0*matchid_hit_score_name*matchid_hit_score_date*(0.2+0.8*matchid_hit_score_location)*(0.5*(1.0+matchid_hit_score_sex)),2)
         - scoring_version: str("scoring_lev")
-  scoring_jw:
+        - confiance: round(100*matchid_hit_score)    
+  scoring_name_jw:
     steps:   
       - eval:
         #scoring names : compute nomalized levenshtein distance and common words btw arrays of names : []x[]
@@ -96,34 +112,6 @@ recipes:
         - matchid_hit_score_name_lv_np: round(jw(matchid_name_first,hit_matchid_name_last)*jw(matchid_name_last,hit_matchid_name_first),2)   
         - matchid_hit_score_name_tokens: round(len([x for x in matchid_name_tokens if x in hit_matchid_name_tokens])*1.0 /max(1,min(len(matchid_name_tokens),len(hit_matchid_name_tokens))),2)  
         - matchid_hit_score_name: round(max(matchid_hit_score_name_lv_nn*matchid_hit_score_name_lv_pp,0.7*matchid_hit_score_name_lv_np,0.7*matchid_hit_score_name_tokens),2)
-         #scoring location
-        - matchid_hit_score_location_lv_city: jw(matchid_location_city,hit_matchid_location_city)      
-        - matchid_hit_score_location_lv_country: jw(matchid_location_country,hit_matchid_location_country)      
-        - matchid_hit_score_location_citycode_history: 1 if (len([x for x in matchid_location_citycode_history if x in hit_matchid_location_citycode_history])>0) else 0      
-        - matchid_hit_score_location_citycode: 1 if ((len(matchid_location_citycode)>0) & (matchid_location_citycode == hit_matchid_location_citycode)) else 0
-        - matchid_hit_score_location_depcode: 1 if (matchid_location_depcode == hit_matchid_location_depcode) else 0      
-        - matchid_hit_score_location_countrycode: 1 if (matchid_location_countrycode == hit_matchid_location_countrycode) else 0   
-        - matchid_hit_distance: distance(matchid_location_city_geopoint_2d,hit_matchid_location_city_geopoint_2d)
-        - matchid_hit_score_location_distance: 0 if (matchid_hit_distance == "") else round(100*40/(40+matchid_hit_distance))/100
-        # - matchid_hit_score_location_global: 0.5*max(matchid_hit_score_location_citycode,matchid_hit_score_location_lv_city)+0.25*max(matchid_hit_score_location_depcode,matchid_hit_score_location_lv_department)+0.25*max(matchid_hit_score_location_countrycode,matchid_hit_score_location_lv_country)   
-        - matchid_hit_score_location: 'if (matchid_location_countrycode == "FRA"):
-                                        cell = round(
-                                                    0.5 * max(matchid_hit_score_location_citycode,matchid_hit_score_location_citycode_history,
-                                                              matchid_hit_score_location_lv_city,matchid_hit_score_location_distance)
-                                                    + 0.5 * matchid_hit_score_location_depcode
-                                                  ,2)
-                                      else: 
-                                        cell = round(
-                                                    0.5 * max(matchid_hit_score_location_citycode,matchid_hit_score_location_citycode_history,
-                                                              matchid_hit_score_location_lv_city,matchid_hit_score_location_distance)
-                                                    + 0.5 *max(matchid_hit_score_location_countrycode,
-                                                                matchid_hit_score_location_lv_country)
-                                                  ,2)'
-        #scoring date
-        - matchid_hit_score_date: round(jw(matchid_date_birth_str,hit_matchid_date_birth_str)*(0.9 if re.search('0101$',matchid_date_birth_str) else 1),2) 
-        - matchid_hit_score_sex: 1 if (str(matchid_sex) == str(hit_matchid_sex)) else 0  
-        - matchid_hit_score: round(1.0*matchid_hit_score_name*matchid_hit_score_date*(0.2+0.8*matchid_hit_score_location)*(0.5*(1.0+matchid_hit_score_sex)),2)
-        - scoring_version: str("scoring_jw")
   diff:
     steps:
       - eval:

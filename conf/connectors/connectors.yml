@@ -13,8 +13,12 @@ connectors:
   elasticsearch:
     type: elasticsearch
     host: elasticsearch
-    thread_count: 1
+    thread_count: 3
     chunk: 500
     chunk_search: 20
     port: 9200
+  postgres:
+    type: sql 
+    uri: postgres://postgres:matchid@postgres:5432 
+    chunk: 2000
 

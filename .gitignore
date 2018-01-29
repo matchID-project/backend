@@ -1,2 +1,8 @@
 esdata
-docker-compose-datalab.yml
+pgdata
+upload
+.lastcommit
+kibana
+log
+projects
+
