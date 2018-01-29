@@ -11,9 +11,9 @@ export DC_DIR=${BACKEND}/docker-components
 export DC_FILE=${DC_DIR}/docker-compose
 
 commit              := $(shell git rev-parse HEAD | cut -c1-8)
-lastcommit          := $(shell touch .lastcommit; cat .lastcommit)
-commit-frontend     := $(shell cd ${FRONTEND}; git rev-parse HEAD | cut -c1-8)
-lastcommit-frontend := $(shell touch ${FRONTEND}/.lastcommit; cat ${FRONTEND}/.lastcommit)
+lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
+commit-frontend     := $(shell (cd ${FRONTEND} 2> /dev/null) && git rev-parse HEAD | cut -c1-8)
+lastcommit-frontend := $(shell (touch ${FRONTEND}/.lastcommit 2> /dev/null) && cat ${FRONTEND}/.lastcommit 2> /dev/null)
 date                := $(shell date -I)
 id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
 
@@ -36,7 +36,7 @@ ifeq ("$(wildcard /usr/local/bin/docker-compose)","")
 	@echo install docker-compose, still to be tested
 	sudo curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
 	sudo chmod +x /usr/local/bin/docker-compose
-	sudo usermod -a -G docker $USER
+	sudo usermod -a -G docker ${USER}
 endif
 
 docker-clean: stop
@@ -49,7 +49,7 @@ clean:
 network-stop:
 	docker network rm matchid
 
-network:
+network: install-prerequisites
 	@docker network create matchid 2> /dev/null; true
 
 elasticsearch-stop:
@@ -64,8 +64,10 @@ ifeq ("$(vm_max_count)", "")
 endif
 
 elasticsearch: network vm_max
+ifeq ("$(wildcard esdata/node)","")
+	sudo mkdir -p esdata/node && sudo chmod 777 esdata/node/.
+endif
 ifeq "$(ES_NODES)" "1"
-	@sudo mkdir -p esdata/node
 	${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml up --build -d
 else
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
