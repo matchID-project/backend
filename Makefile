@@ -13,17 +13,17 @@ export DC_FILE=${DC_DIR}/docker-compose
 commit              := $(shell git rev-parse HEAD | cut -c1-8)
 lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
 commit-frontend     := $(shell (cd ${FRONTEND} 2> /dev/null) && git rev-parse HEAD | cut -c1-8)
-lastcommit-frontend := $(shell (touch ${FRONTEND}/.lastcommit 2> /dev/null) && cat ${FRONTEND}/.lastcommit 2> /dev/null)
+lastcommit-frontend := $(shell (cat ${FRONTEND}/.lastcommit 2>&1) )
 date                := $(shell date -I)
 id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
 
 vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262144 && echo true)
 
+
 ES_NODES := 1
 PG := 'postgres'
 DC := 'docker-compose'
 NH := 'nohup'
-
 
 install-prerequisites:
 ifeq ("$(wildcard /usr/bin/docker)","")
@@ -44,7 +44,6 @@ docker-clean: stop
 
 clean:
 	sudo rm -rf ${FRONTEND}/dist
-	sudo mkdir -p ${UPLOAD} ${PROJECTS} ${MODELS}
 
 network-stop:
 	docker network rm matchid
@@ -89,15 +88,25 @@ postgres: network
 backend-stop:
 	${DC} down 
 backend: network
+ifeq ("$(wildcard ${UPLOAD})","")
+	@sudo mkdir -p ${UPLOAD}
+endif
+ifeq ("$(wildcard ${PROJECTS})","")
+	@sudo mkdir -p ${PROJECTS}
+endif
+ifeq ("$(wildcard ${MODELS})","")
+	@sudo mkdir -p ${PROJECTS}
+endif
 	${DC} up -d 
 
 frontend-download:
+ifeq ("$(wildcard ${FRONTEND})","")
 	@echo downloading frontend code
 	@mkdir -p ${FRONTEND}
-	@cd ${FRONTEND}; git clone https://github.com/matchID-project/frontend . 2> /dev/null; true 
-	@cd ${BACKEND}
+	@cd ${FRONTEND}; git clone https://github.com/matchID-project/frontend . #2> /dev/null; true 
+endif
 
-start-dev: frontend-download network backend elasticsearch postgres kibana
+start-dev: network backend elasticsearch postgres kibana
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo docker-compose up matchID frontend for dev after new commit
 	@${DC} -f docker/docker-compose-dev.yml down
@@ -112,7 +121,6 @@ frontend-build: frontend-download network
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo building matchID frontend after new commit
 	@make clean
-	@echo building frontend in ${FRONTEND}
 	@sudo mkdir -p ${FRONTEND}/dist
 	${DC} -f ${DC_FILE}-build-frontend.yml up --build
 	@echo "${commit-frontend}" > ${FRONTEND}/.lastcommit
@@ -132,7 +140,7 @@ start-all: start postgres
 	@sleep 2 && echo all components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
-start: elasticsearch kibana backend frontend
+start: frontend-download elasticsearch kibana backend frontend
 	@sleep 2 && docker-compose logs
 
 log:
