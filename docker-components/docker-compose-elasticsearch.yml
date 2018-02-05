@@ -7,17 +7,16 @@ networks:
 
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch-oss:latest
-    container_name: elasticsearch
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.1.3
+    container_name: matchid-elasticsearch
     environment:
       - cluster.name=matchid-cluster
-      - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms2048m -Xmx2048m"
+      - "ES_JAVA_OPTS=-Xms%M -Xmx%M"
     ulimits:
       memlock:
         soft: -1
         hard: -1
-    mem_limit: 4g
+    mem_limit: %MM
     volumes:
       - ${BACKEND}/esdata/node1:/usr/share/elasticsearch/data
     # ports:

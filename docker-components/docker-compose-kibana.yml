@@ -3,7 +3,7 @@ version: '2'
 services:
   kibana:
     image: kibana:latest
-    container_name: kibana
+    container_name: matchid-kibana
     volumes:
       - ${BACKEND}/kibana/config/:/usr/share/kibana/config
     # ports:
