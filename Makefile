@@ -19,11 +19,14 @@ id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8
 
 vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262144 && echo true)
 
+# Elasticsearch configuration
+# Nuber of nodes, memory, and container memory (used only for many nodes)
+ES_NODES := 3
+ES_MEM := 1024m
+ES_MMEM := 2048m
 
-ES_NODES := 1
 PG := 'postgres'
 DC := 'docker-compose'
-NH := 'nohup'
 
 install-prerequisites:
 ifeq ("$(wildcard /usr/bin/docker)","")
@@ -63,21 +66,29 @@ ifeq ("$(vm_max_count)", "")
 endif
 
 elasticsearch: network vm_max
-ifeq ("$(wildcard esdata/node)","")
-	sudo mkdir -p esdata/node && sudo chmod 777 esdata/node/.
+ifeq ("$(wildcard ${BACKEND}/esdata/node)","")
+	sudo mkdir -p ${BACKEND}/esdata/node && sudo chmod 777 ${BACKEND}/esdata/node/.
 endif
 ifeq "$(ES_NODES)" "1"
 	${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml up --build -d
 else
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
-	@cat ${DC_FILE}-elasticsearch.yml > ${DC_FILE}-elasticsearch-huge.yml
-	@i=2; $while [$i -le $ES_NODES]; do cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$i" >> ${DC_FILE}-elasticsearch-huge.yml;done
+	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
+	@i=$(ES_NODES); while [ $${i} -gt 0 ]; do \
+		sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/. ; \
+		cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" >> ${DC_FILE}-elasticsearch-huge.yml; \
+		i=`expr $$i - 1`; \
+	done;\
+	true
 	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d 
 endif
 
 kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
 kibana: network
+ifeq ("$(wildcard ${BACKEND}/kibana)","")
+	sudo mkdir -p ${BACKEND}/kibana && sudo chmod 777 ${BACKEND}/kibana/.
+endif
 	${DC} -f ${DC_FILE}-kibana.yml up -d 
 
 postgres-stop:
@@ -144,7 +155,7 @@ start: frontend-download elasticsearch kibana backend frontend
 	@sleep 2 && docker-compose logs
 
 log:
-	@docker-compose logs
+	@docker logs matchid-backend
 
 example-download:
 	@echo downloading example code
