@@ -3,7 +3,7 @@ version: '2'
 services:
   postgres:
     image: postgres:10
-    container_name: postgres
+    container_name: matchid-postgres
     environment:
       POSTGRES_PASSWORD: matchid 
     mem_limit: 2g
