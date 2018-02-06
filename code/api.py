@@ -420,7 +420,7 @@ class RecipeRun(Resource):
 		if (action=="status"):
 			#get status of job
 			try:
-				return {"recipe":recipe, "status": config.jobs[str(recipe)].job_status()}
+				return {"recipe":recipe, "status": config.jobs_list[str(recipe)]}
 			except:
 				return {"recipe":recipe, "status": "down"}
 		elif (action=="log"):

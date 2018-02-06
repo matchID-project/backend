@@ -11,6 +11,7 @@ services:
     container_name: matchid-elasticsearch
     environment:
       - cluster.name=matchid-cluster
+      - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms%M -Xmx%M"
     ulimits:
       memlock:

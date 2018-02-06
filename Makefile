@@ -74,7 +74,8 @@ ifeq "$(ES_NODES)" "1"
 else
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
-	@i=$(ES_NODES); while [ $${i} -gt 0 ]; do \
+	@sudo mkdir -p ${BACKEND}/esdata/node1 && sudo chmod 777 ${BACKEND}/esdata/node1/.
+	@i=$(ES_NODES); while [ $${i} -gt 1 ]; do \
 		sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/. ; \
 		cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" >> ${DC_FILE}-elasticsearch-huge.yml; \
 		i=`expr $$i - 1`; \
