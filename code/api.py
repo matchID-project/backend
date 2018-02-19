@@ -37,6 +37,7 @@ from flask_restplus import Resource,Api,reqparse
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
 from werkzeug.wsgi import DispatcherMiddleware
+from werkzeug.contrib.fixers import ProxyFix
 
 # matchID imports
 import parsers
@@ -59,6 +60,7 @@ config.init()
 config.read_conf()
 
 app = Flask(__name__)
+app.wsgi_app = ProxyFix(app.wsgi_app)
 api=Api(app,version="0.1",title="matchID API",description="API for data matching developpement")
 app.config['APPLICATION_ROOT']=config.conf["global"]["api"]["prefix"]
 
