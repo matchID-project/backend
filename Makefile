@@ -9,6 +9,10 @@ export MODELS=${BACKEND}/models
 export LOG=${BACKEND}/log
 export DC_DIR=${BACKEND}/docker-components
 export DC_FILE=${DC_DIR}/docker-compose
+export DC_PREFIX=john
+export DC_NETWORK=bob
+export PORT=80
+
 
 commit              := $(shell git rev-parse HEAD | cut -c1-8)
 lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
@@ -61,15 +65,18 @@ clean:
 	sudo rm -rf ${FRONTEND}/dist
 
 network-stop:
-	docker network rm matchid
+	docker network rm ${DC_NETWORK}
 
 network: install-prerequisites
-	@docker network create matchid 2> /dev/null; true
+	@docker network create ${DC_NETWORK} 2> /dev/null; true
 
 elasticsearch-stop:
 	@echo docker-compose down matchID elasticsearch
+ifeq "$(ES_NODES)" "1"
 	@${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml down 
+else
 	@${DC} -f ${DC_FILE}-elasticsearch-huge.yml down
+endif
 
 vm_max:
 ifeq ("$(vm_max_count)", "")
@@ -140,7 +147,7 @@ else
 	${DC} -f  ${DC_FILE}-dev-frontend.yml up -d 
 endif
 
-frontend-build: frontend-download network
+frontend-build: network frontend-download 
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo building matchID frontend after new commit
 	@make clean
@@ -163,11 +170,11 @@ start-all: start postgres
 	@sleep 2 && echo all components started, please enter following command to supervise: 
 	@echo tail log/docker-*.log
 
-start: frontend-download elasticsearch kibana backend frontend
+start: frontend-build elasticsearch kibana backend frontend
 	@sleep 2 && docker-compose logs
 
 log:
-	@docker logs matchid-backend
+	@docker logs ${DC_PREFIX}-backend
 
 example-download:
 	@echo downloading example code

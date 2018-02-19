@@ -11,7 +11,7 @@ services:
       dockerfile: Dockerfile.build
       args:
         proxy: ${http_proxy}
-    image: matchid-frontend:latest
+    image: ${DC_PREFIX}-frontend:latest
     container_name: matchid-build-front
     volumes:
       - ${FRONTEND}/index.html:/matchid/index.html

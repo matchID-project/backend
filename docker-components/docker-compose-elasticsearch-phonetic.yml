@@ -8,7 +8,7 @@ services:
         proxy: ${https_proxy}
       dockerfile: ${DC_DIR}/Dockerfile_elasticsearch_phonetic
     image: elasticsearch_phonetic
-    container_name: matchid-elasticsearch-phonetic
+    container_name: ${DC_PREFIX}-elasticsearch-phonetic
     environment:
       - cluster.name=docker-cluster
       # - xpack.security.enabled=false
@@ -24,5 +24,5 @@ services:
 networks:
   default:
     external:
-      name: matchid
+      name: ${DC_NETWORK}
       
