@@ -27,19 +27,30 @@ ES_MMEM := 2048m
 
 PG := 'postgres'
 DC := 'docker-compose'
+include /etc/os-release 
 
 install-prerequisites:
 ifeq ("$(wildcard /usr/bin/docker)","")
-	@echo install docker-ce, still to be tested
-	curl -fsSL https://download.docker.com/linux/$(. /etc/os-release; echo "$ID")/gpg | sudo apt-key add -
+	echo install docker-ce, still to be tested
 	sudo apt-get update
+	sudo apt-get install \
+    	apt-transport-https \
+	ca-certificates \
+	curl \
+	software-properties-common
+
+	curl -fsSL https://download.docker.com/linux/${ID}/gpg | sudo apt-key add -
+	sudo add-apt-repository \
+		"deb https://download.docker.com/linux/ubuntu \
+		`lsb_release -cs` \
+   		stable"
+	sudo apt-get update 
 	sudo apt-get install -y docker-ce
 endif
 ifeq ("$(wildcard /usr/local/bin/docker-compose)","")
-	@echo install docker-compose, still to be tested
-	sudo curl -L https://github.com/docker/compose/releases/download/1.18.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
-	sudo chmod +x /usr/local/bin/docker-compose
-	sudo usermod -a -G docker ${USER}
+	@echo installing docker-compose
+	@sudo curl -L https://github.com/docker/compose/releases/download/1.19.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
+	@sudo chmod +x /usr/local/bin/docker-compose
 endif
 
 docker-clean: stop
@@ -121,12 +132,11 @@ endif
 start-dev: network backend elasticsearch postgres kibana
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo docker-compose up matchID frontend for dev after new commit
-	@${DC} -f docker/docker-compose-dev.yml down
-	${DC} -f docker/docker-compose-dev.yml up --build -d 
+	${DC} -f ${DC_FILE}-dev-frontend.yml up --build -d 
 	@echo "${commit-frontend}" > ${FRONTEND}/.lastcommit
 else
 	@echo docker-compose up matchID frontend for dev
-	${DC} -f docker-compose-dev.yml up -d 
+	${DC} -f  ${DC_FILE}-dev-frontend.yml up -d 
 endif
 
 frontend-build: frontend-download network
