@@ -47,7 +47,7 @@ ifeq ("$(wildcard /usr/bin/docker)","")
 	sudo apt-get update 
 	sudo apt-get install -y docker-ce
 endif
-      if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER} ;fi
+	if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER} ;fi
 ifeq ("$(wildcard /usr/local/bin/docker-compose)","")
 	@echo installing docker-compose
 	@sudo curl -L https://github.com/docker/compose/releases/download/1.19.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
