@@ -9,8 +9,8 @@ export MODELS=${BACKEND}/models
 export LOG=${BACKEND}/log
 export DC_DIR=${BACKEND}/docker-components
 export DC_FILE=${DC_DIR}/docker-compose
-export DC_PREFIX=john
-export DC_NETWORK=bob
+export DC_PREFIX=matchid
+export DC_NETWORK=matchid
 export PORT=80
 
 
