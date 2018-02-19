@@ -8,7 +8,7 @@ services:
         proxy: ${https_proxy}
       dockerfile: ${DC_DIR}/Dockerfile_postgres_cstore
     image: postgres_cstore
-    container_name: postgres
+    container_name: ${DC_PREFIX}-postgres
     environment:
       POSTGRES_PASSWORD: matchid 
     mem_limit: 2g
@@ -20,5 +20,5 @@ services:
 networks:
   default:
     external:
-      name: matchid
+      name: ${DC_NETWORK}
       

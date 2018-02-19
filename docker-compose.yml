@@ -7,7 +7,7 @@ services:
       args:
         proxy: ${http_proxy}
     image: matchid-backend:latest
-    container_name: matchid-backend
+    container_name: ${DC_PREFIX}-backend
     volumes:
       - ${BACKEND}/code/:/matchid/code/
       - ${BACKEND}/conf/:/matchid/conf/
@@ -22,4 +22,4 @@ services:
 networks:
   default:
     external:
-      name: matchid
+      name: ${DC_NETWORK}
