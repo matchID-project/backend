@@ -132,12 +132,11 @@ endif
 start-dev: network backend elasticsearch postgres kibana
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo docker-compose up matchID frontend for dev after new commit
-	@${DC} -f docker/docker-compose-dev.yml down
-	${DC} -f docker/docker-compose-dev.yml up --build -d 
+	${DC} -f ${DC_FILE}-dev-frontend.yml up --build -d 
 	@echo "${commit-frontend}" > ${FRONTEND}/.lastcommit
 else
 	@echo docker-compose up matchID frontend for dev
-	${DC} -f docker-compose-dev.yml up -d 
+	${DC} -f  ${DC_FILE}-dev-frontend.yml up -d 
 endif
 
 frontend-build: frontend-download network
