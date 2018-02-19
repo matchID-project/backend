@@ -3,7 +3,7 @@ version: '2'
 services:
   postgres:
     image: postgres:10
-    container_name: matchid-postgres
+    container_name: ${DC_PREFIX}-postgres
     environment:
       POSTGRES_PASSWORD: matchid 
     mem_limit: 2g
@@ -15,4 +15,4 @@ services:
 networks:
   default:
     external:
-      name: matchid
+      name: ${DC_NETWORK}

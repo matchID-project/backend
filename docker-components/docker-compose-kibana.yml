@@ -3,7 +3,7 @@ version: '2'
 services:
   kibana:
     image: kibana:latest
-    container_name: matchid-kibana
+    container_name: ${DC_PREFIX}-kibana
     volumes:
       - ${BACKEND}/kibana/config/:/usr/share/kibana/config
     # ports:
@@ -12,5 +12,5 @@ services:
 networks:
   default:
     external:
-      name: matchid
+      name: ${DC_NETWORK}
             

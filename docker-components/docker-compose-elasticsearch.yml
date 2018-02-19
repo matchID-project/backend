@@ -3,12 +3,12 @@ version: '2'
 networks:
   default:
     external:
-      name: matchid
+      name: ${DC_NETWORK}
 
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.1.3
-    container_name: matchid-elasticsearch
+    container_name: ${DC_PREFIX}-elasticsearch
     environment:
       - cluster.name=matchid-cluster
       - bootstrap.memory_lock=true
