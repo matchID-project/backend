@@ -281,7 +281,8 @@ class DatasetApi(Resource):
         '''get sample of a configured dataset, number of rows being configured in connector.samples'''
         ds=Dataset(dataset)
         if (ds.connector.type == "elasticsearch"):
-            ds.select={"query":{"function_score": {"query":ds.select["query"],"random_score":{}}}}
+            if (ds.random_view == True):
+                ds.select={"query":{"function_score": {"query":ds.select["query"],"random_score":{}}}}
         ds.init_reader()
         try:
             df=next(ds.reader,"")
