@@ -216,6 +216,10 @@ class Dataset(Configured):
 
         if (self.connector.type == "elasticsearch"):
             try:
+                self.random_view=self.conf["random_view"]
+            except:
+                self.random_view = True
+            try:
                 self.select=self.conf["select"]
             except:
                 self.select={"query" : {"match_all" : {}}}
