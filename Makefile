@@ -27,7 +27,6 @@ vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262
 # Nuber of nodes, memory, and container memory (used only for many nodes)
 ES_NODES := 3
 ES_MEM := 1024m
-ES_MMEM := 2048m
 
 PG := 'postgres'
 DC := 'docker-compose'
@@ -92,7 +91,7 @@ ifeq "$(ES_NODES)" "1"
 	${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml up --build -d
 else
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
-	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
+	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
 	@sudo mkdir -p ${BACKEND}/esdata/node1 && sudo chmod 777 ${BACKEND}/esdata/node1/.
 	@i=$(ES_NODES); while [ $${i} -gt 1 ]; do \
 		sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/. ; \
