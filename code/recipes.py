@@ -1355,11 +1355,12 @@ class Recipe(Configured):
     def internal_keep(self,df=None):
         #keep only selected columns
         self.select_columns(df=df)
+        tmp_id = sha1(random.random())
         try:
             if ("where" in self.args.keys()):
-                df["matchid_selection_xykfsd"]=df.apply(lambda row:safeeval(self.args["where"],row),axis=1)
-                df=df[df.matchid_selection_xykfsd == True]
-                del df["matchid_selection_xykfsd"]
+                df[tmp_id]=df.apply(lambda row:safeeval(self.args["where"],row),axis=1)
+                df=df[df[tmp_id] == True]
+                del df[tmp_id]
             return df[self.cols]
         except SystemExit:
             return df
