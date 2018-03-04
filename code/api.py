@@ -1,8 +1,16 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
-### import basics
-import sys, os, io, fnmatch, re, datetime, hashlib, unicodedata, shutil
+# import basics
+import sys
+import os
+import io
+import fnmatch
+import re
+import datetime
+import hashlib
+import unicodedata
+import shutil
 
 import traceback
 import json
@@ -16,24 +24,24 @@ from pandas.io.json import json_normalize
 from collections import deque
 
 
-#### interact with datasets
+# interact with datasets
 import gzip
-#from pandasql import sqldf
+# from pandasql import sqldf
 import elasticsearch
 from elasticsearch import Elasticsearch, helpers
 import pandas as pd
 
-#### parallelize
+# parallelize
 # import concurrent.futures
-#import threading
+# import threading
 from multiprocessing import Process
 import uuid
 
 # recipes
 
-### api
-from flask import Flask,jsonify,Response, abort,request
-from flask_restplus import Resource,Api,reqparse
+# api
+from flask import Flask, jsonify, Response, abort, request
+from flask_restplus import Resource, Api, reqparse
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
 from werkzeug.wsgi import DispatcherMiddleware
@@ -46,14 +54,17 @@ from tools import replace_dict
 from recipes import *
 from log import Log, err
 
+
 def allowed_upload_file(filename=None):
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in config.conf["global"]["data_extensions"]
+           filename.rsplit('.', 1)[1].lower() in config.conf[
+                           "global"]["data_extensions"]
 
 
 def allowed_conf_file(filename=None):
     return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in config.conf["global"]["recipe_extensions"]
+           filename.rsplit('.', 1)[1].lower() in config.conf[
+                           "global"]["recipe_extensions"]
 
 
 config.init()
@@ -61,11 +72,14 @@ config.read_conf()
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app)
-api=Api(app,version="0.1",title="matchID API",description="API for data matching developpement")
-app.config['APPLICATION_ROOT']=config.conf["global"]["api"]["prefix"]
+api = Api(app, version="0.1", title="matchID API",
+          description="API for data matching developpement")
+app.config['APPLICATION_ROOT'] = config.conf["global"]["api"]["prefix"]
 
-@api.route('/conf/', endpoint='conf' )
+
+@api.route('/conf/', endpoint='conf')
 class Conf(Resource):
+
     def get(self):
         '''get all configured elements
         Lists all configured elements of the backend, as described in the yaml files :
@@ -79,8 +93,10 @@ class Conf(Resource):
         except:
             return {"error": "problem while reading conf"}
 
+
 @api.route('/upload/', endpoint='upload')
 class Upload(Resource):
+
     def get(self):
         '''list uploaded resources'''
         return list([filenames for root, dirnames, filenames in os.walk(config.conf["global"]["paths"]["upload"])])[0]
@@ -88,47 +104,53 @@ class Upload(Resource):
     @api.expect(parsers.upload_parser)
     def post(self):
         '''upload multiple tabular data files, .gz or .txt or .csv'''
-        response={"upload_status":{}}
+        response = {"upload_status": {}}
         args = parsers.upload_parser.parse_args()
         for file in args['file']:
             if (allowed_upload_file(file.filename)):
                 try:
-                    file.save(os.path.join(config.conf["global"]["paths"]["upload"], secure_filename(file.filename)))
-                    response["upload_status"][file.filename]="ok"
+                    file.save(os.path.join(config.conf["global"]["paths"][
+                              "upload"], secure_filename(file.filename)))
+                    response["upload_status"][file.filename] = "ok"
                 except:
-                    response["upload_status"][file.filename]=err()
+                    response["upload_status"][file.filename] = err()
             else:
-                response["upload_status"][file.filename]="extension not allowed"
+                response["upload_status"][
+                    file.filename] = "extension not allowed"
         return response
+
 
 @api.route('/upload/<file>', endpoint='upload/<file>')
 @api.doc(parmas={'file': 'file name of a previously uploaded file'})
 class actionFile(Resource):
-    def get(self,file):
+
+    def get(self, file):
         '''get back uploaded file'''
-        filetype="unknown"
-        pfile=os.path.join(config.conf["global"]["paths"]["upload"],file)
+        filetype = "unknown"
+        pfile = os.path.join(config.conf["global"]["paths"]["upload"], file)
         try:
-            df=pd.read_csv(pfile,nrows=100)
-            filetype="csv"
+            df = pd.read_csv(pfile, nrows=100)
+            filetype = "csv"
         except:
             pass
         return {"file": file, "type_guessed": filetype}
 
-    def delete(self,file):
+    def delete(self, file):
         '''deleted uploaded file'''
         try:
-            pfile=os.path.join(config.conf["global"]["paths"]["upload"],file)
+            pfile = os.path.join(config.conf["global"][
+                                 "paths"]["upload"], file)
             os.remove(pfile)
             return {"file": file, "status": "deleted"}
         except:
-            api.abort(404,{"file": file, "status": err()})
+            api.abort(404, {"file": file, "status": err()})
 
 
 @api.route('/conf/<project>/', endpoint='conf/<project>')
 @api.doc(parms={'project': 'name of a project'})
 class DirectoryConf(Resource):
-    def get(self,project):
+
+    def get(self, project):
         '''get configuration files of a project'''
         config.read_conf()
         if project in list(config.conf["global"]["projects"].keys()):
@@ -137,27 +159,30 @@ class DirectoryConf(Resource):
             api.abort(404)
 
     @api.expect(parsers.conf_parser)
-    def post(self,project):
+    def post(self, project):
         '''(KO) import a zipped project'''
         if (directory != "conf"):
-            response={"upload_status":{}}
+            response = {"upload_status": {}}
             args = parsers.conf_parser.parse_args()
             for file in args['file']:
                 if (allowed_conf_file(file.filename)):
                     try:
-                        file.save(os.path.join(config.conf["global"]["paths"]["conf"][project], secure_filename(file.filename)))
-                        response["upload_status"][file.filename]="ok"
+                        file.save(os.path.join(config.conf["global"]["paths"][
+                                  "conf"][project], secure_filename(file.filename)))
+                        response["upload_status"][file.filename] = "ok"
                     except:
-                        response["upload_status"][file.filename]=err()
+                        response["upload_status"][file.filename] = err()
                 else:
-                    response["upload_status"][file.filename]="extension not allowed"
+                    response["upload_status"][
+                        file.filename] = "extension not allowed"
                 config.read_conf()
-                response["yaml_validator"]=config.conf["global"]["projects"][project]
+                response["yaml_validator"] = config.conf[
+                    "global"]["projects"][project]
             return response
         else:
             api.abort(403)
 
-    def put(self,project):
+    def put(self, project):
         '''create a project'''
         if (project == "conf"):
             api.abort(403)
@@ -165,44 +190,49 @@ class DirectoryConf(Resource):
             api.abort(400, 'project "{}" already exists'.format(project))
         else:
             try:
-                dirname=os.path.join(config.conf["global"]["paths"]["projects"],project)
+                dirname = os.path.join(config.conf["global"][
+                                       "paths"]["projects"], project)
                 os.mkdir(dirname)
-                os.mkdir(os.path.join(dirname,'recipes'))
-                os.mkdir(os.path.join(dirname,'datasets'))
+                os.mkdir(os.path.join(dirname, 'recipes'))
+                os.mkdir(os.path.join(dirname, 'datasets'))
                 config.read_conf()
                 return {"message": "{} successfully created".format(project)}
             except:
-                api.abort(400,err())
+                api.abort(400, err())
 
-    def delete(self,project):
+    def delete(self, project):
         '''delete a project'''
         if (project == "conf"):
             api.abort(403)
         elif project in config.conf["global"]["projects"].keys():
-            response={project: "not deleted"}
+            response = {project: "not deleted"}
             try:
-                dirname=os.path.join(config.conf["global"]["paths"]["projects"],project)
+                dirname = os.path.join(config.conf["global"][
+                                       "paths"]["projects"], project)
                 shutil.rmtree(dirname)
-                response[project]="deleted"
+                response[project] = "deleted"
             except:
-                response[project]="deletion failed - "+err()
+                response[project] = "deletion failed - " + err()
             config.read_conf()
-            #response["yaml_validator"]=config.conf["global"]["projects"][project]
+            # response["yaml_validator"]=config.conf["global"]["projects"][project]
             return response
         else:
             api.abort(404)
 
+
 @api.route('/conf/<project>/<path:file>', endpoint='conf/<project>/<path:file>')
 class FileConf(Resource):
-    def get(self,project,file):
+
+    def get(self, project, file):
         '''get a text/yaml configuration file from project'''
         try:
             config.read_conf()
             if (file in config.conf["global"]["projects"][project]["files"]):
                 try:
-                    pfile=os.path.join(config.conf["global"]["projects"][project]["path"],file)
+                    pfile = os.path.join(config.conf["global"]["projects"][
+                                         project]["path"], file)
                     with open(pfile) as f:
-                        return Response(f.read(),mimetype="text/plain")
+                        return Response(f.read(), mimetype="text/plain")
                 except:
                     api.abort(404)
             else:
@@ -210,64 +240,69 @@ class FileConf(Resource):
         except:
             api.abort(404)
 
-    def delete(self,project,file):
+    def delete(self, project, file):
         '''delete a text/yaml configuration file from project'''
         if (project != "conf"):
             if (file in config.conf["global"]["projects"][project]["files"]):
                 try:
-                    pfile=os.path.join(config.conf["global"]["projects"][project]["path"],file)
+                    pfile = os.path.join(config.conf["global"]["projects"][
+                                         project]["path"], file)
                     os.remove(pfile)
                     config.read_conf()
-                    return jsonify({"conf": project, "file":file, "status": "removed"})
+                    return jsonify({"conf": project, "file": file, "status": "removed"})
                 except:
                     api.abort(403)
 
     @api.expect(parsers.yaml_parser)
-    def post(self,project,file):
+    def post(self, project, file):
         '''upload a text/yaml configuration file to a project'''
         if (project != "project"):
             args = parsers.yaml_parser.parse_args()
-            filecontent=args['yaml']
+            filecontent = args['yaml']
             if (allowed_conf_file(file)):
                 try:
                     test = config.ordered_load(filecontent)
                 except:
-                    api.abort(400,{file: {"saved" : "ko - "+err()}})
+                    api.abort(400, {file: {"saved": "ko - " + err()}})
 
                 try:
-                    pfile=os.path.join(config.conf["global"]["projects"][project]["path"],file)
-                    with open(pfile,'w') as f:
+                    pfile = os.path.join(config.conf["global"]["projects"][
+                                         project]["path"], file)
+                    with open(pfile, 'w') as f:
                         f.write(filecontent.encode("utf-8", 'ignore'))
-                    response={file: {"saved": "ok"}}
+                    response = {file: {"saved": "ok"}}
                     config.read_conf()
-                    response[file]["yaml_validator"]=config.conf["global"]["projects"][project]["files"][file]
+                    response[file]["yaml_validator"] = config.conf[
+                        "global"]["projects"][project]["files"][file]
                     return response
                 except:
-                    api.abort(400,{file: {"saved" : "ko - "+err()}})
+                    api.abort(400, {file: {"saved": "ko - " + err()}})
             else:
                 api.abort(403)
         else:
             api.abort(403)
 
 
-
 @api.route('/datasets/', endpoint='datasets')
 class ListDatasets(Resource):
+
     def get(self):
         '''get json of all configured datasets'''
         config.read_conf()
         return config.conf["datasets"]
 
+
 @api.route('/datasets/<dataset>/', endpoint='datasets/<dataset>')
 class DatasetApi(Resource):
-    def get(self,dataset):
+
+    def get(self, dataset):
         '''get json of a configured dataset'''
         config.read_conf()
         if (dataset in config.conf["datasets"].keys()):
             try:
                 response = dict(config.conf["datasets"][dataset])
                 try:
-                    ds=Dataset(dataset)
+                    ds = Dataset(dataset)
                     response["type"] = ds.connector.type
                 except:
                     pass
@@ -277,40 +312,43 @@ class DatasetApi(Resource):
         else:
             api.abort(404)
 
-    def post(self,dataset):
+    def post(self, dataset):
         '''get sample of a configured dataset, number of rows being configured in connector.samples'''
-        ds=Dataset(dataset)
+        ds = Dataset(dataset)
         if (ds.connector.type == "elasticsearch"):
             if (ds.random_view == True):
-                ds.select={"query":{"function_score": {"query":ds.select["query"],"random_score":{}}}}
+                ds.select = {"query": {"function_score": {
+                    "query": ds.select["query"], "random_score": {}}}}
         ds.init_reader()
         try:
-            df=next(ds.reader,"")
-            schema=df.dtypes.apply(lambda x: str(x)).to_dict()
+            df = next(ds.reader, "")
+            schema = df.dtypes.apply(lambda x: str(x)).to_dict()
             if (type(df) == str):
-                try :
-                    return {"data":[{"error": "error: no such file {}".format(ds.file)}]}
+                try:
+                    return {"data": [{"error": "error: no such file {}".format(ds.file)}]}
                 except:
-                    return {"data":[{"error": "error: no such table {}".format(ds.table)}]}
-            df=df.head(n=ds.connector.sample).reset_index(drop=True)
+                    return {"data": [{"error": "error: no such table {}".format(ds.table)}]}
+            df = df.head(n=ds.connector.sample).reset_index(drop=True)
             return {"data": list(df.fillna("").T.to_dict().values()), "schema": schema}
         except:
-            error=err()
+            error = err()
             try:
-                return {"data":[{"error": "error: {} {}".format(error,ds.file)}]}
+                return {"data": [{"error": "error: {} {}".format(error, ds.file)}]}
             except:
-                return {"data":[{"error": "error: {} {}".format(error,ds.table)}]}
+                return {"data": [{"error": "error: {} {}".format(error, ds.table)}]}
 
-
-    def delete(self,dataset):
+    def delete(self, dataset):
         '''delete the content of a dataset (currently only working on elasticsearch datasets)'''
-        ds=Dataset(dataset)
+        ds = Dataset(dataset)
         if (ds.connector.type == "elasticsearch"):
             try:
-                ds.connector.es.indices.delete(index=ds.table, ignore=[400, 404])
-                config.log.write("detete {}:{}/{}".format(ds.connector.host,ds.connector.port,ds.table))
+                ds.connector.es.indices.delete(
+                    index=ds.table, ignore=[400, 404])
+                config.log.write(
+                    "detete {}:{}/{}".format(ds.connector.host, ds.connector.port, ds.table))
                 ds.connector.es.indices.create(index=ds.table)
-                config.log.write("create {}:{}/{}".format(ds.connector.host,ds.connector.port,ds.table))
+                config.log.write(
+                    "create {}:{}/{}".format(ds.connector.host, ds.connector.port, ds.table))
                 return {"status": "ok"}
             except:
                 return {"status": "ko - " + err()}
@@ -421,15 +459,15 @@ class RecipeRun(Resource):
         - ** status ** : get status (running or not) of a recipe
         - ** log ** : get log of a running recipe'''
         if (action=="status"):
-            #get status of job
+            # get status of job
             try:
-		return {"recipe":recipe, "status": config.jobs[str(recipe)].job_status()}
-                # still bogus:
-		# return {"recipe":recipe, "status": config.jobs_list[str(recipe)]}
+                return {"recipe":recipe, "status": config.jobs[str(recipe)].job_status()}
+                ## still bogus:
+                # return {"recipe":recipe, "status": config.jobs_list[str(recipe)]}
             except:
                 return {"recipe":recipe, "status": "down"}
         elif (action=="log"):
-            #get logs
+            # get logs
             try:
                 # try if there is a current log
                 with open(config.jobs[recipe].log.file, 'r') as f:
@@ -512,7 +550,7 @@ class RecipeRun(Resource):
             else:
                 return {"data": [{"result": "empty"}], "log": r.callback["log"]}
         elif (action=="run"):
-            #run recipe (gives a job)
+            # run recipe (gives a job)
             try:
                 if (recipe in list(config.jobs.keys())):
                     status=config.jobs[recipe].job_status()
