@@ -154,7 +154,7 @@ else
 	${DC} -f  ${DC_FILE}-dev-frontend.yml up -d
 endif
 
-dev: network frontend-stop backend elasticsearch postgres kibana
+dev: network frontend-stop backend elasticsearch postgres kibana frontend-dev
 
 frontend-build: network frontend-download 
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
