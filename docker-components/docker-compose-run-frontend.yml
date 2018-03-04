@@ -21,6 +21,7 @@ services:
     container_name: ${DC_PREFIX}-nginx
     volumes:
       - ${BACKEND}/nginx/nginx-run.conf:/etc/nginx/conf.d/default.conf
+      - ${BACKEND}/nginx/gzip.conf:/etc/nginx/conf.d/gzip.conf
       - ${FRONTEND}/dist:/usr/share/nginx/html
     ports:
       - ${PORT}:80
