@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 # various libs
-import re, datetime, hashlib, unicodedata, shutil, simplejson
+import re, datetime, hashlib, unicodedata, shutil, simplejson, random
 from collections import OrderedDict
 
 
