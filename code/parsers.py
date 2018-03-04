@@ -18,3 +18,7 @@ live_parser = reqparse.RequestParser()
 live_parser.add_argument('file', location='files',
                            type=FileStorage, required=True, help='data file : csv, ...')
 
+es_parser = reqparse.RequestParser()
+es_parser.add_argument('size', location='args',
+                           type=int, required=False, help='limit size of search')
+

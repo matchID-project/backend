@@ -46,6 +46,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
 from werkzeug.wsgi import DispatcherMiddleware
 from werkzeug.contrib.fixers import ProxyFix
+from flask import make_response as original_flask_make_response
 
 # matchID imports
 import parsers
@@ -358,77 +359,106 @@ class DatasetApi(Resource):
 
 @api.route('/datasets/<dataset>/<action>', endpoint='datasets/<dataset>/<action>')
 class pushToValidation(Resource):
-    def get(self,dataset,action):
+
+    def get(self, dataset, action):
         '''(KO) does nothing yet'''
-        if (action=="yaml"):
+        if (action == "yaml"):
             return
-    def put(self,dataset,action):
+
+    def put(self, dataset, action):
         '''action = validation : configure the frontend to point to this dataset'''
         import config
         config.init()
         config.read_conf()
-        if (action=="validation"):
+        if (action == "validation"):
             if (not(dataset in config.conf["datasets"].keys())):
-                return api.abort(404,{"dataset": dataset, "status": "dataset not found"})
+                return api.abort(404, {"dataset": dataset, "status": "dataset not found"})
             if not("validation" in config.conf["datasets"][dataset].keys()):
-                return api.abort(403,{"dataset": dataset, "status": "validation not allowed"})
-            if ((config.conf["datasets"][dataset]["validation"]==True)|(isinstance(config.conf["datasets"][dataset]["validation"], OrderedDict))):
+                return api.abort(403, {"dataset": dataset, "status": "validation not allowed"})
+            if ((config.conf["datasets"][dataset]["validation"] == True) | (isinstance(config.conf["datasets"][dataset]["validation"], OrderedDict))):
                 try:
                     props = {}
                     try:
-                        cfg=deepupdate(config.conf["global"]["validation"],config.conf["datasets"][dataset]["validation"])
+                        cfg = deepupdate(config.conf["global"]["validation"], config.conf[
+                                         "datasets"][dataset]["validation"])
                     except:
-                        cfg=config.conf["global"]["validation"]
+                        cfg = config.conf["global"]["validation"]
                     for conf in cfg.keys():
-                        configfile=os.path.join(config.conf["global"]["paths"]["validation"],secure_filename(conf+".json"))
-                        dic={
+                        configfile = os.path.join(config.conf["global"]["paths"][
+                                                  "validation"], secure_filename(conf + ".json"))
+                        dic = {
                             "prefix": config.conf["global"]["api"]["prefix"],
                             "domain": config.conf["global"]["api"]["domain"],
                             "dataset": dataset
                         }
-                        props[conf] = replace_dict(cfg[conf],dic)
+                        props[conf] = replace_dict(cfg[conf], dic)
                         # with open(configfile, 'w') as outfile:
-                        # 	json.dump(props[config],outfile,indent=2)
+                        #     json.dump(props[config],outfile,indent=2)
                     return {"dataset": dataset, "status": "to validation", "props": props}
-                except :
-                        return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
+                except:
+                        return api.abort(500, {"dataset": dataset, "status": "error: " + err()})
             else:
-                return api.abort(403,{"dataset": dataset, "status": "validation not allowed"})
-        elif (action=="search"):
+                return api.abort(403, {"dataset": dataset, "status": "validation not allowed"})
+        elif (action == "search"):
             if (not(dataset in config.conf["datasets"].keys())):
-                return api.abort(404,{"dataset": dataset, "status": "dataset not found"})
+                return api.abort(404, {"dataset": dataset, "status": "dataset not found"})
             if not("search" in config.conf["datasets"][dataset].keys()):
-                return api.abort(403,{"dataset": dataset, "status": "search not allowed"})
-            if ((config.conf["datasets"][dataset]["search"]==True)|(isinstance(config.conf["datasets"][dataset]["search"], OrderedDict))):
+                return api.abort(403, {"dataset": dataset, "status": "search not allowed"})
+            if ((config.conf["datasets"][dataset]["search"] == True) | (isinstance(config.conf["datasets"][dataset]["search"], OrderedDict))):
                 try:
                     props = {}
                     try:
-                        cfg=deepupdate(config.conf["global"]["search"],config.conf["datasets"][dataset]["search"])
+                        cfg = deepupdate(config.conf["global"]["search"], config.conf[
+                                         "datasets"][dataset]["search"])
                     except:
-                        cfg=config.conf["global"]["search"]
+                        cfg = config.conf["global"]["search"]
                     for config in cfg.keys():
-                        configfile=os.path.join(config.conf["global"]["paths"]["search"],secure_filename(config+".json"))
-                        dic={
+                        configfile = os.path.join(config.conf["global"]["paths"][
+                                                  "search"], secure_filename(config + ".json"))
+                        dic = {
                             "prefix": config.conf["global"]["api"]["prefix"],
                             "domain": config.conf["global"]["api"]["domain"],
                             "dataset": dataset
                         }
-                        props[config] = replace_dict(cfg[config],dic)
+                        props[config] = replace_dict(cfg[config], dic)
                         # with open(configfile, 'w') as outfile:
-                        # 	json.dump(props[config],outfile,indent=2)
+                        #     json.dump(props[config],outfile,indent=2)
                     return {"dataset": dataset, "status": "to search", "props": props}
-                except :
-                        return api.abort(500,{"dataset": dataset, "status": "error: "+err()})
+                except:
+                        return api.abort(500, {"dataset": dataset, "status": "error: " + err()})
             else:
-                return api.abort(403,{"dataset": dataset, "status": "search not allowed"})
+                return api.abort(403, {"dataset": dataset, "status": "search not allowed"})
 
         else:
             api.abort(404)
 
-    def post(self,dataset,action):
-        '''(KO) search into the dataset'''
-        if (action=="_search"):
-            return {"status": "in dev"}
+    @api.expect(parsers.live_parser)
+    def post(self, dataset, action):
+        '''dire search into the dataset'''
+        if (action == "_search"):
+            try:
+                args = parsers.es_parser.parse_args()
+                ds = Dataset(dataset)
+                query = request.get_json()
+                if (ds.connector.type == "elasticsearch"):
+                    try:
+                        ds.select = {"query": {"function_score": {
+                            "query": query["query"], "random_score": {}}}}
+                        try:
+                            print args
+                            size = args['size']
+                        except:
+                            size = ds.chunk
+                        # hack for speed up an minimal rendering on object
+                        resp = original_flask_make_response(json.dumps(ds.connector.es.search(body=ds.select, index=ds.table, doc_type=ds.doc_type, size=size)))
+                        resp.headers['Content-Type'] = 'application/json'
+                        return resp
+                    except:
+                        return api.abort(403, err())
+                else:
+                    api.abort(403, "not an elasticsearch dataset")
+            except:
+                return {"status": "ko - " + err()}
         else:
             api.abort(403)
 
