@@ -194,12 +194,4 @@ example-download:
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
 	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
 
-tuto: start
-	@mkdir -p ${TUTORIAL}/projects ${TUTORIAL}/data ${TUTORIAL}/models 
-	@mv projects _${date}_${id}_projects 2> /dev/null; true
-	@mv upload _${date}_${id}_upload 2> /dev/null; true
-	@mv models _${date}_${id}_models 2> /dev/null; true
-	@ln -s ${TUTORIAL}/projects ${BACKEND}/projects
-	@ln -s ${TUTORIAL}/data ${BACKEND}/upload
-	@ln -s ${TUTORIAL}/models ${BACKEND}/models
 
