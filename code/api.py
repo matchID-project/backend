@@ -615,7 +615,9 @@ class jobsList(Resource):
             # logfile = config.jobs[recipe].job.log.file
             logfile = config.jobs_list[recipe]["log"]
             # status = job.job_status()
-            status = config.jobs_list[recipe]["status"]
+            config.jobs[recipe]["status"] = config.jobs[str(recipe)].job_status()
+            status = config.jobs[recipe]["status"]
+
             try:
                 if (status != "down"):
                     response["running"].append({ "recipe": recipe,
@@ -627,6 +629,7 @@ class jobsList(Resource):
         logfiles = [f
                             for f in os.listdir(config.conf["global"]["log"]["dir"])
                             if re.match(r'^.*.log$',f)]
+        logfiles.sort(reverse = True)
         for file in logfiles:
             recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
             date = re.sub(r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2", file)
