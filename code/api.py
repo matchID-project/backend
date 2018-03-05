@@ -615,7 +615,9 @@ class jobsList(Resource):
             # logfile = config.jobs[recipe].job.log.file
             logfile = config.jobs_list[recipe]["log"]
             # status = job.job_status()
-            status = config.jobs_list[recipe]["status"]
+            config.jobs[recipe]["status"] = config.jobs[str(recipe)].job_status()
+            status = config.jobs[recipe]["status"]
+
             try:
                 if (status != "down"):
                     response["running"].append({ "recipe": recipe,
