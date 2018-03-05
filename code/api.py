@@ -629,6 +629,7 @@ class jobsList(Resource):
         logfiles = [f
                             for f in os.listdir(config.conf["global"]["log"]["dir"])
                             if re.match(r'^.*.log$',f)]
+        logfiles.sort(reverse = True)
         for file in logfiles:
             recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
             date = re.sub(r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2", file)
