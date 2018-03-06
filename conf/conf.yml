@@ -2,7 +2,8 @@ global:
   api:
     prefix: /matchID/api/v0
     port: 8081
-    domain: '/matchID/api/v0/datasets' 
+    es_proxy_path: '/matchID/api/v0/datasets' 
+    domain: '' 
     host: 0.0.0.0
     use_reloader: True
     processes: 1
