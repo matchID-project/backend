@@ -1920,5 +1920,8 @@ def thread_job(recipe=None):
             with open(recipe.log.file, 'r') as f:
                 recipe.callback["log"] = f.read()
     except:
-        pass
+        try :
+            del config.jobs_list[recipe.name]
+        except:
+            pass
 

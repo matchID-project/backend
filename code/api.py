@@ -387,13 +387,13 @@ class pushToValidation(Resource):
                         configfile = os.path.join(config.conf["global"]["paths"][
                                                   "validation"], secure_filename(conf + ".json"))
                         dic = {
-                            "prefix": config.conf["global"]["api"]["prefix"],
                             "domain": config.conf["global"]["api"]["domain"],
+                            "es_proxy_path": config.conf["global"]["api"]["es_proxy_path"],
                             "dataset": dataset
                         }
                         props[conf] = replace_dict(cfg[conf], dic)
-                        # with open(configfile, 'w') as outfile:
-                        #     json.dump(props[config],outfile,indent=2)
+                        print conf
+                    print {"dataset": dataset, "status": "to validation", "props": props}
                     return {"dataset": dataset, "status": "to validation", "props": props}
                 except:
                         return api.abort(500, {"dataset": dataset, "status": "error: " + err()})
@@ -416,8 +416,8 @@ class pushToValidation(Resource):
                         configfile = os.path.join(config.conf["global"]["paths"][
                                                   "search"], secure_filename(config + ".json"))
                         dic = {
-                            "prefix": config.conf["global"]["api"]["prefix"],
                             "domain": config.conf["global"]["api"]["domain"],
+                            "es_proxy_path": config.conf["global"]["api"]["es_proxy_path"],
                             "dataset": dataset
                         }
                         props[config] = replace_dict(cfg[config], dic)
@@ -615,7 +615,9 @@ class jobsList(Resource):
             # logfile = config.jobs[recipe].job.log.file
             logfile = config.jobs_list[recipe]["log"]
             # status = job.job_status()
-            status = config.jobs_list[recipe]["status"]
+            config.jobs[recipe]["status"] = config.jobs[str(recipe)].job_status()
+            status = config.jobs[recipe]["status"]
+
             try:
                 if (status != "down"):
                     response["running"].append({ "recipe": recipe,
@@ -627,6 +629,7 @@ class jobsList(Resource):
         logfiles = [f
                             for f in os.listdir(config.conf["global"]["log"]["dir"])
                             if re.match(r'^.*.log$',f)]
+        logfiles.sort(reverse = True)
         for file in logfiles:
             recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
             date = re.sub(r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2", file)

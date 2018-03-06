@@ -11,8 +11,7 @@ global:
         label: Status
     elasticsearch:
       connection:
-        host: domain
-      prefix: prefix
+        host: es_proxy_path
       index: dataset
       type: dataset
       size: 200
