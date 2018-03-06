@@ -1,5 +1,17 @@
-export BACKEND := $(shell pwd)
+##############################################
+# WARNING : THIS FILE SHOULDN'T BE TOUCHED   #
+#    FOR ENVIRONNEMENT CONFIGURATION         #
+# CONFIGURABLE VARIABLES SHOULD BE OVERRIDED #
+# IN THE 'artifacts' FILE, AS NOT COMMITTED  # 
+##############################################
 
+
+
+#matchID default exposition port
+export PORT=80
+
+#matchID default paths
+export BACKEND := $(shell pwd)
 export FRONTEND=${BACKEND}/../frontend
 export UPLOAD=${BACKEND}/upload
 export PROJECTS=${BACKEND}/projects
@@ -11,8 +23,13 @@ export DC_DIR=${BACKEND}/docker-components
 export DC_FILE=${DC_DIR}/docker-compose
 export DC_PREFIX=matchid
 export DC_NETWORK=matchid
-export PORT=80
 
+# elasticsearch defaut configuration
+ES_NODES := 3		# elasticsearch number of nodes
+ES_MEM := 1024m		# elasticsearch : memory of each node
+
+dummy		    := $(shell touch artifacts)
+include ./artifacts
 
 commit              := $(shell git rev-parse HEAD | cut -c1-8)
 lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
@@ -23,10 +40,6 @@ id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8
 
 vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262144 && echo true)
 
-# Elasticsearch configuration
-# Nuber of nodes, memory, and container memory (used only for many nodes)
-ES_NODES := 3
-ES_MEM := 1024m
 
 PG := 'postgres'
 DC := 'docker-compose'
