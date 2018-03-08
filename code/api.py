@@ -444,11 +444,13 @@ class pushToValidation(Resource):
                     try:
                         ds.select = {"query": {"function_score": {
                             "query": query["query"], "random_score": {}}}}
-                        try:
-                            print args
-                            size = args['size']
-                        except:
-                            size = ds.chunk
+                    except:
+                        ds.select = query
+                    try:
+                        size = args['size']
+                    except:
+                        size = ds.chunk
+                    try:
                         # hack for speed up an minimal rendering on object
                         resp = original_flask_make_response(json.dumps(ds.connector.es.search(body=ds.select, index=ds.table, doc_type=ds.doc_type, size=size)))
                         resp.headers['Content-Type'] = 'application/json'
