@@ -434,8 +434,8 @@ class pushToValidation(Resource):
 
     @api.expect(parsers.live_parser)
     def post(self, dataset, action):
-        '''dire search into the dataset'''
-        if (action == "_search"):
+        '''direct search into the dataset'''
+        if ((action == "_search")):
             try:
                 args = parsers.es_parser.parse_args()
                 ds = Dataset(dataset)
@@ -444,11 +444,13 @@ class pushToValidation(Resource):
                     try:
                         ds.select = {"query": {"function_score": {
                             "query": query["query"], "random_score": {}}}}
-                        try:
-                            print args
-                            size = args['size']
-                        except:
-                            size = ds.chunk
+                    except:
+                        ds.select = query
+                    try:
+                        size = args['size']
+                    except:
+                        size = ds.chunk
+                    try:
                         # hack for speed up an minimal rendering on object
                         resp = original_flask_make_response(json.dumps(ds.connector.es.search(body=ds.select, index=ds.table, doc_type=ds.doc_type, size=size)))
                         resp.headers['Content-Type'] = 'application/json'
@@ -463,6 +465,31 @@ class pushToValidation(Resource):
             api.abort(403)
 
 
+@api.route('/datasets/<dataset>/<doc_type>/<id>/<action>', endpoint='datasets/<dataset>/<doc_type>/<id>/<action>')
+class pushToValidation(Resource):
+
+    @api.expect(parsers.live_parser)
+    def post(self, dataset, doc_type, id, action):
+        '''elasticsearch update api proxy'''
+        if ((action == "_update")):
+            try:
+                args = parsers.es_parser.parse_args()
+                ds = Dataset(dataset)
+                data = request.get_json()
+            except:
+                return {"status": "ko - " + err()}
+            if (ds.connector.type == "elasticsearch"):
+                try:
+                    # hack for speed up an minimal rendering on object
+                    resp = original_flask_make_response(json.dumps(ds.connector.es.update(body = data, index = ds.table, id = id, doc_type = doc_type)))
+                    resp.headers['Content-Type'] = 'application/json'
+                    return resp
+                except:
+                    return api.abort(403, err())
+            else:
+                api.abort(403, "not an elasticsearch dataset")
+        else:
+            api.abort(403)
 
 
 @api.route('/recipes/', endpoint='recipes')
