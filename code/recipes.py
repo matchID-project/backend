@@ -277,10 +277,11 @@ class Dataset(Configured):
             try:
                 self.files = [os.path.join(self.connector.database, f)
                               for f in os.listdir(self.connector.database)
-                              if re.match(r'^' + self.table.regex + '$', f)]
+                              if re.match(r'^' + self.table['regex'] + '$', f)]
                 self.file = self.files[0]
             except:
                 self.file = os.path.join(self.connector.database, self.table)
+                self.files = [self.file]
                 #log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
 
             try:
