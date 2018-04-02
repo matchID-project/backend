@@ -242,9 +242,9 @@ class Dataset(Configured):
                 self.doc_type = self.name
 
             try:
-                self.doc_type = self.conf["doc_type"]
+                self.random_view = self.conf["random_view"]
             except:
-                self.doc_type = self.name
+                self.random_view = True
 
             try:
                 self.body = json.loads(json.dumps(self.conf["body"]))
