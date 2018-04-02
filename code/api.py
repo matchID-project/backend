@@ -603,35 +603,36 @@ class RecipeRun(Resource):
             except:
                 return {"data": [{"result": "failed"}], "log": "Ooops: {}".format(err())}
             if isinstance(r.df, pd.DataFrame):
-                df=r.df.fillna("")
-                if (r.df.shape[0]==0):
+                df = r.df.fillna("")
+                if (r.df.shape[0] == 0):
                     return {"data": [{"result": "empty"}], "log": r.callback["log"]}
                 try:
                     return jsonify({"data": df.T.to_dict().values(), "log": r.callback["log"]})
                 except:
-                    df=df.applymap(lambda x: unicode(x))
+                    df = df.applymap(lambda x: unicode(x))
                     return jsonify({"data": df.T.to_dict().values(), "log": r.callback["log"]})
             else:
                 return {"data": [{"result": "empty"}], "log": r.callback["log"]}
-        elif (action=="run"):
+        elif (action == "run"):
             # run recipe (gives a job)
             try:
                 if (recipe in list(config.jobs.keys())):
-                    status=config.jobs[recipe].job_status()
-                    if (status=="up"):
+                    status = config.jobs[recipe].job_status()
+                    if (status == "up"):
                         return {"recipe": recipe, "status": status}
             except:
                 api.abort(403)
 
-            config.jobs[recipe]=Recipe(recipe)
+            config.jobs[recipe] = Recipe(recipe)
             config.jobs[recipe].init()
-            config.jobs[recipe].set_job(Process(target=thread_job,args=[config.jobs[recipe]]))
+            config.jobs[recipe].set_job(
+                Process(target=thread_job, args=[config.jobs[recipe]]))
             config.jobs[recipe].start_job()
-            return {"recipe":recipe, "status": "new job"}
-        elif (action=="stop"):
+            return {"recipe": recipe, "status": "new job"}
+        elif (action == "stop"):
             try:
                 if (recipe in list(config.jobs.keys())):
-                    thread=Process(config.jobs[recipe].stop_job())
+                    thread = Process(config.jobs[recipe].stop_job())
                     thread.start()
                     return {"recipe": recipe, "status": "stopping"}
             except:
@@ -640,6 +641,7 @@ class RecipeRun(Resource):
 
 @api.route('/jobs/', endpoint='jobs')
 class jobsList(Resource):
+
     def get(self):
         '''retrieve jobs list
         '''
@@ -649,36 +651,43 @@ class jobsList(Resource):
             # logfile = config.jobs[recipe].job.log.file
             logfile = config.jobs_list[recipe]["log"]
             # status = job.job_status()
-            config.jobs[recipe]["status"] = config.jobs[str(recipe)].job_status()
-            status = config.jobs[recipe]["status"]
+            config.jobs_list[recipe]["status"] = config.jobs[
+                str(recipe)].job_status()
+            status = config.jobs_list[recipe]["status"]
 
             try:
                 if (status != "down"):
-                    response["running"].append({ "recipe": recipe,
-                                                 "file": re.sub(r".*/","", logfile),
-                                                 "date": re.sub(r".*/(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2",logfile)
-                                                  })
+                    response["running"].append({"recipe": recipe,
+                                                "file": re.sub(r".*/", "", logfile),
+                                                "date": re.sub(r".*/(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", logfile)
+                                                })
             except:
-                response["running"]=[{"error": "while trying to get running jobs list"}]
+                response["running"] = [
+                    {"error": "while trying to get running jobs list"}]
         logfiles = [f
-                            for f in os.listdir(config.conf["global"]["log"]["dir"])
-                            if re.match(r'^.*.log$',f)]
-        logfiles.sort(reverse = True)
+                    for f in os.listdir(config.conf["global"]["log"]["dir"])
+                    if re.match(r'^.*.log$', f)]
+        logfiles.sort(reverse=True)
         for file in logfiles:
             recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
-            date = re.sub(r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2", file)
+            date = re.sub(
+                r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", file)
             if (recipe in config.conf["recipes"].keys()):
                 try:
                     if (response["running"][recipe]["date"] != date):
                         try:
-                            response["done"].append({"recipe": recipe, "date": date, "file": file})
+                            response["done"].append(
+                                {"recipe": recipe, "date": date, "file": file})
                         except:
-                            response["done"]=[{"recipe": recipe, "date": date, "file": file}]
+                            response["done"] = [
+                                {"recipe": recipe, "date": date, "file": file}]
                 except:
                     try:
-                        response["done"].append({"recipe": recipe, "date": date, "file": file})
+                        response["done"].append(
+                            {"recipe": recipe, "date": date, "file": file})
                     except:
-                        response["done"]=[{"recipe": recipe, "date": date, "file": file}]
+                        response["done"] = [
+                            {"recipe": recipe, "date": date, "file": file}]
 
         return response
 
@@ -686,7 +695,7 @@ if __name__ == '__main__':
     config.read_conf()
     app.config['DEBUG'] = config.conf["global"]["api"]["debug"]
 
-    config.log=Log("main")
+    config.log = Log("main")
 
     # recipe="dataprep_snpc"
     # r=Recipe(recipe)
@@ -698,4 +707,5 @@ if __name__ == '__main__':
     application = DispatcherMiddleware(Flask('dummy_app'), {
         app.config['APPLICATION_ROOT']: app,
     })
-    run_simple(config.conf["global"]["api"]["host"], config.conf["global"]["api"]["port"], application, processes=config.conf["global"]["api"]["processes"], use_reloader=config.conf["global"]["api"]["use_reloader"])
+    run_simple(config.conf["global"]["api"]["host"], config.conf["global"]["api"]["port"], application, processes=config.conf[
+               "global"]["api"]["processes"], use_reloader=config.conf["global"]["api"]["use_reloader"])
