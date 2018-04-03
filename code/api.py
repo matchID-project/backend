@@ -59,13 +59,13 @@ from log import Log, err
 def allowed_upload_file(filename=None):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in config.conf[
-                           "global"]["data_extensions"]
+               "global"]["data_extensions"]
 
 
 def allowed_conf_file(filename=None):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in config.conf[
-                           "global"]["recipe_extensions"]
+               "global"]["recipe_extensions"]
 
 
 config.init()
@@ -396,7 +396,7 @@ class pushToValidation(Resource):
                     print {"dataset": dataset, "status": "to validation", "props": props}
                     return {"dataset": dataset, "status": "to validation", "props": props}
                 except:
-                        return api.abort(500, {"dataset": dataset, "status": "error: " + err()})
+                    return api.abort(500, {"dataset": dataset, "status": "error: " + err()})
             else:
                 return api.abort(403, {"dataset": dataset, "status": "validation not allowed"})
         elif (action == "search"):
@@ -425,7 +425,7 @@ class pushToValidation(Resource):
                         #     json.dump(props[config],outfile,indent=2)
                     return {"dataset": dataset, "status": "to search", "props": props}
                 except:
-                        return api.abort(500, {"dataset": dataset, "status": "error: " + err()})
+                    return api.abort(500, {"dataset": dataset, "status": "error: " + err()})
             else:
                 return api.abort(403, {"dataset": dataset, "status": "search not allowed"})
 
@@ -452,7 +452,8 @@ class pushToValidation(Resource):
                         size = ds.chunk
                     try:
                         # hack for speed up an minimal rendering on object
-                        resp = original_flask_make_response(json.dumps(ds.connector.es.search(body=ds.select, index=ds.table, doc_type=ds.doc_type, size=size)))
+                        resp = original_flask_make_response(json.dumps(ds.connector.es.search(
+                            body=ds.select, index=ds.table, doc_type=ds.doc_type, size=size)))
                         resp.headers['Content-Type'] = 'application/json'
                         return resp
                     except:
@@ -481,7 +482,8 @@ class pushToValidation(Resource):
             if (ds.connector.type == "elasticsearch"):
                 try:
                     # hack for speed up an minimal rendering on object
-                    resp = original_flask_make_response(json.dumps(ds.connector.es.update(body = data, index = ds.table, id = id, doc_type = doc_type)))
+                    resp = original_flask_make_response(json.dumps(ds.connector.es.update(
+                        body=data, index=ds.table, id=id, doc_type=doc_type)))
                     resp.headers['Content-Type'] = 'application/json'
                     return resp
                 except:
@@ -494,13 +496,16 @@ class pushToValidation(Resource):
 
 @api.route('/recipes/', endpoint='recipes')
 class ListRecipes(Resource):
+
     def get(self):
         '''get json of all configured recipes'''
         return config.conf["recipes"]
 
+
 @api.route('/recipes/<recipe>/', endpoint='recipes/<recipe>')
 class RecipeApi(Resource):
-    def get(self,recipe):
+
+    def get(self, recipe):
         '''get json of a configured recipe'''
         try:
             return config.conf["recipes"][recipe]
@@ -510,70 +515,72 @@ class RecipeApi(Resource):
 
 @api.route('/recipes/<recipe>/<action>', endpoint='recipes/<recipe>/<action>')
 class RecipeRun(Resource):
-    def get(self,recipe,action):
+
+    def get(self, recipe, action):
         '''retrieve information on a recipe
         ** action ** possible values are :
         - ** status ** : get status (running or not) of a recipe
         - ** log ** : get log of a running recipe'''
-        if (action=="status"):
+        if (action == "status"):
             # get status of job
             try:
-                return {"recipe":recipe, "status": config.jobs[str(recipe)].job_status()}
-                ## still bogus:
-                # return {"recipe":recipe, "status": config.jobs_list[str(recipe)]}
+                return {"recipe": recipe, "status": config.jobs[str(recipe)].job_status()}
+                # still bogus:
+                # return {"recipe":recipe, "status":
+                # config.jobs_list[str(recipe)]}
             except:
-                return {"recipe":recipe, "status": "down"}
-        elif (action=="log"):
+                return {"recipe": recipe, "status": "down"}
+        elif (action == "log"):
             # get logs
             try:
                 # try if there is a current log
                 with open(config.jobs[recipe].log.file, 'r') as f:
                     response = f.read()
-                    return Response(response,mimetype="text/plain")
+                    return Response(response, mimetype="text/plain")
             except:
                 try:
                     # search for a previous log
-                    a = config.conf["recipes"][recipe] # check if recipe is declared
-                    logfiles = [os.path.join(config.conf["global"]["log"]["dir"],f)
+                    # check if recipe is declared
+                    a = config.conf["recipes"][recipe]
+                    logfiles = [os.path.join(config.conf["global"]["log"]["dir"], f)
                                 for f in os.listdir(config.conf["global"]["log"]["dir"])
-                                if re.match(r'^.*-' + recipe + '.log$',f)]
+                                if re.match(r'^.*-' + recipe + '.log$', f)]
                     logfiles.sort()
                     file = logfiles[-1]
                     with open(file, 'r') as f:
                         response = f.read()
-                        return Response(response,mimetype="text/plain")
+                        return Response(response, mimetype="text/plain")
                 except:
                     api.abort(404)
         api.abort(403)
 
     @api.expect(parsers.live_parser)
-    def post(self,recipe,action):
+    def post(self, recipe, action):
         '''apply recipe on posted data
         ** action ** possible values are :
         - ** apply ** : apply recipe on posted data
         '''
-        if (action=="apply"):
+        if (action == "apply"):
             args = parsers.live_parser.parse_args()
-            file=args['file']
+            file = args['file']
             if not (allowed_upload_file(file.filename)):
                 api.abort(403)
-            r=Recipe(recipe)
-            r.input.chunked=False
-            r.input.file=file.stream
+            r = Recipe(recipe)
+            r.input.chunked = False
+            r.input.file = file.stream
             r.init(test=True)
             r.run()
             if isinstance(r.df, pd.DataFrame):
-                df=r.df.fillna("")
+                df = r.df.fillna("")
                 try:
                     return jsonify({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
                 except:
-                    df=df.applymap(lambda x: str(x))
+                    df = df.applymap(lambda x: str(x))
                     return jsonify({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
             else:
                 return {"log": r.log.writer.getvalue()}
 
-
-    def put(self,recipe,action):
+    def put(self, recipe, action):
         '''test, run or stop recipe
         ** action ** possible values are :
         - ** test ** : test recipe on sample data
@@ -581,12 +588,12 @@ class RecipeRun(Resource):
         - ** stop ** : stop a running recipe (soft kill : it may take some time to really stop)
         '''
         config.read_conf()
-        if (action=="test"):
+        if (action == "test"):
             try:
                 callback = config.manager.dict()
-                r=Recipe(recipe)
+                r = Recipe(recipe)
                 r.init(test=True, callback=callback)
-                r.set_job(Process(target=thread_job,args=[r]))
+                r.set_job(Process(target=thread_job, args=[r]))
                 r.start_job()
                 r.join_job()
                 r.df = r.callback["df"]
@@ -596,35 +603,36 @@ class RecipeRun(Resource):
             except:
                 return {"data": [{"result": "failed"}], "log": "Ooops: {}".format(err())}
             if isinstance(r.df, pd.DataFrame):
-                df=r.df.fillna("")
-                if (r.df.shape[0]==0):
+                df = r.df.fillna("")
+                if (r.df.shape[0] == 0):
                     return {"data": [{"result": "empty"}], "log": r.callback["log"]}
                 try:
                     return jsonify({"data": df.T.to_dict().values(), "log": r.callback["log"]})
                 except:
-                    df=df.applymap(lambda x: unicode(x))
+                    df = df.applymap(lambda x: unicode(x))
                     return jsonify({"data": df.T.to_dict().values(), "log": r.callback["log"]})
             else:
                 return {"data": [{"result": "empty"}], "log": r.callback["log"]}
-        elif (action=="run"):
+        elif (action == "run"):
             # run recipe (gives a job)
             try:
                 if (recipe in list(config.jobs.keys())):
-                    status=config.jobs[recipe].job_status()
-                    if (status=="up"):
+                    status = config.jobs[recipe].job_status()
+                    if (status == "up"):
                         return {"recipe": recipe, "status": status}
             except:
                 api.abort(403)
 
-            config.jobs[recipe]=Recipe(recipe)
+            config.jobs[recipe] = Recipe(recipe)
             config.jobs[recipe].init()
-            config.jobs[recipe].set_job(Process(target=thread_job,args=[config.jobs[recipe]]))
+            config.jobs[recipe].set_job(
+                Process(target=thread_job, args=[config.jobs[recipe]]))
             config.jobs[recipe].start_job()
-            return {"recipe":recipe, "status": "new job"}
-        elif (action=="stop"):
+            return {"recipe": recipe, "status": "new job"}
+        elif (action == "stop"):
             try:
                 if (recipe in list(config.jobs.keys())):
-                    thread=Process(config.jobs[recipe].stop_job())
+                    thread = Process(config.jobs[recipe].stop_job())
                     thread.start()
                     return {"recipe": recipe, "status": "stopping"}
             except:
@@ -633,6 +641,7 @@ class RecipeRun(Resource):
 
 @api.route('/jobs/', endpoint='jobs')
 class jobsList(Resource):
+
     def get(self):
         '''retrieve jobs list
         '''
@@ -642,36 +651,43 @@ class jobsList(Resource):
             # logfile = config.jobs[recipe].job.log.file
             logfile = config.jobs_list[recipe]["log"]
             # status = job.job_status()
-            config.jobs[recipe]["status"] = config.jobs[str(recipe)].job_status()
-            status = config.jobs[recipe]["status"]
+            config.jobs_list[recipe]["status"] = config.jobs[
+                str(recipe)].job_status()
+            status = config.jobs_list[recipe]["status"]
 
             try:
                 if (status != "down"):
-                    response["running"].append({ "recipe": recipe,
-                                                 "file": re.sub(r".*/","", logfile),
-                                                 "date": re.sub(r".*/(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2",logfile)
-                                                  })
+                    response["running"].append({"recipe": recipe,
+                                                "file": re.sub(r".*/", "", logfile),
+                                                "date": re.sub(r".*/(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", logfile)
+                                                })
             except:
-                response["running"]=[{"error": "while trying to get running jobs list"}]
+                response["running"] = [
+                    {"error": "while trying to get running jobs list"}]
         logfiles = [f
-                            for f in os.listdir(config.conf["global"]["log"]["dir"])
-                            if re.match(r'^.*.log$',f)]
-        logfiles.sort(reverse = True)
+                    for f in os.listdir(config.conf["global"]["log"]["dir"])
+                    if re.match(r'^.*.log$', f)]
+        logfiles.sort(reverse=True)
         for file in logfiles:
             recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
-            date = re.sub(r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log",r"\1-\2", file)
+            date = re.sub(
+                r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", file)
             if (recipe in config.conf["recipes"].keys()):
                 try:
                     if (response["running"][recipe]["date"] != date):
                         try:
-                            response["done"].append({"recipe": recipe, "date": date, "file": file})
+                            response["done"].append(
+                                {"recipe": recipe, "date": date, "file": file})
                         except:
-                            response["done"]=[{"recipe": recipe, "date": date, "file": file}]
+                            response["done"] = [
+                                {"recipe": recipe, "date": date, "file": file}]
                 except:
                     try:
-                        response["done"].append({"recipe": recipe, "date": date, "file": file})
+                        response["done"].append(
+                            {"recipe": recipe, "date": date, "file": file})
                     except:
-                        response["done"]=[{"recipe": recipe, "date": date, "file": file}]
+                        response["done"] = [
+                            {"recipe": recipe, "date": date, "file": file}]
 
         return response
 
@@ -679,7 +695,7 @@ if __name__ == '__main__':
     config.read_conf()
     app.config['DEBUG'] = config.conf["global"]["api"]["debug"]
 
-    config.log=Log("main")
+    config.log = Log("main")
 
     # recipe="dataprep_snpc"
     # r=Recipe(recipe)
@@ -691,4 +707,5 @@ if __name__ == '__main__':
     application = DispatcherMiddleware(Flask('dummy_app'), {
         app.config['APPLICATION_ROOT']: app,
     })
-    run_simple(config.conf["global"]["api"]["host"], config.conf["global"]["api"]["port"], application, processes=config.conf["global"]["api"]["processes"], use_reloader=config.conf["global"]["api"]["use_reloader"])
+    run_simple(config.conf["global"]["api"]["host"], config.conf["global"]["api"]["port"], application, processes=config.conf[
+               "global"]["api"]["processes"], use_reloader=config.conf["global"]["api"]["use_reloader"])

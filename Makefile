@@ -140,7 +140,11 @@ endif
 ifeq ("$(wildcard ${MODELS})","")
 	@sudo mkdir -p ${PROJECTS}
 endif
-	${DC} up -d 
+ifeq ("$(wildcard docker-compose-local.yml)","")
+	${DC} up -d
+else
+	${DC} -f docker-compose.yml -f docker-compose-local.yml up -d 
+endif
 
 frontend-download:
 ifeq ("$(wildcard ${FRONTEND})","")
@@ -194,6 +198,12 @@ start-all: start postgres
 
 start: frontend-build elasticsearch kibana backend frontend-stop frontend
 	@sleep 2 && docker-compose logs
+
+up: start
+
+down: stop
+
+restart: down up
 
 log:
 	@docker logs ${DC_PREFIX}-backend
