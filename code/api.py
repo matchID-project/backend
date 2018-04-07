@@ -284,6 +284,15 @@ class FileConf(Resource):
             api.abort(403)
 
 
+@api.route('/connectors/', endpoint='connectors')
+class ListConnectors(Resource):
+
+    def get(self):
+        '''get json of all configured connectors'''
+        config.read_conf()
+        return config.conf["connectors"]
+
+
 @api.route('/datasets/', endpoint='datasets')
 class ListDatasets(Resource):
 
