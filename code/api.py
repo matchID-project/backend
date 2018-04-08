@@ -40,19 +40,23 @@ import uuid
 # recipes
 
 # api
-from flask import Flask, jsonify, Response, abort, request
+from flask import Flask, jsonify, Response, abort, request, g
+from flask.sessions import SecureCookieSessionInterface
+from flask_login import LoginManager, login_required, login_user
 from flask_restplus import Resource, Api, reqparse
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
 from werkzeug.wsgi import DispatcherMiddleware
 from werkzeug.contrib.fixers import ProxyFix
 from flask import make_response as original_flask_make_response
+from flask_oauth import OAuth
 
 # matchID imports
 import parsers
 import config
 from tools import replace_dict
 from recipes import *
+from security import *
 from log import Log, err
 
 
@@ -70,17 +74,84 @@ def allowed_conf_file(filename=None):
 
 config.init()
 config.read_conf()
+auth = LoginManager()
+
+print config.conf["global"]["projects"]
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app)
+app.secret_key = config.conf["global"]["api"]["secret_key"]
+auth.init_app(app)
+
 api = Api(app, version="0.1", title="matchID API",
           description="API for data matching developpement")
 app.config['APPLICATION_ROOT'] = config.conf["global"]["api"]["prefix"]
 
 
+@auth.user_loader
+def load_user(name):
+    return User(name)
+
+
+@api.route('/users/', endpoint='users')
+class ListUsers(Resource):
+
+    def get(self):
+        '''get json of all configured users'''
+        config.read_conf()
+        return config.conf["users"]
+
+
+@api.route('/groups/', endpoint='groups')
+class ListUsers(Resource):
+
+    def get(self):
+        '''get json of all configured users'''
+        config.read_conf()
+        return config.conf["groups"]
+
+
+@api.route('/roles/', endpoint='roles')
+class ListUsers(Resource):
+
+    def get(self):
+        '''get json of all configured users'''
+        config.read_conf()
+        return config.conf["roles"]
+
+
+@api.route('/login/', endpoint='login')
+class login(Resource):
+
+    @login_required
+    def get(self):
+        return {"status": "logged in"}
+
+    def post(self):
+        try:
+            args = request.get_json(force=True)
+            user = args['user']
+            password = args['password']
+        except:
+            api.abort(403, {"error": err()})
+        # Login and validate the user.
+        # user should be an instance of your `User` class
+        try:
+            u = User(user)
+            if (u.check_password(password)):
+                login_user(u, remember=False)
+                return {"status": "logged in"}
+            else:
+                api.abort(403)
+
+        except:
+            api.abort(403)
+
+
 @api.route('/conf/', endpoint='conf')
 class Conf(Resource):
 
+    @login_required
     def get(self):
         '''get all configured elements
         Lists all configured elements of the backend, as described in the yaml files :
@@ -98,10 +169,12 @@ class Conf(Resource):
 @api.route('/upload/', endpoint='upload')
 class Upload(Resource):
 
+    @login_required
     def get(self):
         '''list uploaded resources'''
         return list([filenames for root, dirnames, filenames in os.walk(config.conf["global"]["paths"]["upload"])])[0]
 
+    @login_required
     @api.expect(parsers.upload_parser)
     def post(self):
         '''upload multiple tabular data files, .gz or .txt or .csv'''
@@ -125,6 +198,7 @@ class Upload(Resource):
 @api.doc(parmas={'file': 'file name of a previously uploaded file'})
 class actionFile(Resource):
 
+    @login_required
     def get(self, file):
         '''get back uploaded file'''
         filetype = "unknown"
@@ -136,11 +210,12 @@ class actionFile(Resource):
             pass
         return {"file": file, "type_guessed": filetype}
 
+    @login_required
     def delete(self, file):
         '''deleted uploaded file'''
         try:
             pfile = os.path.join(config.conf["global"][
-                                 "paths"]["upload"], file)
+                "paths"]["upload"], file)
             os.remove(pfile)
             return {"file": file, "status": "deleted"}
         except:
@@ -151,6 +226,7 @@ class actionFile(Resource):
 @api.doc(parms={'project': 'name of a project'})
 class DirectoryConf(Resource):
 
+    @login_required
     def get(self, project):
         '''get configuration files of a project'''
         config.read_conf()
@@ -159,6 +235,7 @@ class DirectoryConf(Resource):
         else:
             api.abort(404)
 
+    @login_required
     @api.expect(parsers.conf_parser)
     def post(self, project):
         '''(KO) import a zipped project'''
@@ -183,6 +260,7 @@ class DirectoryConf(Resource):
         else:
             api.abort(403)
 
+    @login_required
     def put(self, project):
         '''create a project'''
         if (project == "conf"):
@@ -192,7 +270,7 @@ class DirectoryConf(Resource):
         else:
             try:
                 dirname = os.path.join(config.conf["global"][
-                                       "paths"]["projects"], project)
+                    "paths"]["projects"], project)
                 os.mkdir(dirname)
                 os.mkdir(os.path.join(dirname, 'recipes'))
                 os.mkdir(os.path.join(dirname, 'datasets'))
@@ -201,6 +279,7 @@ class DirectoryConf(Resource):
             except:
                 api.abort(400, err())
 
+    @login_required
     def delete(self, project):
         '''delete a project'''
         if (project == "conf"):
@@ -209,7 +288,7 @@ class DirectoryConf(Resource):
             response = {project: "not deleted"}
             try:
                 dirname = os.path.join(config.conf["global"][
-                                       "paths"]["projects"], project)
+                    "paths"]["projects"], project)
                 shutil.rmtree(dirname)
                 response[project] = "deleted"
             except:
@@ -224,6 +303,7 @@ class DirectoryConf(Resource):
 @api.route('/conf/<project>/<path:file>', endpoint='conf/<project>/<path:file>')
 class FileConf(Resource):
 
+    @login_required
     def get(self, project, file):
         '''get a text/yaml configuration file from project'''
         try:
@@ -231,7 +311,7 @@ class FileConf(Resource):
             if (file in config.conf["global"]["projects"][project]["files"]):
                 try:
                     pfile = os.path.join(config.conf["global"]["projects"][
-                                         project]["path"], file)
+                        project]["path"], file)
                     with open(pfile) as f:
                         return Response(f.read(), mimetype="text/plain")
                 except:
@@ -241,19 +321,21 @@ class FileConf(Resource):
         except:
             api.abort(404)
 
+    @login_required
     def delete(self, project, file):
         '''delete a text/yaml configuration file from project'''
         if (project != "conf"):
             if (file in config.conf["global"]["projects"][project]["files"]):
                 try:
                     pfile = os.path.join(config.conf["global"]["projects"][
-                                         project]["path"], file)
+                        project]["path"], file)
                     os.remove(pfile)
                     config.read_conf()
                     return jsonify({"conf": project, "file": file, "status": "removed"})
                 except:
                     api.abort(403)
 
+    @login_required
     @api.expect(parsers.yaml_parser)
     def post(self, project, file):
         '''upload a text/yaml configuration file to a project'''
@@ -268,7 +350,7 @@ class FileConf(Resource):
 
                 try:
                     pfile = os.path.join(config.conf["global"]["projects"][
-                                         project]["path"], file)
+                        project]["path"], file)
                     with open(pfile, 'w') as f:
                         f.write(filecontent.encode("utf-8", 'ignore'))
                     response = {file: {"saved": "ok"}}
@@ -287,6 +369,7 @@ class FileConf(Resource):
 @api.route('/connectors/', endpoint='connectors')
 class ListConnectors(Resource):
 
+    @login_required
     def get(self):
         '''get json of all configured connectors'''
         config.read_conf()
@@ -296,6 +379,7 @@ class ListConnectors(Resource):
 @api.route('/datasets/', endpoint='datasets')
 class ListDatasets(Resource):
 
+    @login_required
     def get(self):
         '''get json of all configured datasets'''
         config.read_conf()
@@ -305,6 +389,7 @@ class ListDatasets(Resource):
 @api.route('/datasets/<dataset>/', endpoint='datasets/<dataset>')
 class DatasetApi(Resource):
 
+    @login_required
     def get(self, dataset):
         '''get json of a configured dataset'''
         config.read_conf()
@@ -322,6 +407,7 @@ class DatasetApi(Resource):
         else:
             api.abort(404)
 
+    @login_required
     def post(self, dataset):
         '''get sample of a configured dataset, number of rows being configured in connector.samples'''
         ds = Dataset(dataset)
@@ -347,6 +433,7 @@ class DatasetApi(Resource):
             except:
                 return {"data": [{"error": "error: {} {}".format(error, ds.table)}]}
 
+    @login_required
     def delete(self, dataset):
         '''delete the content of a dataset (currently only working on elasticsearch datasets)'''
         ds = Dataset(dataset)
@@ -369,11 +456,13 @@ class DatasetApi(Resource):
 @api.route('/datasets/<dataset>/<action>', endpoint='datasets/<dataset>/<action>')
 class pushToValidation(Resource):
 
+    @login_required
     def get(self, dataset, action):
         '''(KO) does nothing yet'''
         if (action == "yaml"):
             return
 
+    @login_required
     def put(self, dataset, action):
         '''action = validation : configure the frontend to point to this dataset'''
         import config
@@ -389,12 +478,12 @@ class pushToValidation(Resource):
                     props = {}
                     try:
                         cfg = deepupdate(config.conf["global"]["validation"], config.conf[
-                                         "datasets"][dataset]["validation"])
+                            "datasets"][dataset]["validation"])
                     except:
                         cfg = config.conf["global"]["validation"]
                     for conf in cfg.keys():
                         configfile = os.path.join(config.conf["global"]["paths"][
-                                                  "validation"], secure_filename(conf + ".json"))
+                            "validation"], secure_filename(conf + ".json"))
                         dic = {
                             "domain": config.conf["global"]["api"]["domain"],
                             "es_proxy_path": config.conf["global"]["api"]["es_proxy_path"],
@@ -418,12 +507,12 @@ class pushToValidation(Resource):
                     props = {}
                     try:
                         cfg = deepupdate(config.conf["global"]["search"], config.conf[
-                                         "datasets"][dataset]["search"])
+                            "datasets"][dataset]["search"])
                     except:
                         cfg = config.conf["global"]["search"]
                     for config in cfg.keys():
                         configfile = os.path.join(config.conf["global"]["paths"][
-                                                  "search"], secure_filename(config + ".json"))
+                            "search"], secure_filename(config + ".json"))
                         dic = {
                             "domain": config.conf["global"]["api"]["domain"],
                             "es_proxy_path": config.conf["global"]["api"]["es_proxy_path"],
@@ -441,6 +530,7 @@ class pushToValidation(Resource):
         else:
             api.abort(404)
 
+    @login_required
     @api.expect(parsers.live_parser)
     def post(self, dataset, action):
         '''direct search into the dataset'''
@@ -478,6 +568,7 @@ class pushToValidation(Resource):
 @api.route('/datasets/<dataset>/<doc_type>/<id>/<action>', endpoint='datasets/<dataset>/<doc_type>/<id>/<action>')
 class pushToValidation(Resource):
 
+    @login_required
     @api.expect(parsers.live_parser)
     def post(self, dataset, doc_type, id, action):
         '''elasticsearch update api proxy'''
@@ -506,6 +597,7 @@ class pushToValidation(Resource):
 @api.route('/recipes/', endpoint='recipes')
 class ListRecipes(Resource):
 
+    @login_required
     def get(self):
         '''get json of all configured recipes'''
         return config.conf["recipes"]
@@ -514,6 +606,7 @@ class ListRecipes(Resource):
 @api.route('/recipes/<recipe>/', endpoint='recipes/<recipe>')
 class RecipeApi(Resource):
 
+    @login_required
     def get(self, recipe):
         '''get json of a configured recipe'''
         try:
@@ -525,6 +618,7 @@ class RecipeApi(Resource):
 @api.route('/recipes/<recipe>/<action>', endpoint='recipes/<recipe>/<action>')
 class RecipeRun(Resource):
 
+    @login_required
     def get(self, recipe, action):
         '''retrieve information on a recipe
         ** action ** possible values are :
@@ -563,6 +657,7 @@ class RecipeRun(Resource):
                     api.abort(404)
         api.abort(403)
 
+    @login_required
     @api.expect(parsers.live_parser)
     def post(self, recipe, action):
         '''apply recipe on posted data
@@ -589,6 +684,7 @@ class RecipeRun(Resource):
             else:
                 return {"log": r.log.writer.getvalue()}
 
+    @login_required
     def put(self, recipe, action):
         '''test, run or stop recipe
         ** action ** possible values are :
@@ -651,6 +747,7 @@ class RecipeRun(Resource):
 @api.route('/jobs/', endpoint='jobs')
 class jobsList(Resource):
 
+    @login_required
     def get(self):
         '''retrieve jobs list
         '''
