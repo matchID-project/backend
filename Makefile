@@ -155,6 +155,11 @@ endif
 ifeq ("$(wildcard ${MODELS})","")
 	@sudo mkdir -p ${PROJECTS}
 endif
+ifneq "$(commit)" "$(lastcommit)"
+	@echo building matchID backend after new commit
+	${DC} build
+	@echo "${commit}" > ${BACKEND}/.lastcommit	
+endif
 ifeq ("$(wildcard docker-compose-local.yml)","")
 	${DC} up -d
 else
