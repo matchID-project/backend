@@ -42,7 +42,7 @@ import uuid
 # api
 from flask import Flask, jsonify, Response, abort, request, g
 from flask.sessions import SecureCookieSessionInterface
-from flask_login import LoginManager, login_required, login_user
+from flask_login import LoginManager, login_required, login_user, logout_user
 from flask_restplus import Resource, Api, reqparse
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
@@ -150,6 +150,15 @@ class login(Resource):
 
         except:
             api.abort(403)
+
+
+@api.route("/logout/", endpoint='logout')
+class Logout(Resource):
+
+    @login_required
+    def post(self):
+        logout_user()
+        return {"status": "logged out"}
 
 
 @api.route('/conf/', endpoint='conf')
