@@ -76,8 +76,6 @@ config.init()
 config.read_conf()
 auth = LoginManager()
 
-print config.conf["global"]["projects"]
-
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app)
 app.secret_key = config.conf["global"]["api"]["secret_key"]
