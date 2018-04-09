@@ -456,9 +456,17 @@ class pushToValidation(Resource):
 
     @login_required
     def get(self, dataset, action):
-        '''(KO) does nothing yet'''
+        '''alternative way to get text/yaml source code including the dataset'''
         if (action == "yaml"):
-            return
+            try:
+                project = config.conf["datasets"][dataset]["project"]
+                file = config.conf["datasets"][dataset]["source"]
+                pfile = os.path.join(config.conf["global"]["projects"][
+                    project]["path"], file)
+                with open(pfile) as f:
+                    return Response(f.read(), mimetype="text/plain")
+            except:
+                api.abort(503, {"error": err()})
 
     @login_required
     def put(self, dataset, action):
@@ -620,8 +628,20 @@ class RecipeRun(Resource):
     def get(self, recipe, action):
         '''retrieve information on a recipe
         ** action ** possible values are :
+        - ** yaml ** : get text/yaml code including the recipe
         - ** status ** : get status (running or not) of a recipe
         - ** log ** : get log of a running recipe'''
+        if (action == "yaml"):
+            try:
+                project = config.conf["recipes"][recipe]["project"]
+                file = config.conf["recipes"][recipe]["source"]
+                pfile = os.path.join(config.conf["global"]["projects"][
+                    project]["path"], file)
+                with open(pfile) as f:
+                    return Response(f.read(), mimetype="text/plain")
+            except:
+                api.abort(503, {"error": err()})
+
         if (action == "status"):
             # get status of job
             try:
