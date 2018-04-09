@@ -1,5 +1,6 @@
 global:
   api:
+    no_auth: False
     prefix: /matchID/api/v0
     port: 8081
     es_proxy_path: '/matchID/api/v0/datasets' 

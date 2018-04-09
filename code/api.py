@@ -127,6 +127,12 @@ class login(Resource):
 
     def post(self):
         try:
+            if (config.conf["global"]["api"]["no_auth"] == True):
+                login_user(User("admin"))
+                return {"status": "logged in"}
+        except:
+            pass
+        try:
             args = request.get_json(force=True)
             user = args['user']
             password = args['password']
