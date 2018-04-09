@@ -64,6 +64,7 @@ from numpy import array
 
 # matchID imports
 import config
+from config import ordered_load, deepupdate, Configured
 from log import Log, err
 import automata
 from tools import *
@@ -101,18 +102,6 @@ def to_fwf(df, fname, widths=None, sep="", header=False, names=None, append=Fals
             log.write(error=err())
         else:
             raise
-
-
-class Configured(object):
-
-    def __init__(self, family=None, name=None):
-        self.name = name
-        self.family = family
-        try:
-            self.conf = config.conf[family][name]
-        except:
-            sys.exit("Ooops: {} not found in {} conf".format(
-                self.name, self.family))
 
 
 class Connector(Configured):

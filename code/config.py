@@ -4,7 +4,9 @@
 import yaml as y
 from collections import OrderedDict
 from multiprocessing import Manager
-import os, fnmatch, sys
+import os
+import fnmatch
+import sys
 
 # matchID imports
 from log import err
@@ -13,15 +15,17 @@ from log import err
 def init():
     global manager, jobs, inmemory, log, conf, levCache, jobs_list
     manager = Manager()
-    inmemory={}
+    inmemory = {}
     jobs = {}
     jobs_list = manager.dict()
-    levCache={}
+    levCache = {}
     log = None
+
 
 def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict):
     class OrderedLoader(Loader):
         pass
+
     def construct_mapping(loader, node):
         loader.flatten_mapping(node)
         return object_pairs_hook(loader.construct_pairs(node))
@@ -37,62 +41,80 @@ def deepupdate(original, update):
     Subdict's won't be overwritten but also updated.
     """
     for key, value in original.iteritems():
-    # python3 for key, value in original.items():
+        # python3 for key, value in original.items():
         if key not in update:
             update[key] = value
         elif isinstance(value, dict):
             deepupdate(value, update[key])
     return update
 
-def check_conf(cfg,project,source):
-    for key in list(["recipes","datasets","connectors"]):
+
+def check_conf(cfg, project, source):
+    for key in list(["recipes", "datasets", "connectors"]):
         if (key in cfg.keys()):
             for obj in cfg[key]:
-                cfg[key][obj]["source"]=source
-                cfg[key][obj]["project"]=project
+                cfg[key][obj]["source"] = source
+                cfg[key][obj]["project"] = project
 
     return cfg
+
 
 def read_conf():
     global conf
     try:
-        conf_dir=conf["global"]["conf"]
+        conf_dir = conf["global"]["conf"]
     except:
-        conf_dir="conf"
+        conf_dir = "conf"
 
-    cfg={"global":{"projects":{}}}
+    cfg = {"global": {"projects": {}}}
 
-    cfg=read_conf_dir(conf_dir,cfg)
+    cfg = read_conf_dir(conf_dir, cfg)
 
     try:
-        projects=next(os.walk(cfg["global"]["paths"]["projects"]))[1]
+        projects = next(os.walk(cfg["global"]["paths"]["projects"]))[1]
         for project in projects:
-            project=os.path.join(cfg["global"]["paths"]["projects"],project)
-            cfg=read_conf_dir(project,cfg)
+            project = os.path.join(cfg["global"]["paths"]["projects"], project)
+            cfg = read_conf_dir(project, cfg)
 
     except:
         print err()
 
-    conf=cfg
+    conf = cfg
 
-def read_conf_dir(conf_dir,cfg):
-    project=os.path.basename(conf_dir)
-    cfg["global"]["projects"][project] = {"path": conf_dir,"files":{}}
+
+def read_conf_dir(conf_dir, cfg):
+    project = os.path.basename(conf_dir)
+    cfg["global"]["projects"][project] = {"path": conf_dir, "files": {}}
     for root, dirnames, filenames in os.walk(conf_dir):
-        #print root,dirnames,filenames
-        subpath=root.replace(conf_dir+"/","") if (conf_dir != root) else ""
+        # print root,dirnames,filenames
+        subpath = root.replace(
+            conf_dir + "/", "") if (conf_dir != root) else ""
         for filename in fnmatch.filter(filenames, '*.yml'):
-            conf_file=os.path.join(root, filename)
-            filename=os.path.join(subpath,filename)
-            cfg["global"]["projects"][project]["files"][filename]="not checked"
+            conf_file = os.path.join(root, filename)
+            filename = os.path.join(subpath, filename)
+            cfg["global"]["projects"][project][
+                "files"][filename] = "not checked"
 
             with open(conf_file) as reader:
                 try:
-                    update=ordered_load(reader)
-                    update=check_conf(update,project,filename)
-                    cfg=deepupdate(cfg,update)
-                    cfg["global"]["projects"][project]["files"][filename]="yaml is ok"
+                    update = ordered_load(reader)
+                    update = check_conf(update, project, filename)
+                    cfg = deepupdate(cfg, update)
+                    cfg["global"]["projects"][project][
+                        "files"][filename] = "yaml is ok"
                 except:
-                    cfg["global"]["projects"][project]["files"][filename]="yaml is ko - "+err()
+                    cfg["global"]["projects"][project]["files"][
+                        filename] = "yaml is ko - " + err()
     return cfg
 
+
+class Configured(object):
+
+    def __init__(self, family=None, name=None):
+        self.name = name
+        self.family = family
+        try:
+            self.conf = conf[family][name]
+        except:
+            sys.exit("Ooops: {} not found in {} conf".format(
+                self.name, self.family))

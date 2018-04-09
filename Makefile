@@ -24,6 +24,13 @@ export DC_FILE=${DC_DIR}/docker-compose
 export DC_PREFIX=matchid
 export DC_NETWORK=matchid
 
+export API_SECRET_KEY:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//')
+export ADMIN_PASSWORD:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//' )
+export ADMIN_PASSWORD_HASH:=$(shell echo -n ${ADMIN_PASSWORD} | sha384sum | sed 's/\s*\-.*//')
+
+export CRED_TEMPLATE=./creds.yml
+export CRED_FILE=conf/security/creds.yml
+
 # elasticsearch defaut configuration
 ES_NODES := 3		# elasticsearch number of nodes
 ES_MEM := 1024m		# elasticsearch : memory of each node
@@ -44,6 +51,14 @@ vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262
 PG := 'postgres'
 DC := 'docker-compose'
 include /etc/os-release 
+
+
+
+register-secrets:
+ifeq ("$(wildcard ${CRED_FILE})","")
+	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
+	@envsubst < ${CRED_TEMPLATE} > ${CRED_FILE} 
+endif
 
 install-prerequisites:
 ifeq ("$(wildcard /usr/bin/docker)","")
@@ -130,7 +145,7 @@ postgres: network
 
 backend-stop:
 	${DC} down 
-backend: network
+backend: network register-secrets
 ifeq ("$(wildcard ${UPLOAD})","")
 	@sudo mkdir -p ${UPLOAD}
 endif
@@ -139,6 +154,11 @@ ifeq ("$(wildcard ${PROJECTS})","")
 endif
 ifeq ("$(wildcard ${MODELS})","")
 	@sudo mkdir -p ${PROJECTS}
+endif
+ifneq "$(commit)" "$(lastcommit)"
+	@echo building matchID backend after new commit
+	${DC} build
+	@echo "${commit}" > ${BACKEND}/.lastcommit	
 endif
 ifeq ("$(wildcard docker-compose-local.yml)","")
 	${DC} up -d

@@ -1,0 +1,10 @@
+global:
+  api:
+    secret_key: '${API_SECRET_KEY}'
+
+users:
+  admin:
+    password: '${ADMIN_PASSWORD_HASH}'
+    groups:
+      - admin
+
