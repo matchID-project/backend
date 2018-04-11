@@ -78,7 +78,7 @@ ifeq ("$(wildcard /usr/bin/docker)","")
 	sudo apt-get update 
 	sudo apt-get install -y docker-ce
 endif
-	@(if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER} ;fi) > /dev/null
+	@(if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER}; fi) > /dev/null
 ifeq ("$(wildcard /usr/local/bin/docker-compose)","")
 	@echo installing docker-compose
 	@sudo curl -L https://github.com/docker/compose/releases/download/1.19.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
@@ -112,23 +112,17 @@ ifeq ("$(vm_max_count)", "")
 endif
 
 elasticsearch: network vm_max
-ifeq ("$(wildcard ${BACKEND}/esdata/node)","")
-	sudo mkdir -p ${BACKEND}/esdata/node && sudo chmod 777 ${BACKEND}/esdata/node/.
-endif
-ifeq "$(ES_NODES)" "1"
-	${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml up --build -d
-else
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
-	@sudo mkdir -p ${BACKEND}/esdata/node1 && sudo chmod 777 ${BACKEND}/esdata/node1/.
-	@i=$(ES_NODES); while [ $${i} -gt 1 ]; do \
-		sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/. ; \
+	@(if [ ! -d ${BACKEND}/esdata/node1 ]; then sudo mkdir -p ${BACKEND}/esdata/node1 ; sudo chmod 777 ${BACKEND}/esdata/node1/.; fi)
+	@(i=$(ES_NODES); while [ $${i} -gt 1 ]; \
+		do \
+			if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/node$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/.); fi; \
 		cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" >> ${DC_FILE}-elasticsearch-huge.yml; \
 		i=`expr $$i - 1`; \
 	done;\
-	true
+	true)
 	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d 
-endif
 
 kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
