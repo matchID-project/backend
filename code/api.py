@@ -42,7 +42,7 @@ import uuid
 # api
 from flask import Flask, jsonify, Response, abort, request, g
 from flask.sessions import SecureCookieSessionInterface
-from flask_login import LoginManager, login_required, login_user, logout_user
+from flask_login import LoginManager, login_required, login_user, logout_user, current_user
 from flask_restplus import Resource, Api, reqparse
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
@@ -50,6 +50,7 @@ from werkzeug.wsgi import DispatcherMiddleware
 from werkzeug.contrib.fixers import ProxyFix
 from flask import make_response as original_flask_make_response
 from flask_oauth import OAuth
+from functools import wraps
 
 # matchID imports
 import parsers
@@ -84,6 +85,45 @@ auth.init_app(app)
 api = Api(app, version="0.1", title="matchID API",
           description="API for data matching developpement")
 app.config['APPLICATION_ROOT'] = config.conf["global"]["api"]["prefix"]
+
+
+def authorize(project, role):
+    def wrapper(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            config.read_conf()
+            if current_user is None:
+                api.abort(401)
+            if (check_rights(current_user, project, role) == False):
+                api.abort(401)
+            return f(*args, **kwargs)
+        return wrapped
+    return wrapper
+
+
+def check_rights(user, project, role):
+    user = user.name
+    test = [group for
+            group in config.conf["groups"] if check_rights_groups(group, user, project, role)]
+    return (len(test) > 0)
+
+
+def check_rights_groups(group, user, project, role):
+    group = Group(group)
+    try:
+        for p in ["_all", project]:
+            if (p in group.projects.keys()):
+                for u in ["_all", user]:
+                    if (role in group.projects[p].keys()):
+                        try:
+                            if (u in group.projects[p][role].keys()):
+                                return True
+                        except:
+                            if (u == group.projects[p][role]):
+                                return True
+    except:
+        pass
+    return False
 
 
 @auth.user_loader
