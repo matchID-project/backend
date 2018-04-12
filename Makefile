@@ -54,13 +54,21 @@ include /etc/os-release
 
 
 
-register-secrets:
+clean-secrets:
+	rm ${CRED_FILE}
+
+register-secrets: install-prerequisites
 ifeq ("$(wildcard ${CRED_FILE})","")
 	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
 	@envsubst < ${CRED_TEMPLATE} > ${CRED_FILE} 
 endif
 
 install-prerequisites:
+ifeq ("$(wildcard /usr/bin/envsubst)","")
+	sudo apt-get update 
+	sudo apt install -y gettext
+endif
+
 ifeq ("$(wildcard /usr/bin/docker)","")
 	echo install docker-ce, still to be tested
 	sudo apt-get update
