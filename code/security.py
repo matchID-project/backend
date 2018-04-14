@@ -30,10 +30,6 @@ class User(Configured):
             self.display_name = self.name
 
         try:
-            self.groups = self.conf["groups"]
-        except:
-            self.groups = []
-        try:
             self.password = self.conf["password"]
         except:
             self.password = None
