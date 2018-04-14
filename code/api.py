@@ -14,6 +14,7 @@ import shutil
 
 import traceback
 import json
+import yaml
 import itertools
 import time
 import operator
@@ -88,34 +89,29 @@ api = Api(app, version="0.1", title="matchID API",
 app.config['APPLICATION_ROOT'] = config.conf["global"]["api"]["prefix"]
 
 
-def authorize(project=None, dataset=None, recipe=None, right="read"):
+def authorize(override_project = None, force_dataset = None, force_recipe = None, right='read'):
     def wrapper(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
-            try:
-                project = kwargs['project']
-            except:
+            if (override_project != None):
+                project = override_project
+            else:
                 try:
-                    project
+                    project = kwargs['project']
                 except:
                     project = None
+
             try:
                 dataset = kwargs['dataset']
             except:
-                try:
-                    dataset
-                except:
-                    dataset = None
+                dataset = None
             try:
                 recipe = kwargs['recipe']
             except:
-                try:
-                    recipe
-                except:
-                    recipe = None
+                recipe = None
 
             config.read_conf()
-            # config.log.write(str([project, dataset, recipe, right]))
+            # config.log.write(str(["avant",project, dataset, recipe, right]))
             if current_user is None:
                 api.abort(401)
             if project is None:
@@ -132,7 +128,7 @@ def authorize(project=None, dataset=None, recipe=None, right="read"):
                         project = config.conf["datasets"][dataset]["project"]
                     except:
                         api.abort(401)
-            # config.log.write(str([project, dataset, recipe, right]))
+            # config.log.write(str(["apres",project, dataset, recipe, right]))
             if (check_rights(current_user, project, right) == False):
                 api.abort(401)
             return f(*args, **kwargs)
@@ -178,7 +174,7 @@ def load_user(name):
 class ListUsers(Resource):
 
     @login_required
-    @authorize(project="admin", right="read")
+    @authorize(override_project = "$admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
@@ -186,10 +182,10 @@ class ListUsers(Resource):
 
 
 @api.route('/groups/', endpoint='groups')
-class ListUsers(Resource):
+class ListGroups(Resource):
 
     @login_required
-    @authorize(project="admin", right="read")
+    @authorize(override_project = "$admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
@@ -197,10 +193,10 @@ class ListUsers(Resource):
 
 
 @api.route('/roles/', endpoint='roles')
-class ListUsers(Resource):
+class ListRoles(Resource):
 
     @login_required
-    @authorize(project="admin", right="read")
+    @authorize(override_project = "$admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
@@ -264,7 +260,7 @@ class Conf(Resource):
           - recipes'''
         try:
             config.read_conf()
-            if (check_rights(current_user, "admin", "read")):
+            if (check_rights(current_user, "$admin", "read")):
                 response = config.conf["global"]
             else:
                 response = {
