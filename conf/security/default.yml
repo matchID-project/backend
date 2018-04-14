@@ -1,9 +1,9 @@
 groups:
   admin:
-  projects:
-    _all:
-      admin: 
-        - admin
+    projects:
+      _all:
+        admin: 
+          admin
   conf:
     projects: 
       conf:
