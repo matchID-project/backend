@@ -370,6 +370,7 @@ class DirectoryConf(Resource):
             api.abort(403)
 
     @login_required
+    @authorize(override_project = '$create_projects', right = 'create')
     def put(self, project):
         '''create a project'''
         if (project == "conf"):
@@ -380,15 +381,30 @@ class DirectoryConf(Resource):
             try:
                 dirname = os.path.join(config.conf["global"][
                     "paths"]["projects"], project)
+                creds_file = os.path.join(dirname, 'creds.yml')
                 os.mkdir(dirname)
                 os.mkdir(os.path.join(dirname, 'recipes'))
                 os.mkdir(os.path.join(dirname, 'datasets'))
+                groups = {
+                            'groups': {
+                                str(project): {
+                                    'projects': {
+                                        str(project): {
+                                            'admin': str(current_user.name)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                with open(creds_file, 'w') as f:
+                    yaml.dump(groups, f)
                 config.read_conf()
                 return {"message": "{} successfully created".format(project)}
             except:
                 api.abort(400, err())
 
     @login_required
+    @authorize(right = 'delete')
     def delete(self, project):
         '''delete a project'''
         if (project == "conf"):
