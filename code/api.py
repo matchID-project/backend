@@ -80,6 +80,7 @@ auth = LoginManager()
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app)
 app.secret_key = config.conf["global"]["api"]["secret_key"]
+auth.session_protection = "strong"
 auth.init_app(app)
 
 api = Api(app, version="0.1", title="matchID API",
@@ -134,6 +135,8 @@ def load_user(name):
 @api.route('/users/', endpoint='users')
 class ListUsers(Resource):
 
+    @login_required
+    @authorize("conf", "admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
@@ -143,6 +146,8 @@ class ListUsers(Resource):
 @api.route('/groups/', endpoint='groups')
 class ListUsers(Resource):
 
+    @login_required
+    @authorize("conf", "admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
@@ -152,6 +157,8 @@ class ListUsers(Resource):
 @api.route('/roles/', endpoint='roles')
 class ListUsers(Resource):
 
+    @login_required
+    @authorize("conf", "admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
