@@ -13,6 +13,11 @@ class Group(Configured):
     def __init__(self, name=None):
         Configured.__init__(self, "groups", name)
 
+        try:
+            self.projects = self.conf["projects"]
+        except:
+            self.projects = {}
+
 
 class User(Configured):
 
@@ -24,10 +29,6 @@ class User(Configured):
         except:
             self.display_name = self.name
 
-        try:
-            self.groups = self.conf["groups"]
-        except:
-            self.groups = []
         try:
             self.password = self.conf["password"]
         except:
@@ -57,3 +58,11 @@ class Role(Configured):
 
     def __init__(self, name=None):
         Configured.__init__(self, "roles", name)
+
+        self.right = {}
+
+        for right in ["create", "read", "update", "delete"]:
+            try:
+                self.right[right] = self.conf[right]
+            except:
+                self.right[right] = False
