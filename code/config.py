@@ -7,19 +7,21 @@ from multiprocessing import Manager
 import os
 import fnmatch
 import sys
+import datetime
 
 # matchID imports
 from log import err
 
 
 def init():
-    global manager, jobs, inmemory, log, conf, levCache, jobs_list
+    global manager, jobs, inmemory, log, conf, levCache, jobs_list, conf_update
     manager = Manager()
     inmemory = {}
     jobs = {}
     jobs_list = manager.dict()
     levCache = {}
     log = None
+    conf_update = None
 
 
 def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict):
@@ -60,7 +62,14 @@ def check_conf(cfg, project, source):
 
 
 def read_conf():
-    global conf
+    global conf, conf_update
+    try:
+        elapsed = (datetime.datetime.now() - conf_update).seconds
+    except:
+        elapsed = 100
+    if (elapsed < 5):
+        return
+    conf_update = datetime.datetime.now()
     try:
         conf_dir = conf["global"]["conf"]
     except:
