@@ -2,12 +2,13 @@ groups:
   admin:
     projects:
       _all:
-        admin: 
+        admin:
           admin
   conf:
-    projects: 
+    projects:
       conf:
-        - _all: reader
+        reader: _all
+
 roles:
   admin:
     project: true
