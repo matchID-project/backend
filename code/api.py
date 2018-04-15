@@ -135,36 +135,6 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
         return wrapped
     return wrapper
 
-
-def check_rights(user, project, right):
-    user = user.name
-    test = [group for
-            group in config.conf["groups"] if check_rights_groups(group, user, project, right)]
-    return (len(test) > 0)
-
-
-def check_rights_groups(group, user, project, right):
-    group = Group(group)
-    try:
-        for p in ["_all", project]:
-            if (p in group.projects.keys()):
-                for u in ["_all", user]:
-                    for r in group.projects[p].keys():
-                        try:
-                            if (u in group.projects[p][r].keys()):
-                                r = Role(r)
-                                if r.right[right] == True:
-                                    return True
-                        except:
-                            if (u == group.projects[p][r]):
-                                r = Role(r)
-                                if r.right[right] == True:
-                                    return True
-    except:
-        config.log.write(err())
-    return False
-
-
 @auth.user_loader
 def load_user(name):
     return User(name)

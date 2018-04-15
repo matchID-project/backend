@@ -1,11 +1,12 @@
 groups:
-  admin:
+  default:
     projects:
       _all:
-        admin:
-          admin
-  conf:
-    projects:
+        admin: admin
+      $admin:
+        admin: admin
+      $create_projects:
+        admin: _all
       conf:
         reader: _all
 
