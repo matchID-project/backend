@@ -115,23 +115,17 @@ ifeq ("$(vm_max_count)", "")
 endif
 
 elasticsearch: network vm_max
-ifeq ("$(wildcard ${BACKEND}/esdata/node)","")
-	sudo mkdir -p ${BACKEND}/esdata/node && sudo chmod 777 ${BACKEND}/esdata/node/.
-endif
-ifeq "$(ES_NODES)" "1"
-	${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml up --build -d
-else
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
-	@sudo mkdir -p ${BACKEND}/esdata/node1 && sudo chmod 777 ${BACKEND}/esdata/node1/.
-	@i=$(ES_NODES); while [ $${i} -gt 1 ]; do \
-		sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/. ; \
+	@(if [ ! -d ${BACKEND}/esdata/node1 ]; then sudo mkdir -p ${BACKEND}/esdata/node1 ; sudo chmod 777 ${BACKEND}/esdata/node1/.; fi)
+	@(i=$(ES_NODES); while [ $${i} -gt 1 ]; \
+		do \
+			if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/node$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/.); fi; \
 		cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" >> ${DC_FILE}-elasticsearch-huge.yml; \
 		i=`expr $$i - 1`; \
 	done;\
-	true
+	true)
 	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d 
-endif
 
 kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
