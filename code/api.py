@@ -138,8 +138,10 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
 
 @auth.user_loader
 def load_user(name):
-    return User(name)
-
+    try:
+        return User(name)
+    except:
+        api.abort(401)
 
 @api.route('/users/', endpoint='users')
 class ListUsers(Resource):
