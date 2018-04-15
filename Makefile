@@ -8,7 +8,7 @@
 
 
 #matchID default exposition port
-export PORT=80
+export PORT=8081
 
 #matchID default paths
 export BACKEND := $(shell pwd)
