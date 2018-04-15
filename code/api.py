@@ -910,7 +910,6 @@ class jobsList(Resource):
     def get(self):
         '''retrieve jobs list
         '''
-        # response = jobs.keys()
         response = {"running": [], "done": []}
         authorized_recipes = [recipe for recipe in config.jobs_list.keys() if check_rights(current_user, config.conf["recipes"][recipe]["project"], "read")]
         for recipe in authorized_recipes:
