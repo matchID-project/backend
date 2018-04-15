@@ -147,12 +147,16 @@ def load_user(name):
 class ListUsers(Resource):
 
     @login_required
-    @authorize(override_project = "$admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
-        return config.conf["users"]
-
+        if (check_rights(current_user, "$admin", "read")):
+            return config.conf["users"]
+        else:
+            return {
+                "me": str(current_user.name),
+                "others": config.conf["users"].keys()
+            }
 
 @api.route('/groups/', endpoint='groups')
 class ListGroups(Resource):
