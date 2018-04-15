@@ -185,14 +185,14 @@ class login(Resource):
 
     @login_required
     def get(self):
-        return {"status": "logged in"}
+        return {"user": str(current_user.name)}
 
     def post(self):
         config.read_conf()
         try:
             if (config.conf["global"]["api"]["no_auth"] == True):
                 login_user(User("admin"))
-                return {"status": "logged in"}
+                return {"user": str(current_user.name)}
         except:
             pass
         try:
@@ -206,8 +206,8 @@ class login(Resource):
         try:
             u = User(user)
             if (u.check_password(password)):
-                login_user(u, remember=False)
-                return {"status": "logged in"}
+                login_user(u, remember=True)
+                return {"user": str(current_user.name)}
             else:
                 api.abort(403)
 
