@@ -1,13 +1,15 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
+
+import os
+import yaml
 import hashlib
 import config
 from config import Configured
 from tools import *
 from log import Log, err
-
-
+from api import app, api
 
 def check_rights(user, project, right):
     user = user.name
