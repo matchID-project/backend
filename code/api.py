@@ -14,6 +14,7 @@ import shutil
 
 import traceback
 import json
+import yaml
 import itertools
 import time
 import operator
@@ -42,7 +43,7 @@ import uuid
 # api
 from flask import Flask, jsonify, Response, abort, request, g
 from flask.sessions import SecureCookieSessionInterface
-from flask_login import LoginManager, login_required, login_user, logout_user
+from flask_login import LoginManager, login_required, login_user, logout_user, current_user
 from flask_restplus import Resource, Api, reqparse
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
@@ -50,6 +51,7 @@ from werkzeug.wsgi import DispatcherMiddleware
 from werkzeug.contrib.fixers import ProxyFix
 from flask import make_response as original_flask_make_response
 from flask_oauth import OAuth
+from functools import wraps
 
 # matchID imports
 import parsers
@@ -57,6 +59,7 @@ import config
 from tools import replace_dict
 from recipes import *
 from security import *
+from oauth import *
 from log import Log, err
 
 
@@ -79,6 +82,7 @@ auth = LoginManager()
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app)
 app.secret_key = config.conf["global"]["api"]["secret_key"]
+auth.session_protection = "strong"
 auth.init_app(app)
 
 api = Api(app, version="0.1", title="matchID API",
@@ -86,23 +90,79 @@ api = Api(app, version="0.1", title="matchID API",
 app.config['APPLICATION_ROOT'] = config.conf["global"]["api"]["prefix"]
 
 
+def authorize(override_project = None, force_dataset = None, force_recipe = None, right='read'):
+    def wrapper(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            if (override_project != None):
+                project = override_project
+            else:
+                try:
+                    project = kwargs['project']
+                except:
+                    project = None
+
+            try:
+                dataset = kwargs['dataset']
+            except:
+                dataset = None
+            try:
+                recipe = kwargs['recipe']
+            except:
+                recipe = None
+
+            config.read_conf()
+            # config.log.write(str(["avant",project, dataset, recipe, right]))
+            if current_user is None:
+                api.abort(401)
+            if project is None:
+                if dataset is None:
+                    if recipe is None:
+                        api.abort(401)
+                    else:
+                        try:
+                            project = config.conf["recipes"][recipe]["project"]
+                        except:
+                            api.abort(401)
+                else:
+                    try:
+                        project = config.conf["datasets"][dataset]["project"]
+                    except:
+                        api.abort(401)
+            # config.log.write(str(["apres",project, dataset, recipe, right]))
+            if (check_rights(current_user, project, right) == False):
+                api.abort(401)
+            return f(*args, **kwargs)
+        return wrapped
+    return wrapper
+
 @auth.user_loader
 def load_user(name):
-    return User(name)
-
+    try:
+        return User(name)
+    except:
+        api.abort(401)
 
 @api.route('/users/', endpoint='users')
 class ListUsers(Resource):
 
+    @login_required
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
-        return config.conf["users"]
-
+        if (check_rights(current_user, "$admin", "read")):
+            return config.conf["users"]
+        else:
+            return {
+                "me": str(current_user.name),
+                "others": config.conf["users"].keys()
+            }
 
 @api.route('/groups/', endpoint='groups')
-class ListUsers(Resource):
+class ListGroups(Resource):
 
+    @login_required
+    @authorize(override_project = "$admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
@@ -110,8 +170,10 @@ class ListUsers(Resource):
 
 
 @api.route('/roles/', endpoint='roles')
-class ListUsers(Resource):
+class ListRoles(Resource):
 
+    @login_required
+    @authorize(override_project = "$admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
@@ -123,13 +185,14 @@ class login(Resource):
 
     @login_required
     def get(self):
-        return {"status": "logged in"}
+        return {"user": str(current_user.name)}
 
     def post(self):
+        config.read_conf()
         try:
             if (config.conf["global"]["api"]["no_auth"] == True):
                 login_user(User("admin"))
-                return {"status": "logged in"}
+                return {"user": str(current_user.name)}
         except:
             pass
         try:
@@ -143,14 +206,36 @@ class login(Resource):
         try:
             u = User(user)
             if (u.check_password(password)):
-                login_user(u, remember=False)
-                return {"status": "logged in"}
+                login_user(u, remember=True)
+                return {"user": str(current_user.name)}
             else:
                 api.abort(403)
 
         except:
             api.abort(403)
 
+@api.route('/authorize/<provider>', endpoint='authorize/<provider>')
+class OAuthAuthorizeAPI(Resource):
+    def get(self, provider):
+        if not current_user.is_anonymous:
+            return {"status": "already signed in"}
+        oauth = OAuthSignIn.get_provider(provider)
+        return oauth.authorize()
+
+@api.route('/callback/<provider>', endpoint='callback/<provider>')
+class OAuthCallbackAPI(Resource):
+    def get(self, provider):
+        if not current_user.is_anonymous:
+            return {"status": "already signed in"}
+        oauth = OAuthSignIn.get_provider(provider)
+        social_id, username, email = oauth.callback()
+        if social_id is None:
+            flash('Authentication failed.')
+            return redirect(url_for('index'))
+
+        user = User(social_id=social_id, name=username, email=email, provider=provider)
+        login_user(user, True)
+        return redirect(config.conf['global']['frontend']['url'])
 
 @api.route("/logout/", endpoint='logout')
 class Logout(Resource):
@@ -174,9 +259,18 @@ class Conf(Resource):
           - recipes'''
         try:
             config.read_conf()
-            return config.conf["global"]
+            if (check_rights(current_user, "$admin", "read")):
+                response = config.conf["global"]
+            else:
+                response = {
+                    "projects": {project: config.conf["global"]["projects"][project]
+                                 for project in config.conf["global"]["projects"]
+                                 if (check_rights(current_user, project, "read"))
+                                 }
+                }
+            return response
         except:
-            return {"error": "problem while reading conf"}
+            return {"error": err()}
 
 
 @api.route('/upload/', endpoint='upload')
@@ -240,6 +334,7 @@ class actionFile(Resource):
 class DirectoryConf(Resource):
 
     @login_required
+    @authorize(right="read")
     def get(self, project):
         '''get configuration files of a project'''
         config.read_conf()
@@ -274,6 +369,7 @@ class DirectoryConf(Resource):
             api.abort(403)
 
     @login_required
+    @authorize(override_project = '$create_projects', right = 'create')
     def put(self, project):
         '''create a project'''
         if (project == "conf"):
@@ -284,15 +380,30 @@ class DirectoryConf(Resource):
             try:
                 dirname = os.path.join(config.conf["global"][
                     "paths"]["projects"], project)
+                creds_file = os.path.join(dirname, 'creds.yml')
                 os.mkdir(dirname)
                 os.mkdir(os.path.join(dirname, 'recipes'))
                 os.mkdir(os.path.join(dirname, 'datasets'))
+                groups = {
+                            'groups': {
+                                str(project): {
+                                    'projects': {
+                                        str(project): {
+                                            'admin': str(current_user.name)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                with open(creds_file, 'w') as f:
+                    yaml.dump(groups, f)
                 config.read_conf()
                 return {"message": "{} successfully created".format(project)}
             except:
                 api.abort(400, err())
 
     @login_required
+    @authorize(right = 'delete')
     def delete(self, project):
         '''delete a project'''
         if (project == "conf"):
@@ -396,13 +507,18 @@ class ListDatasets(Resource):
     def get(self):
         '''get json of all configured datasets'''
         config.read_conf()
-        return config.conf["datasets"]
+        response = {dataset: config.conf["datasets"][dataset]
+                         for dataset in config.conf["datasets"]
+                         if (check_rights(current_user, config.conf["datasets"][dataset]["project"], "read"))
+                         }
+        return response
 
 
 @api.route('/datasets/<dataset>/', endpoint='datasets/<dataset>')
 class DatasetApi(Resource):
 
     @login_required
+    @authorize()
     def get(self, dataset):
         '''get json of a configured dataset'''
         config.read_conf()
@@ -421,6 +537,7 @@ class DatasetApi(Resource):
             api.abort(404)
 
     @login_required
+    @authorize()
     def post(self, dataset):
         '''get sample of a configured dataset, number of rows being configured in connector.samples'''
         ds = Dataset(dataset)
@@ -447,6 +564,7 @@ class DatasetApi(Resource):
                 return {"data": [{"error": "error: {} {}".format(error, ds.table)}]}
 
     @login_required
+    @authorize(right="delete")
     def delete(self, dataset):
         '''delete the content of a dataset (currently only working on elasticsearch datasets)'''
         ds = Dataset(dataset)
@@ -470,6 +588,7 @@ class DatasetApi(Resource):
 class pushToValidation(Resource):
 
     @login_required
+    @authorize()
     def get(self, dataset, action):
         '''alternative way to get text/yaml source code including the dataset'''
         if (action == "yaml"):
@@ -484,6 +603,7 @@ class pushToValidation(Resource):
                 api.abort(503, {"error": err()})
 
     @login_required
+    @authorize(right="update")
     def put(self, dataset, action):
         '''action = validation : configure the frontend to point to this dataset'''
         import config
@@ -552,6 +672,7 @@ class pushToValidation(Resource):
             api.abort(404)
 
     @login_required
+    @authorize()
     @api.expect(parsers.live_parser)
     def post(self, dataset, action):
         '''direct search into the dataset'''
@@ -590,6 +711,7 @@ class pushToValidation(Resource):
 class pushToValidation(Resource):
 
     @login_required
+    @authorize(right="update")
     @api.expect(parsers.live_parser)
     def post(self, dataset, doc_type, id, action):
         '''elasticsearch update api proxy'''
@@ -621,13 +743,18 @@ class ListRecipes(Resource):
     @login_required
     def get(self):
         '''get json of all configured recipes'''
-        return config.conf["recipes"]
+        response = {recipe: config.conf["recipes"][recipe]
+                         for recipe in config.conf["recipes"]
+                         if (check_rights(current_user, config.conf["recipes"][recipe]["project"], "read"))
+                         }
+        return response
 
 
 @api.route('/recipes/<recipe>/', endpoint='recipes/<recipe>')
 class RecipeApi(Resource):
 
     @login_required
+    @authorize()
     def get(self, recipe):
         '''get json of a configured recipe'''
         try:
@@ -640,6 +767,7 @@ class RecipeApi(Resource):
 class RecipeRun(Resource):
 
     @login_required
+    @authorize()
     def get(self, recipe, action):
         '''retrieve information on a recipe
         ** action ** possible values are :
@@ -691,6 +819,7 @@ class RecipeRun(Resource):
         api.abort(403)
 
     @login_required
+    @authorize(right="update")
     @api.expect(parsers.live_parser)
     def post(self, recipe, action):
         '''apply recipe on posted data
@@ -718,6 +847,7 @@ class RecipeRun(Resource):
                 return {"log": r.log.writer.getvalue()}
 
     @login_required
+    @authorize(right="update")
     def put(self, recipe, action):
         '''test, run or stop recipe
         ** action ** possible values are :
@@ -784,9 +914,9 @@ class jobsList(Resource):
     def get(self):
         '''retrieve jobs list
         '''
-        # response = jobs.keys()
         response = {"running": [], "done": []}
-        for recipe in config.jobs_list.keys():
+        authorized_recipes = [recipe for recipe in config.jobs_list.keys() if check_rights(current_user, config.conf["recipes"][recipe]["project"], "read")]
+        for recipe in authorized_recipes:
             # logfile = config.jobs[recipe].job.log.file
             logfile = config.jobs_list[recipe]["log"]
             # status = job.job_status()
@@ -812,21 +942,22 @@ class jobsList(Resource):
             date = re.sub(
                 r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", file)
             if (recipe in config.conf["recipes"].keys()):
-                try:
-                    if (response["running"][recipe]["date"] != date):
+                if (check_rights(current_user, config.conf["recipes"][recipe]["project"], "read")):
+                    try:
+                        if (response["running"][recipe]["date"] != date):
+                            try:
+                                response["done"].append(
+                                    {"recipe": recipe, "date": date, "file": file})
+                            except:
+                                response["done"] = [
+                                    {"recipe": recipe, "date": date, "file": file}]
+                    except:
                         try:
                             response["done"].append(
                                 {"recipe": recipe, "date": date, "file": file})
                         except:
                             response["done"] = [
                                 {"recipe": recipe, "date": date, "file": file}]
-                except:
-                    try:
-                        response["done"].append(
-                            {"recipe": recipe, "date": date, "file": file})
-                    except:
-                        response["done"] = [
-                            {"recipe": recipe, "date": date, "file": file}]
 
         return response
 

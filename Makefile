@@ -8,7 +8,7 @@
 
 
 #matchID default exposition port
-export PORT=80
+export PORT=8081
 
 #matchID default paths
 export BACKEND := $(shell pwd)
@@ -64,6 +64,11 @@ ifeq ("$(wildcard ${CRED_FILE})","")
 endif
 
 install-prerequisites:
+ifeq ("$(wildcard /usr/bin/envsubst)","")
+	sudo apt-get update 
+	sudo apt install -y gettext
+endif
+
 ifeq ("$(wildcard /usr/bin/docker)","")
 	echo install docker-ce, still to be tested
 	sudo apt-get update
@@ -81,7 +86,7 @@ ifeq ("$(wildcard /usr/bin/docker)","")
 	sudo apt-get update 
 	sudo apt-get install -y docker-ce
 endif
-	@(if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER} ;fi) > /dev/null
+	@(if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER}; fi) > /dev/null
 ifeq ("$(wildcard /usr/local/bin/docker-compose)","")
 	@echo installing docker-compose
 	@sudo curl -L https://github.com/docker/compose/releases/download/1.19.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose

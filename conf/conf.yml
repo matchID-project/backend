@@ -1,4 +1,6 @@
 global:
+  frontend:
+    url: '/matchID/'
   api:
     no_auth: False
     prefix: /matchID/api/v0
@@ -7,7 +9,7 @@ global:
     domain: '' 
     host: 0.0.0.0
     use_reloader: True
-    processes: 1
+    processes: 3
     debug: True
   threads_by_job: 2
   write_queue_length: 100

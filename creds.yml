@@ -1,10 +1,19 @@
 global:
   api:
     secret_key: '${API_SECRET_KEY}'
+    oauth:
+      facebook:
+        id: None
+        secret: None
+      twitter:
+        id: None
+        secret: None
+      github:
+        # default matchID project OAuth creds for local app (callback to localhost:8081 needed)
+        id: fd8e86cc09d3f9607e16
+        secret: 203010f81158d3ceab0297a213e80bc0fbfe7f8e
 
 users:
   admin:
     password: '${ADMIN_PASSWORD_HASH}'
-    groups:
-      - admin
 
