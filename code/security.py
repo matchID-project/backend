@@ -86,6 +86,21 @@ class User(Configured):
         except:
             self.password = None
 
+        try:
+            self.email = self.conf["email"]
+        except:
+            self.email = email
+
+        try:
+            self.social_id = self.conf["social_id"]
+        except:
+            self.social_id = social_id
+
+        try:
+            self.social_provider = self.conf["social_provider"]
+        except:
+            self.social_provider = None
+
         self.auth = False
         self.active = False
         self.anonymous = False
