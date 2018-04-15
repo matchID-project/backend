@@ -210,6 +210,28 @@ class login(Resource):
         except:
             api.abort(403)
 
+@api.route('/authorize/<provider>', endpoint='authorize/<provider>')
+class OAuthAuthorizeAPI(Resource):
+    def get(self, provider):
+        if not current_user.is_anonymous:
+            return {"status": "already signed in"}
+        oauth = OAuthSignIn.get_provider(provider)
+        return oauth.authorize()
+
+@api.route('/callback/<provider>', endpoint='callback/<provider>')
+class OAuthCallbackAPI(Resource):
+    def get(self, provider):
+        if not current_user.is_anonymous:
+            return {"status": "already signed in"}
+        oauth = OAuthSignIn.get_provider(provider)
+        social_id, username, email = oauth.callback()
+        if social_id is None:
+            flash('Authentication failed.')
+            return redirect(url_for('index'))
+
+        user = User(social_id=social_id, name=username, email=email, provider=provider)
+        login_user(user, True)
+        return redirect(config.conf['global']['frontend']['url'])
 
 @api.route("/logout/", endpoint='logout')
 class Logout(Resource):
