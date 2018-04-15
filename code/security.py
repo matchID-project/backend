@@ -53,8 +53,28 @@ class Group(Configured):
 
 class User(Configured):
 
-    def __init__(self, name=None):
-        Configured.__init__(self, "users", name)
+    def __init__(self, name=None, social_id=None, email=None, provider=None):
+        if social_id == None:
+            Configured.__init__(self, "users", name)
+        else:
+            try:
+                Configured.__init__(self, "users", name)
+            except:
+                self.name = name
+                creds_file = os.path.join(config.conf["global"][
+                    "paths"]["conf"], 'security', provider+'.yml')
+                u = {
+                            'users': {
+                                str(name): {
+                                    'social_id': social_id,
+                                    'provider': provider
+                                }
+                            }
+                        }
+                if email != None:
+                    u['users'][str(name)]['email'] = email
+                with open(creds_file, 'w') as f:
+                    yaml.dump(u, f)
 
         try:
             self.display_name = self.conf["display_name"]
