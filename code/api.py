@@ -59,6 +59,7 @@ import config
 from tools import replace_dict
 from recipes import *
 from security import *
+from oauth import *
 from log import Log, err
 
 
@@ -137,19 +138,25 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
 
 @auth.user_loader
 def load_user(name):
-    return User(name)
-
+    try:
+        return User(name)
+    except:
+        api.abort(401)
 
 @api.route('/users/', endpoint='users')
 class ListUsers(Resource):
 
     @login_required
-    @authorize(override_project = "$admin")
     def get(self):
         '''get json of all configured users'''
         config.read_conf()
-        return config.conf["users"]
-
+        if (check_rights(current_user, "$admin", "read")):
+            return config.conf["users"]
+        else:
+            return {
+                "me": str(current_user.name),
+                "others": config.conf["users"].keys()
+            }
 
 @api.route('/groups/', endpoint='groups')
 class ListGroups(Resource):
@@ -178,14 +185,14 @@ class login(Resource):
 
     @login_required
     def get(self):
-        return {"status": "logged in"}
+        return {"user": str(current_user.name)}
 
     def post(self):
         config.read_conf()
         try:
             if (config.conf["global"]["api"]["no_auth"] == True):
                 login_user(User("admin"))
-                return {"status": "logged in"}
+                return {"user": str(current_user.name)}
         except:
             pass
         try:
@@ -199,14 +206,36 @@ class login(Resource):
         try:
             u = User(user)
             if (u.check_password(password)):
-                login_user(u, remember=False)
-                return {"status": "logged in"}
+                login_user(u, remember=True)
+                return {"user": str(current_user.name)}
             else:
                 api.abort(403)
 
         except:
             api.abort(403)
 
+@api.route('/authorize/<provider>', endpoint='authorize/<provider>')
+class OAuthAuthorizeAPI(Resource):
+    def get(self, provider):
+        if not current_user.is_anonymous:
+            return {"status": "already signed in"}
+        oauth = OAuthSignIn.get_provider(provider)
+        return oauth.authorize()
+
+@api.route('/callback/<provider>', endpoint='callback/<provider>')
+class OAuthCallbackAPI(Resource):
+    def get(self, provider):
+        if not current_user.is_anonymous:
+            return {"status": "already signed in"}
+        oauth = OAuthSignIn.get_provider(provider)
+        social_id, username, email = oauth.callback()
+        if social_id is None:
+            flash('Authentication failed.')
+            return redirect(url_for('index'))
+
+        user = User(social_id=social_id, name=username, email=email, provider=provider)
+        login_user(user, True)
+        return redirect(config.conf['global']['frontend']['url'])
 
 @api.route("/logout/", endpoint='logout')
 class Logout(Resource):
@@ -885,7 +914,6 @@ class jobsList(Resource):
     def get(self):
         '''retrieve jobs list
         '''
-        # response = jobs.keys()
         response = {"running": [], "done": []}
         authorized_recipes = [recipe for recipe in config.jobs_list.keys() if check_rights(current_user, config.conf["recipes"][recipe]["project"], "read")]
         for recipe in authorized_recipes:
