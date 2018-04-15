@@ -1,4 +1,6 @@
 global:
+  frontend:
+    url: '/matchID/'
   api:
     no_auth: False
     prefix: /matchID/api/v0
