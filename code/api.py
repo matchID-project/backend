@@ -59,6 +59,7 @@ import config
 from tools import replace_dict
 from recipes import *
 from security import *
+from oauth import *
 from log import Log, err
 
 
