@@ -234,7 +234,6 @@ class OAuthCallbackAPI(Resource):
         oauth = OAuthSignIn.get_provider(provider)
         social_id, username, email = oauth.callback()
         if social_id is None:
-            config.log.write([social_id, username, email])
             api.abort(401)
         user = User(social_id=social_id, name=username, email=email, provider=provider)
         login_user(user, True)

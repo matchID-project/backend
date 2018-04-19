@@ -76,7 +76,7 @@ class User(Configured):
                 if email != None:
                     u['users'][str(name)]['email'] = str(email)
                 with open(creds_file, 'w') as f:
-                    yaml.dump(json.loads(json.dumps(u)), f, encoding = 'utf-8', default_flow_style=False, allow_unicode=True)
+                    yaml.dump(yaml.safe_load(json.dumps(u)), f)
 
         try:
             self.display_name = self.conf["display_name"]
