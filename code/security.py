@@ -73,7 +73,7 @@ class User(Configured):
                         }
                 if email != None:
                     u['users'][str(name)]['email'] = str(email)
-                with open(creds_file, 'w') as f:
+                with open(creds_file, 'a') as f:
                     yaml.dump(u, f)
 
         try:
