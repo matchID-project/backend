@@ -67,7 +67,7 @@ class User(Configured):
                             'users': {
                                 str(name): {
                                     'social_id': social_id,
-                                    'provider': provider
+                                    'provider': str(provider)
                                 }
                             }
                         }
