@@ -4,6 +4,7 @@
 
 import os
 import yaml
+import json
 import hashlib
 import config
 from config import Configured
@@ -63,18 +64,19 @@ class User(Configured):
                 self.name = name
                 creds_file = os.path.join(config.conf["global"][
                     "paths"]["conf"], 'security', provider+'.yml')
-                u = {
-                            'users': {
-                                str(name): {
+                u = { 'users': { user: config.conf["users"][user]
+                                 for user in config.conf["users"]
+                                 if (('provider' in config.conf["users"][user].keys()) and (config.conf["users"][user]['provider'] == provider))
+                                 }
+                    }
+                u['users'][str(name)] = {
                                     'social_id': social_id,
                                     'provider': str(provider)
                                 }
-                            }
-                        }
                 if email != None:
                     u['users'][str(name)]['email'] = str(email)
-                with open(creds_file, 'a') as f:
-                    yaml.dump(u, f)
+                with open(creds_file, 'w') as f:
+                    yaml.dump(json.loads(json.dumps(u)), f, encoding = 'utf-8', default_flow_style=False, allow_unicode=True)
 
         try:
             self.display_name = self.conf["display_name"]
