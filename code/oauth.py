@@ -135,7 +135,7 @@ class GithubSignIn(OAuthSignIn):
         oauth_session = self.service.get_auth_session(
             data={'code': request.args['code'],
                   'grant_type': 'authorization_code',
-                  'redirect_uri': self.get_callback_url()}
+                  'redirect_uri': self.get_callback_url()},
         )
         me = oauth_session.get('user').json()
         config.log.write(me['login'])
