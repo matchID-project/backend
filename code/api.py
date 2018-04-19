@@ -148,7 +148,7 @@ class ListUsers(Resource):
 
     @login_required
     def get(self):
-        '''get json of all configured users'''
+        '''get list of all configured users'''
         config.read_conf()
         if (check_rights(current_user, "$admin", "read")):
             return config.conf["users"]
@@ -164,7 +164,7 @@ class ListGroups(Resource):
     @login_required
     @authorize(override_project = "$admin")
     def get(self):
-        '''get json of all configured users'''
+        '''get all groups'''
         config.read_conf()
         return config.conf["groups"]
 
@@ -175,7 +175,7 @@ class ListRoles(Resource):
     @login_required
     @authorize(override_project = "$admin")
     def get(self):
-        '''get json of all configured users'''
+        '''get all roles'''
         config.read_conf()
         return config.conf["roles"]
 
@@ -185,9 +185,11 @@ class login(Resource):
 
     @login_required
     def get(self):
+        '''return current user if logged'''
         return {"user": str(current_user.name)}
 
     def post(self):
+        '''login api with user and hash'''
         config.read_conf()
         try:
             if (config.conf["global"]["api"]["no_auth"] == True):
@@ -217,22 +219,23 @@ class login(Resource):
 @api.route('/authorize/<provider>', endpoint='authorize/<provider>')
 class OAuthAuthorizeAPI(Resource):
     def get(self, provider):
+        '''authorize api for OAuth protocol'''
         if not current_user.is_anonymous:
-            return {"status": "already signed in"}
+            return {"user": str(current_user.name), "status": "already signed in"}
         oauth = OAuthSignIn.get_provider(provider)
         return oauth.authorize()
 
 @api.route('/callback/<provider>', endpoint='callback/<provider>')
 class OAuthCallbackAPI(Resource):
     def get(self, provider):
+        '''callback api for OAuth protocol'''
         if not current_user.is_anonymous:
-            return {"status": "already signed in"}
+            return {"user": str(current_user.name), "status": "already signed in"}
         oauth = OAuthSignIn.get_provider(provider)
         social_id, username, email = oauth.callback()
         if social_id is None:
-            flash('Authentication failed.')
-            return redirect(url_for('index'))
-
+            config.log.write([social_id, username, email])
+            api.abort(401)
         user = User(social_id=social_id, name=username, email=email, provider=provider)
         login_user(user, True)
         return redirect(config.conf['global']['frontend']['url'])
@@ -242,6 +245,7 @@ class Logout(Resource):
 
     @login_required
     def post(self):
+        '''logout current user'''
         logout_user()
         return {"status": "logged out"}
 
