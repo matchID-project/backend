@@ -61,22 +61,20 @@ class User(Configured):
             try:
                 Configured.__init__(self, "users", name)
             except:
-                self.name = name
+                self.name = str(name)
+                u = {'social_id': str(social_id), 'provider': str(provider)}
+                config.conf['users'][self.name] = u
+                if email != None:
+                    u['email'] = str(email)
                 creds_file = os.path.join(config.conf["global"][
                     "paths"]["conf"], 'security', provider+'.yml')
-                u = { 'users': { user: config.conf["users"][user]
+                provider_users = { 'users': { user: config.conf["users"][user]
                                  for user in config.conf["users"]
                                  if (('provider' in config.conf["users"][user].keys()) and (config.conf["users"][user]['provider'] == provider))
                                  }
                     }
-                u['users'][str(name)] = {
-                                    'social_id': social_id,
-                                    'provider': str(provider)
-                                }
-                if email != None:
-                    u['users'][str(name)]['email'] = str(email)
                 with open(creds_file, 'w') as f:
-                    yaml.dump(yaml.safe_load(json.dumps(u)), f)
+                    yaml.dump(yaml.safe_load(json.dumps(provider_users)), f)
 
         try:
             self.display_name = self.conf["display_name"]
@@ -99,9 +97,9 @@ class User(Configured):
             self.social_id = social_id
 
         try:
-            self.social_provider = self.conf["social_provider"]
+            self.provider = self.conf["provider"]
         except:
-            self.social_provider = None
+            self.provider = None
 
         self.auth = False
         self.active = False
