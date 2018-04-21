@@ -81,7 +81,7 @@ auth = LoginManager()
 
 app = Flask(__name__)
 try:
-    app.config['LOGIN_DISABLED'] = app.secret_key = config.conf["global"]["api"]["no_auth"]
+    app.config['LOGIN_DISABLED'] = config.conf["global"]["api"]["no_auth"]
 except:
     pass
 
