@@ -80,6 +80,11 @@ config.read_conf()
 auth = LoginManager()
 
 app = Flask(__name__)
+try:
+    app.config['LOGIN_DISABLED'] = config.conf["global"]["api"]["no_auth"]
+except:
+    pass
+
 app.wsgi_app = ProxyFix(app.wsgi_app)
 app.secret_key = config.conf["global"]["api"]["secret_key"]
 auth.session_protection = "strong"
@@ -93,6 +98,11 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
     def wrapper(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
+            try:
+                if config.conf["global"]["api"]["no_auth"] == True:
+                    return f(*args, **kwargs)
+            except:
+                pass
             if (override_project != None):
                 project = override_project
             else:
@@ -111,7 +121,6 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
                 recipe = None
 
             config.read_conf()
-            # config.log.write(str(["avant",project, dataset, recipe, right]))
             if current_user is None:
                 api.abort(401)
             if project is None:
@@ -128,7 +137,6 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
                         project = config.conf["datasets"][dataset]["project"]
                     except:
                         api.abort(401)
-            # config.log.write(str(["apres",project, dataset, recipe, right]))
             if (check_rights(current_user, project, right) == False):
                 api.abort(401)
             return f(*args, **kwargs)
@@ -185,7 +193,14 @@ class login(Resource):
     @login_required
     def get(self):
         '''return current user if logged'''
-        return {"user": str(current_user.name)}
+        try:
+            return {"user": str(current_user.name)}
+        except:
+            try:
+                if config.conf["global"]["api"]["no_auth"] == True:
+                    login_user(User("admin"), remember=True)
+            except:
+                api.abort(401)
 
     def post(self):
         '''login api with user and hash'''
@@ -975,7 +990,10 @@ class jobsList(Resource):
 
 if __name__ == '__main__':
     config.read_conf()
-    app.config['DEBUG'] = config.conf["global"]["api"]["debug"]
+    try:
+        app.config['DEBUG'] = config.conf["global"]["api"]["debug"]
+    except:
+        pass
 
     config.log = Log("main")
 
