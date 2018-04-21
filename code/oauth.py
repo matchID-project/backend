@@ -12,9 +12,13 @@ class OAuthSignIn(object):
 
     def __init__(self, provider_name):
         self.provider_name = provider_name
-        credentials = config.conf['global']['api']['oauth'][provider_name]
-        self.consumer_id = credentials['id']
-        self.consumer_secret = credentials['secret']
+        try:
+            credentials = config.conf['global']['api']['oauth'][provider_name]
+            self.consumer_id = credentials['id']
+            self.consumer_secret = credentials['secret']
+        except:
+            self.consumer_id = None
+            self.consumer_secret = None
 
     def authorize(self):
         pass

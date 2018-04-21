@@ -89,7 +89,6 @@ api = Api(app, version="0.1", title="matchID API",
           description="API for data matching developpement")
 app.config['APPLICATION_ROOT'] = config.conf["global"]["api"]["prefix"]
 
-
 def authorize(override_project = None, force_dataset = None, force_recipe = None, right='read'):
     def wrapper(f):
         @wraps(f)
