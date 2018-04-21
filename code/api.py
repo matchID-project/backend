@@ -189,11 +189,13 @@ class login(Resource):
     def get(self):
         '''return current user if logged'''
         try:
-            if config.conf["global"]["api"]["no_auth"] == True:
-                login_user(User("admin"), remember=True)
+            return {"user": str(current_user.name)}
         except:
-            pass
-        return {"user": str(current_user.name)}
+            try:
+                if config.conf["global"]["api"]["no_auth"] == True:
+                    login_user(User("admin"), remember=True)
+            except:
+                api.abort(401)
 
     def post(self):
         '''login api with user and hash'''
