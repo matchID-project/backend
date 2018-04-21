@@ -10,7 +10,8 @@ import config
 from config import Configured
 from tools import *
 from log import Log, err
-from api import app, api
+from flask_login import UserMixin
+from flask import current_app
 
 def check_rights(user, project, right):
     user = user.name
@@ -52,20 +53,22 @@ class Group(Configured):
             self.projects = {}
 
 
-class User(Configured):
+class User(Configured, UserMixin):
 
     def __init__(self, name=None, social_id=None, email=None, provider=None):
+        config.read_conf()
         if social_id == None:
             Configured.__init__(self, "users", name)
         else:
             try:
-                Configured.__init__(self, "users", name)
+                Configured.__init__(self, "users", str(name))
             except:
-                self.name = str(name)
-                u = {'social_id': str(social_id), 'provider': str(provider)}
-                config.conf['users'][self.name] = u
+                u = {'social_id': str(social_id), 'provider': str(provider), 'password': None}
                 if email != None:
                     u['email'] = str(email)
+                config.conf['users'][str(name)] = u
+                Configured.__init__(self, "users", str(name))
+
                 creds_file = os.path.join(config.conf["global"][
                     "paths"]["conf"], 'security', provider+'.yml')
                 provider_users = { 'users': { user: config.conf["users"][user]
@@ -101,25 +104,15 @@ class User(Configured):
         except:
             self.provider = None
 
-        self.auth = False
-        self.active = False
-        self.anonymous = False
 
     def check_password(self, password):
         return (self.password == password)
 
-    def is_authenticated(self):
-        return self.auth
-
-    def is_active(self):
-        return self.active
-
-    def is_anonymous(self):
-        return self.anonymous
-
     def get_id(self):
         return self.name
 
+    def get(self):
+        return self
 
 class Role(Configured):
 

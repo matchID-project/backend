@@ -41,9 +41,9 @@ import uuid
 # recipes
 
 # api
-from flask import Flask, jsonify, Response, abort, request, g
+from flask import Flask, current_app, jsonify, Response, abort, request, g
 from flask.sessions import SecureCookieSessionInterface
-from flask_login import LoginManager, login_required, login_user, logout_user, current_user
+from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from flask_restplus import Resource, Api, reqparse
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
@@ -88,7 +88,6 @@ auth.init_app(app)
 api = Api(app, version="0.1", title="matchID API",
           description="API for data matching developpement")
 app.config['APPLICATION_ROOT'] = config.conf["global"]["api"]["prefix"]
-
 
 def authorize(override_project = None, force_dataset = None, force_recipe = None, right='read'):
     def wrapper(f):
@@ -216,12 +215,20 @@ class login(Resource):
         except:
             api.abort(403)
 
+@api.route('/authorize/', endpoint='authorize')
+class OAuthList(Resource):
+    def get(self):
+        return {'providers': config.conf['global']['api']['oauth'].keys()}
+
 @api.route('/authorize/<provider>', endpoint='authorize/<provider>')
 class OAuthAuthorizeAPI(Resource):
     def get(self, provider):
         '''authorize api for OAuth protocol'''
-        if not current_user.is_anonymous:
-            return {"user": str(current_user.name), "status": "already signed in"}
+        try:
+            if (current_user.name != None):
+                return redirect(config.conf['global']['frontend']['url'])
+        except:
+            pass
         oauth = OAuthSignIn.get_provider(provider)
         return oauth.authorize()
 
@@ -229,14 +236,16 @@ class OAuthAuthorizeAPI(Resource):
 class OAuthCallbackAPI(Resource):
     def get(self, provider):
         '''callback api for OAuth protocol'''
-        if not current_user.is_anonymous:
-            return {"user": str(current_user.name), "status": "already signed in"}
+        try:
+            if (current_user.name != None):
+                return redirect(config.conf['global']['frontend']['url'])
+        except:
+            pass
         oauth = OAuthSignIn.get_provider(provider)
         social_id, username, email = oauth.callback()
         if social_id is None:
             api.abort(401)
-        user = User(social_id=social_id, name=username, email=email, provider=provider)
-        login_user(user, True)
+        login_user(User(name=str(username), social_id=social_id, email=email, provider=provider))
         return redirect(config.conf['global']['frontend']['url'])
 
 @api.route("/logout/", endpoint='logout')

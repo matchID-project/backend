@@ -12,9 +12,13 @@ class OAuthSignIn(object):
 
     def __init__(self, provider_name):
         self.provider_name = provider_name
-        credentials = config.conf['global']['api']['oauth'][provider_name]
-        self.consumer_id = credentials['id']
-        self.consumer_secret = credentials['secret']
+        try:
+            credentials = config.conf['global']['api']['oauth'][provider_name]
+            self.consumer_id = credentials['id']
+            self.consumer_secret = credentials['secret']
+        except:
+            self.consumer_id = None
+            self.consumer_secret = None
 
     def authorize(self):
         pass
@@ -114,7 +118,7 @@ class GithubSignIn(OAuthSignIn):
     def __init__(self):
         super(GithubSignIn, self).__init__('github')
         self.service = OAuth2Service(
-            name='facebook',
+            name='github',
             client_id=self.consumer_id,
             client_secret=self.consumer_secret,
             authorize_url='https://github.com/login/oauth/authorize',
@@ -127,7 +131,6 @@ class GithubSignIn(OAuthSignIn):
             scope='email',
             response_type='code',
             redirect_uri=self.get_callback_url())
-        config.log.write(response)
         return redirect(response)
     def callback(self):
         if 'code' not in request.args:
@@ -138,5 +141,4 @@ class GithubSignIn(OAuthSignIn):
                   'redirect_uri': self.get_callback_url()},
         )
         me = oauth_session.get('user').json()
-        config.log.write(me['login'])
         return me['id'], me['login'], me['email']
