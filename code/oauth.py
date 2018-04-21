@@ -118,7 +118,7 @@ class GithubSignIn(OAuthSignIn):
     def __init__(self):
         super(GithubSignIn, self).__init__('github')
         self.service = OAuth2Service(
-            name='facebook',
+            name='github',
             client_id=self.consumer_id,
             client_secret=self.consumer_secret,
             authorize_url='https://github.com/login/oauth/authorize',
