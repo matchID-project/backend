@@ -237,8 +237,11 @@ class OAuthAuthorizeAPI(Resource):
 class OAuthCallbackAPI(Resource):
     def get(self, provider):
         '''callback api for OAuth protocol'''
-        if not current_user.is_anonymous:
-            return {"user": str(current_user.name), "status": "already signed in"}
+        try:
+            if (current_user.name != None):
+                return redirect(config.conf['global']['frontend']['url'])
+        except:
+            pass
         oauth = OAuthSignIn.get_provider(provider)
         social_id, username, email = oauth.callback()
         if social_id is None:
