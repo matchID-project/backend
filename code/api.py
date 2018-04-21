@@ -246,8 +246,7 @@ class OAuthCallbackAPI(Resource):
         social_id, username, email = oauth.callback()
         if social_id is None:
             api.abort(401)
-        user = User(social_id=social_id, name=username, email=email, provider=provider)
-        login_user(user, True)
+        login_user(User(name=str(username), social_id=social_id, email=email, provider=provider))
         return redirect(config.conf['global']['frontend']['url'])
 
 @api.route("/logout/", endpoint='logout')
