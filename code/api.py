@@ -216,6 +216,11 @@ class login(Resource):
         except:
             api.abort(403)
 
+@api.route('/authorize/', endpoint='authorize')
+class OAuthList(Resource):
+    def get(self):
+        return {'providers': config.conf['global']['api']['oauth'].keys()}
+
 @api.route('/authorize/<provider>', endpoint='authorize/<provider>')
 class OAuthAuthorizeAPI(Resource):
     def get(self, provider):
