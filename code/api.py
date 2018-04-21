@@ -98,6 +98,11 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
     def wrapper(f):
         @wraps(f)
         def wrapped(*args, **kwargs):
+            try:
+                if config.conf["global"]["api"]["no_auth"] == True:
+                    return f(*args, **kwargs)
+            except:
+                pass
             if (override_project != None):
                 project = override_project
             else:

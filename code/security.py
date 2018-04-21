@@ -14,6 +14,11 @@ from flask_login import UserMixin
 from flask import current_app
 
 def check_rights(user, project, right):
+    try:
+        if config.conf["global"]["api"]["no_auth"] == True:
+            return True
+    except:
+        pass
     user = user.name
     test = [group for
             group in config.conf["groups"] if check_rights_groups(group, user, project, right)]
