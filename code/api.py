@@ -80,6 +80,11 @@ config.read_conf()
 auth = LoginManager()
 
 app = Flask(__name__)
+try:
+    app.config['LOGIN_DISABLED'] = app.secret_key = config.conf["global"]["api"]["no_auth"]
+except:
+    pass
+
 app.wsgi_app = ProxyFix(app.wsgi_app)
 app.secret_key = config.conf["global"]["api"]["secret_key"]
 auth.session_protection = "strong"
@@ -185,6 +190,11 @@ class login(Resource):
     @login_required
     def get(self):
         '''return current user if logged'''
+        try:
+            if config.conf["global"]["api"]["no_auth"] == True:
+                login_user(User("admin"), remember=True)
+        except:
+            pass
         return {"user": str(current_user.name)}
 
     def post(self):
@@ -975,7 +985,10 @@ class jobsList(Resource):
 
 if __name__ == '__main__':
     config.read_conf()
-    app.config['DEBUG'] = config.conf["global"]["api"]["debug"]
+    try:
+        app.config['DEBUG'] = config.conf["global"]["api"]["debug"]
+    except:
+        pass
 
     config.log = Log("main")
 

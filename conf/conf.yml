@@ -2,7 +2,7 @@ global:
   frontend:
     url: '/matchID/'
   api:
-    no_auth: False
+    no_auth: True
     prefix: /matchID/api/v0
     port: 8081
     es_proxy_path: '/matchID/api/v0/datasets' 
