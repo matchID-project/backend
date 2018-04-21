@@ -61,9 +61,12 @@ class Group(Configured):
 class User(Configured, UserMixin):
 
     def __init__(self, name=None, social_id=None, email=None, provider=None):
-        config.read_conf()
         if social_id == None:
-            Configured.__init__(self, "users", name)
+            try:
+                Configured.__init__(self, "users", name)
+            except:
+                config.read_conf()
+                Configured.__init__(self, "users", name)
         else:
             try:
                 Configured.__init__(self, "users", str(name))
