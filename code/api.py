@@ -116,7 +116,6 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
                 recipe = None
 
             config.read_conf()
-            # config.log.write(str(["avant",project, dataset, recipe, right]))
             if current_user is None:
                 api.abort(401)
             if project is None:
@@ -133,7 +132,6 @@ def authorize(override_project = None, force_dataset = None, force_recipe = None
                         project = config.conf["datasets"][dataset]["project"]
                     except:
                         api.abort(401)
-            # config.log.write(str(["apres",project, dataset, recipe, right]))
             if (check_rights(current_user, project, right) == False):
                 api.abort(401)
             return f(*args, **kwargs)
