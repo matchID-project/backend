@@ -225,8 +225,11 @@ class OAuthList(Resource):
 class OAuthAuthorizeAPI(Resource):
     def get(self, provider):
         '''authorize api for OAuth protocol'''
-        if not current_user.is_anonymous:
-            return {"user": str(current_user.name), "status": "already signed in"}
+        try:
+            if (current_user.name != None):
+                return redirect(config.conf['global']['frontend']['url'])
+        except:
+            pass
         oauth = OAuthSignIn.get_provider(provider)
         return oauth.authorize()
 
