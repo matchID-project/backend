@@ -127,7 +127,6 @@ class GithubSignIn(OAuthSignIn):
             scope='email',
             response_type='code',
             redirect_uri=self.get_callback_url())
-        config.log.write(response)
         return redirect(response)
     def callback(self):
         if 'code' not in request.args:
@@ -138,5 +137,4 @@ class GithubSignIn(OAuthSignIn):
                   'redirect_uri': self.get_callback_url()},
         )
         me = oauth_session.get('user').json()
-        config.log.write(me['login'])
         return me['id'], me['login'], me['email']
