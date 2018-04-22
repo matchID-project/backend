@@ -842,7 +842,7 @@ class RecipeRun(Resource):
                         response = f.read()
                         return Response(response, mimetype="text/plain")
                 except:
-                    api.abort(404, "no log found for this recipe")
+                    return Response("", mimetype="text/plain")
         api.abort(403)
 
     @login_required
