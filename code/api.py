@@ -7,6 +7,7 @@ import os
 import io
 import fnmatch
 import re
+import time
 import datetime
 import hashlib
 import unicodedata
@@ -815,7 +816,16 @@ class RecipeRun(Resource):
         if (action == "status"):
             # get status of job
             try:
-                return {"recipe": recipe, "status": config.jobs[str(recipe)].job_status()}
+                logfiles = [f
+                            for f in os.listdir(config.conf["global"]["log"]["dir"])
+                            if re.match(r'^.*-' + recipe + '.log$', f)]
+                logfiles.sort(reverse=True)
+                if (len(logfiles) == 0):
+                    return {"recipe": recipe, "status": "down"}
+                config.log.write(logfiles[0])
+                if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],logfiles[0])).st_mtime) < 5):
+                    return {"recipe": recipe, "status": "up"}
+                return {"recipe": recipe, "status": "down"}
                 # still bogus:
                 # return {"recipe":recipe, "status":
                 # config.jobs_list[str(recipe)]}
@@ -942,49 +952,27 @@ class jobsList(Resource):
         '''retrieve jobs list
         '''
         response = {"running": [], "done": []}
-        authorized_recipes = [recipe for recipe in config.jobs_list.keys() if check_rights(current_user, config.conf["recipes"][recipe]["project"], "read")]
-        for recipe in authorized_recipes:
-            # logfile = config.jobs[recipe].job.log.file
-            logfile = config.jobs_list[recipe]["log"]
-            # status = job.job_status()
-            config.jobs_list[recipe]["status"] = config.jobs[
-                str(recipe)].job_status()
-            status = config.jobs_list[recipe]["status"]
-
-            try:
-                if (status != "down"):
-                    response["running"].append({"recipe": recipe,
-                                                "file": re.sub(r".*/", "", logfile),
-                                                "date": re.sub(r".*/(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", logfile)
-                                                })
-            except:
-                response["running"] = [
-                    {"error": "while trying to get running jobs list"}]
         logfiles = [f
                     for f in os.listdir(config.conf["global"]["log"]["dir"])
                     if re.match(r'^.*.log$', f)]
         logfiles.sort(reverse=True)
         for file in logfiles:
+            if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) < 5):
+                running = True
+            else:
+                running = False
             recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
+
             date = re.sub(
                 r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", file)
             if (recipe in config.conf["recipes"].keys()):
                 if (check_rights(current_user, config.conf["recipes"][recipe]["project"], "read")):
-                    try:
-                        if (response["running"][recipe]["date"] != date):
-                            try:
-                                response["done"].append(
-                                    {"recipe": recipe, "date": date, "file": file})
-                            except:
-                                response["done"] = [
-                                    {"recipe": recipe, "date": date, "file": file}]
-                    except:
-                        try:
-                            response["done"].append(
-                                {"recipe": recipe, "date": date, "file": file})
-                        except:
-                            response["done"] = [
-                                {"recipe": recipe, "date": date, "file": file}]
+                    if running:
+                        response["running"].append(
+                            {"recipe": recipe, "date": date, "file": file})
+                    else:
+                        response["done"].append(
+                            {"recipe": recipe, "date": date, "file": file})
 
         return response
 
