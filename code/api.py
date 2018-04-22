@@ -822,7 +822,6 @@ class RecipeRun(Resource):
                 logfiles.sort(reverse=True)
                 if (len(logfiles) == 0):
                     return {"recipe": recipe, "status": "down"}
-                config.log.write(logfiles[0])
                 if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],logfiles[0])).st_mtime) < 5):
                     return {"recipe": recipe, "status": "up"}
                 return {"recipe": recipe, "status": "down"}
