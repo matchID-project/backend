@@ -991,6 +991,7 @@ if __name__ == '__main__':
 
     # Load a dummy app at the root URL to give 404 errors.
     # Serve app at APPLICATION_ROOT for localhost development.
+
     application = DispatcherMiddleware(Flask('dummy_app'), {
         app.config['APPLICATION_ROOT']: app,
     })
