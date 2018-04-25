@@ -50,6 +50,7 @@ services:
       - ${FRONTEND}/matchIdConfig:/matchid/matchIdConfig/
       - ${FRONTEND}/config:/matchid/config/
       - ${FRONTEND}/src:/matchid/src/
+      - ${FRONTEND}/static:/matchid/static/
       - ${FRONTEND}/build:/matchid/build/
 
 networks:
