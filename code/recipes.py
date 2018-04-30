@@ -186,6 +186,7 @@ class Dataset(Configured):
         except:
             if (self.name == "inmemory"):
                 self.connector = {"type": "inmemory", "chunk": 10000}
+                self.filter = None
                 return
             else:
                 log.write(error="no conf for dataset {}".format(self.name))
