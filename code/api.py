@@ -833,9 +833,8 @@ class RecipeRun(Resource):
             # get logs
             try:
                 # try if there is a current log
-                with open(config.jobs[recipe].log.file, 'r') as f:
-                    response = f.read()
-                    return Response(response, mimetype="text/plain")
+                file = config.jobs[recipe].log.file
+                open(file, 'r')
             except:
                 try:
                     # search for a previous log
@@ -844,13 +843,47 @@ class RecipeRun(Resource):
                     logfiles = [os.path.join(config.conf["global"]["log"]["dir"], f)
                                 for f in os.listdir(config.conf["global"]["log"]["dir"])
                                 if re.match(r'^.*-' + recipe + '.log$', f)]
-                    logfiles.sort()
-                    file = logfiles[-1]
+                    logfiles.sort(reverse=True)
+                    if (len(logfiles) == 0):
+                        return Response("", mimetype="text/event-stream")
+                    file = logfiles[0]
+                except:
+                    return Response("", mimetype="text/event-stream")
+            try:
+                if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) >= 5):
                     with open(file, 'r') as f:
                         response = f.read()
-                        return Response(response, mimetype="text/plain")
-                except:
-                    return Response("", mimetype="text/plain")
+                        # old log : return it full
+                        return Response(response, mimetype="text/event-stream")
+                    # return {"hop": "la"}
+                else:
+                    def tailLog(file):
+                        # method for tail -f file
+                        f = open(file,'r')
+                        yield 'retry: 3000\n'
+                        yield 'event: message\n' + re.sub("^", "data: ", f.read()[:-1], flags = re.M) + '\n\n'
+                        #Find the size of the file and move to the end
+                        st_results = os.stat(file)
+                        st_size = st_results[6]
+                        f.seek(st_size)
+                        wait = 0
+                        while wait < 5:
+                            where = f.tell()
+                            line = f.readline()
+                            if not line:
+                                wait += 1
+                                time.sleep(1)
+                                f.seek(where)
+                            else:
+                                wait = 0
+                                yield 'event: message\n'+'data: ' + line + '\n'
+
+                        yield 'event: close\ndata: end\n\n'
+                    response = Response(stream_with_context(tailLog(file)), mimetype = "text/event-stream")
+                    response.headers['X-Accel-Buffering'] = 'no'
+                    return response
+            except:
+                return Response(str(err()), mimetype="text/plain")
         api.abort(403)
 
     @login_required
