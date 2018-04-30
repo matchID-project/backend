@@ -9,8 +9,9 @@ global:
     domain: '' 
     host: 0.0.0.0
     use_reloader: True
-    processes: 3
-    debug: True
+    processes: 1
+    threaded: True
+    debug: Flase
   threads_by_job: 2
   write_queue_length: 100
   paths:
