@@ -27,7 +27,6 @@ from collections import deque
 
 
 # interact with datasets
-import gzip
 # from pandasql import sqldf
 import elasticsearch
 from elasticsearch import Elasticsearch, helpers
