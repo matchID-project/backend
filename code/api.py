@@ -42,7 +42,8 @@ import uuid
 # recipes
 
 # api
-from flask import Flask, current_app, jsonify, Response, abort, request, g
+from flask import Flask, current_app, jsonify, Response, abort, request, g, stream_with_context
+from flask_gzip import Gzip
 from flask.sessions import SecureCookieSessionInterface
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from flask_restplus import Resource, Api, reqparse
