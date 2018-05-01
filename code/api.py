@@ -800,7 +800,7 @@ class RecipeRun(Resource):
         ** action ** possible values are :
         - ** yaml ** : get text/yaml code including the recipe
         - ** status ** : get status (running or not) of a recipe
-        - ** log ** : get log of a running recipe'''
+        - ** log ** : stream log of running recipe, or returns last log'''
         if (action == "yaml"):
             try:
                 project = config.conf["recipes"][recipe]["project"]
