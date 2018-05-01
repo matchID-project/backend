@@ -800,7 +800,7 @@ class RecipeRun(Resource):
         ** action ** possible values are :
         - ** yaml ** : get text/yaml code including the recipe
         - ** status ** : get status (running or not) of a recipe
-        - ** log ** : get log of a running recipe'''
+        - ** log ** : stream log of running recipe, or returns last log'''
         if (action == "yaml"):
             try:
                 project = config.conf["recipes"][recipe]["project"]
@@ -845,16 +845,16 @@ class RecipeRun(Resource):
                                 if re.match(r'^.*-' + recipe + '.log$', f)]
                     logfiles.sort(reverse=True)
                     if (len(logfiles) == 0):
-                        return Response("", mimetype="text/event-stream")
+                        return Response("", mimetype="text/plain")
                     file = logfiles[0]
                 except:
-                    return Response("", mimetype="text/event-stream")
+                    return Response("", mimetype="text/plain")
             try:
                 if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) >= 5):
                     with open(file, 'r') as f:
                         response = f.read()
                         # old log : return it full
-                        return Response(response, mimetype="text/event-stream")
+                        return Response(response, mimetype="text/plain")
                     # return {"hop": "la"}
                 else:
                     def tailLog(file):
