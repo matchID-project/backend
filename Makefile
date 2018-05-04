@@ -65,8 +65,8 @@ endif
 
 install-prerequisites:
 ifeq ("$(wildcard /usr/bin/envsubst)","")
-	sudo apt-get update 
-	sudo apt install -y gettext
+	sudo apt-get update; true 
+	sudo apt install -y gettext; true
 endif
 
 ifeq ("$(wildcard /usr/bin/docker)","")
