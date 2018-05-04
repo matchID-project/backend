@@ -27,7 +27,6 @@ from collections import deque
 
 
 # interact with datasets
-import gzip
 # from pandasql import sqldf
 import elasticsearch
 from elasticsearch import Elasticsearch, helpers
@@ -42,7 +41,7 @@ import uuid
 # recipes
 
 # api
-from flask import Flask, current_app, jsonify, Response, abort, request, g
+from flask import Flask, current_app, jsonify, Response, abort, request, g, stream_with_context
 from flask.sessions import SecureCookieSessionInterface
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
 from flask_restplus import Resource, Api, reqparse
@@ -801,7 +800,7 @@ class RecipeRun(Resource):
         ** action ** possible values are :
         - ** yaml ** : get text/yaml code including the recipe
         - ** status ** : get status (running or not) of a recipe
-        - ** log ** : get log of a running recipe'''
+        - ** log ** : stream log of running recipe, or returns last log'''
         if (action == "yaml"):
             try:
                 project = config.conf["recipes"][recipe]["project"]
@@ -834,9 +833,8 @@ class RecipeRun(Resource):
             # get logs
             try:
                 # try if there is a current log
-                with open(config.jobs[recipe].log.file, 'r') as f:
-                    response = f.read()
-                    return Response(response, mimetype="text/plain")
+                file = config.jobs[recipe].log.file
+                open(file, 'r')
             except:
                 try:
                     # search for a previous log
@@ -845,13 +843,47 @@ class RecipeRun(Resource):
                     logfiles = [os.path.join(config.conf["global"]["log"]["dir"], f)
                                 for f in os.listdir(config.conf["global"]["log"]["dir"])
                                 if re.match(r'^.*-' + recipe + '.log$', f)]
-                    logfiles.sort()
-                    file = logfiles[-1]
-                    with open(file, 'r') as f:
-                        response = f.read()
-                        return Response(response, mimetype="text/plain")
+                    logfiles.sort(reverse=True)
+                    if (len(logfiles) == 0):
+                        return Response("", mimetype="text/plain")
+                    file = logfiles[0]
                 except:
                     return Response("", mimetype="text/plain")
+            try:
+                if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) >= 5):
+                    with open(file, 'r') as f:
+                        response = f.read()
+                        # old log : return it full
+                        return Response(response, mimetype="text/plain")
+                    # return {"hop": "la"}
+                else:
+                    def tailLog(file):
+                        # method for tail -f file
+                        f = open(file,'r')
+                        yield 'retry: 3000\n'
+                        yield 'event: message\n' + re.sub("^", "data: ", f.read()[:-1], flags = re.M) + '\n\n'
+                        #Find the size of the file and move to the end
+                        st_results = os.stat(file)
+                        st_size = st_results[6]
+                        f.seek(st_size)
+                        wait = 0
+                        while wait < 5:
+                            where = f.tell()
+                            line = f.readline()
+                            if not line:
+                                wait += 1
+                                time.sleep(1)
+                                f.seek(where)
+                            else:
+                                wait = 0
+                                yield 'event: message\n'+'data: ' + line + '\n'
+
+                        yield 'event: close\ndata: end\n\n'
+                    response = Response(stream_with_context(tailLog(file)), mimetype = "text/event-stream")
+                    response.headers['X-Accel-Buffering'] = 'no'
+                    return response
+            except:
+                return Response(str(err()), mimetype="text/plain")
         api.abort(403)
 
     @login_required
@@ -991,8 +1023,13 @@ if __name__ == '__main__':
 
     # Load a dummy app at the root URL to give 404 errors.
     # Serve app at APPLICATION_ROOT for localhost development.
+
     application = DispatcherMiddleware(Flask('dummy_app'), {
         app.config['APPLICATION_ROOT']: app,
     })
-    run_simple(config.conf["global"]["api"]["host"], config.conf["global"]["api"]["port"], application, processes=config.conf[
-               "global"]["api"]["processes"], use_reloader=config.conf["global"]["api"]["use_reloader"])
+    run_simple(config.conf["global"]["api"]["host"],
+               config.conf["global"]["api"]["port"],
+               application,
+               threaded = config.conf["global"]["api"]["threaded"],
+               processes = config.conf["global"]["api"]["processes"],
+               use_reloader = config.conf["global"]["api"]["use_reloader"])

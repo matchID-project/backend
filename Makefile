@@ -2,10 +2,8 @@
 # WARNING : THIS FILE SHOULDN'T BE TOUCHED   #
 #    FOR ENVIRONNEMENT CONFIGURATION         #
 # CONFIGURABLE VARIABLES SHOULD BE OVERRIDED #
-# IN THE 'artifacts' FILE, AS NOT COMMITTED  # 
+# IN THE 'artifacts' FILE, AS NOT COMMITTED  #
 ##############################################
-
-
 
 #matchID default exposition port
 export PORT=8081
@@ -50,7 +48,7 @@ vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262
 
 PG := 'postgres'
 DC := 'docker-compose'
-include /etc/os-release 
+include /etc/os-release
 
 
 
@@ -60,7 +58,7 @@ clean-secrets:
 register-secrets: install-prerequisites
 ifeq ("$(wildcard ${CRED_FILE})","")
 	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
-	@envsubst < ${CRED_TEMPLATE} > ${CRED_FILE} 
+	@envsubst < ${CRED_TEMPLATE} > ${CRED_FILE}
 endif
 
 install-prerequisites:
@@ -83,7 +81,7 @@ ifeq ("$(wildcard /usr/bin/docker)","")
 		"deb https://download.docker.com/linux/ubuntu \
 		`lsb_release -cs` \
    		stable"
-	sudo apt-get update 
+	sudo apt-get update
 	sudo apt-get install -y docker-ce
 endif
 	@(if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER}; fi) > /dev/null
@@ -94,7 +92,7 @@ ifeq ("$(wildcard /usr/local/bin/docker-compose)","")
 endif
 
 docker-clean: stop
-	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana 
+	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana
 
 clean:
 	sudo rm -rf ${FRONTEND}/dist
@@ -108,7 +106,7 @@ network: install-prerequisites
 elasticsearch-stop:
 	@echo docker-compose down matchID elasticsearch
 ifeq "$(ES_NODES)" "1"
-	@${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml down 
+	@${DC} -f ${DC_FILE}-elasticsearch-phonetic.yml down
 else
 	@${DC} -f ${DC_FILE}-elasticsearch-huge.yml down
 endif
@@ -130,7 +128,7 @@ elasticsearch: network vm_max
 		i=`expr $$i - 1`; \
 	done;\
 	true)
-	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d 
+	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d
 
 kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
@@ -138,7 +136,7 @@ kibana: network
 ifeq ("$(wildcard ${BACKEND}/kibana)","")
 	sudo mkdir -p ${BACKEND}/kibana && sudo chmod 777 ${BACKEND}/kibana/.
 endif
-	${DC} -f ${DC_FILE}-kibana.yml up -d 
+	${DC} -f ${DC_FILE}-kibana.yml up -d
 
 postgres-stop:
 	${DC} -f ${DC_FILE}-${PG}.yml down
@@ -146,7 +144,7 @@ postgres: network
 	${DC} -f ${DC_FILE}-${PG}.yml up -d
 
 backend-stop:
-	${DC} down 
+	${DC} down
 backend: network register-secrets
 ifeq ("$(wildcard ${UPLOAD})","")
 	@sudo mkdir -p ${UPLOAD}
@@ -160,19 +158,19 @@ endif
 ifneq "$(commit)" "$(lastcommit)"
 	@echo building matchID backend after new commit
 	${DC} build
-	@echo "${commit}" > ${BACKEND}/.lastcommit	
+	@echo "${commit}" > ${BACKEND}/.lastcommit
 endif
 ifeq ("$(wildcard docker-compose-local.yml)","")
 	${DC} up -d
 else
-	${DC} -f docker-compose.yml -f docker-compose-local.yml up -d 
+	${DC} -f docker-compose.yml -f docker-compose-local.yml up -d
 endif
 
 frontend-download:
 ifeq ("$(wildcard ${FRONTEND})","")
 	@echo downloading frontend code
 	@mkdir -p ${FRONTEND}
-	@cd ${FRONTEND}; git clone https://github.com/matchID-project/frontend . #2> /dev/null; true 
+	@cd ${FRONTEND}; git clone https://github.com/matchID-project/frontend . #2> /dev/null; true
 endif
 
 frontend-update:
@@ -193,16 +191,21 @@ else
 	${DC} -f  ${DC_FILE}-dev-frontend.yml up -d
 endif
 
+frontend-dev-stop:
+	${DC} -f ${DC_FILE}-dev-frontend.yml down
+
 dev: network frontend-stop backend elasticsearch postgres kibana frontend-dev
 
-frontend-build: network frontend-download 
+dev-stop: backend-stop kibana-stop elasticsearch-stop postgres-stop frontend-dev-stop newtork-stop
+
+frontend-build: network frontend-download
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo building matchID frontend after new commit
 	@make clean
 	@sudo mkdir -p ${FRONTEND}/dist
 	${DC} -f ${DC_FILE}-build-frontend.yml up --build
 	@echo "${commit-frontend}" > ${FRONTEND}/.lastcommit
-endif	
+endif
 
 frontend-stop:
 	${DC} -f ${DC_FILE}-run-frontend.yml down
@@ -211,11 +214,11 @@ frontend: frontend-build
 	@echo docker-compose up matchID frontend
 	${DC} -f ${DC_FILE}-run-frontend.yml up -d
 
-stop: backend-stop elasticsearch-stop kibana-stop postgres-stop 
+stop: backend-stop elasticsearch-stop kibana-stop postgres-stop
 	@echo all components stopped
 
 start-all: start postgres
-	@sleep 2 && echo all components started, please enter following command to supervise: 
+	@sleep 2 && echo all components started, please enter following command to supervise:
 	@echo tail log/docker-*.log
 
 start: frontend-build elasticsearch kibana backend frontend-stop frontend
@@ -238,5 +241,3 @@ example-download:
 	@mv upload _${date}_${id}_upload 2> /dev/null; true
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
 	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
-
-
