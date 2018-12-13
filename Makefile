@@ -195,7 +195,7 @@ endif
 frontend-dev-stop:
 	${DC} -f ${DC_FILE}-dev-frontend.yml down
 
-dev: network frontend-stop backend elasticsearch postgres kibana frontend-dev
+dev: network frontend-stop backend elasticsearch postgres frontend-dev
 
 dev-stop: backend-stop kibana-stop elasticsearch-stop postgres-stop frontend-dev-stop newtork-stop
 
@@ -222,7 +222,7 @@ start-all: start postgres
 	@sleep 2 && echo all components started, please enter following command to supervise:
 	@echo tail log/docker-*.log
 
-start: frontend-build elasticsearch kibana backend frontend-stop frontend
+start: frontend-build elasticsearch backend frontend-stop frontend
 	@sleep 2 && docker-compose logs
 
 up: start
