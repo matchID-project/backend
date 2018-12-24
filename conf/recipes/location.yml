@@ -32,6 +32,16 @@ recipes:
       - french_city_norm:
       - join:
           type : in_memory
+          dataset: french_city2dep_fuzzy
+          strict:
+            matchid_location_city_norm: norm_name
+            matchid_location_countrycode: CODEISO3            
+          select: 
+            matchid_location_depcode_ref: dep_code
+      - eval:
+          - matchid_location_depcode: matchid_location_depcode if (matchid_location_depcode != "") else matchid_location_depcode_ref
+      - join:
+          type : in_memory
           dataset: french_citycodes_fuzzy
           fuzzy: 
             matchid_location_city_norm: norm_name
@@ -49,7 +59,7 @@ recipes:
             matchid_location_city_surface: surface
             matchid_location_city_geopoint_2d: geopoint_2d
       - delete:
-          select: matchid_location_city_norm.*
+          select: matchid_location_city_norm.*|matchid_location_depcode_ref
       - eval: # override previous matches only if matched
           - matchid_location_city: matchid_location_city_src if ('matchid_location_city' not in row.keys()) else (matchid_location_city_src if (matchid_location_city=="") else matchid_location_city )
           - matchid_location_depcode: str("99") if ('matchid_location_depcode' not in row.keys()) else ( str("99") if (matchid_location_depcode == "") else matchid_location_depcode)
