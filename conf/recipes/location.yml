@@ -10,7 +10,8 @@ recipes:
             - (^|\s)ste(\s|$): '\1sainte\2'
             - (^|\s)st(\s|$): '\1saint\2'
             - ^aix pce$: aix provence
-            - (^|\s)(de|en|les|le|la|du|de la|sous|sur|d|des)\s: ' '
+            - (^|\s)(de|en|les|le|la|a|aux|au|du|de la|sous|sur|l|d|des)\s: ' '
+            - (^|\s)(de|en|les|le|la|a|aux|au|du|de la|sous|sur|l|d|des)\s: ' '
             - \sss\s: '' 
             - \ss\s: '' 
             - ^x$:  ''
@@ -21,7 +22,9 @@ recipes:
             - sainte clotilde: saint denis
             - berck mer: berck
             - clichy garenne.*: clichy
-            - belleville saone: belleville      
+            - belleville saone: belleville
+            - '^levallois$': 'levallois perret' 
+            - '\s$': ''
 
   french_city+dep:
     steps:
@@ -39,11 +42,11 @@ recipes:
           select: 
             matchid_location_depcode_ref: dep_code
       - eval:
-          - matchid_location_depcode: matchid_location_depcode if (matchid_location_depcode != "") else matchid_location_depcode_ref
+          - matchid_location_depcode: matchid_location_depcode_ref if (matchid_location_depcode_ref != "") else matchid_location_depcode
       - join:
           type : in_memory
           dataset: french_citycodes_fuzzy
-          fuzzy: 
+          fuzzy:
             matchid_location_city_norm: norm_name
           strict: 
             # matchid_location_city_norm: norm_name
