@@ -10,7 +10,7 @@ recipes:
             - (^|\s)ste(\s|$): '\1sainte\2'
             - (^|\s)st(\s|$): '\1saint\2'
             - ^aix pce$: aix provence
-            - \s(de|en|les|le|la|du|de la|sous|sur)\s: ' '
+            - (^|\s)(de|en|les|le|la|du|de la|sous|sur|d|des)\s: ' '
             - \sss\s: '' 
             - \ss\s: '' 
             - ^x$:  ''
