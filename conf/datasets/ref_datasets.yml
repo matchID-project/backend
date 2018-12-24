@@ -19,6 +19,12 @@ datasets:
     type: csv
     sep: ","
     encoding: utf-8
+  french_city2dep_fuzzy:
+    connector: referential_data
+    table: 2017_communes_fr_com_2dep.csv
+    type: csv
+    sep: ","
+    encoding: utf-8    
   french_citycodes_fuzzy:
     connector: referential_data
     table: 2017_communes_fr_com_alg_norm.csv
