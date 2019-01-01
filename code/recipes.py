@@ -1152,7 +1152,7 @@ class Recipe(Configured):
             with open(self.log.file, 'r') as f:
                 logtext = f.read().split("\n")
             self.errors = len(set([re.search('chunk (\d+)', line).group(1)
-                                   for line in logtext if "Ooops" in line]))
+                                  for line in logtext if (("Ooops" in line) & ("chunk " in line))])) 
             self.processed = sum([int(re.search(
                 'proceed (\d+) rows', line).group(1)) for line in logtext if "proceed" in line])
             self.written = sum([int(re.search('wrote (\d+)', line).group(1))
