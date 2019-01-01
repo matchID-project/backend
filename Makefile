@@ -114,6 +114,11 @@ else
 	@${DC} -f ${DC_FILE}-elasticsearch-huge.yml down
 endif
 
+elasticsearch2-stop:
+	@${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml down
+
+
+
 vm_max:
 ifeq ("$(vm_max_count)", "")
 	@echo updating vm.max_map_count $(vm_max_count) to 262144
@@ -132,6 +137,18 @@ elasticsearch: network vm_max
 	done;\
 	true)
 	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d
+
+elasticsearch2:
+	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
+	@cat ${DC_FILE}-elasticsearch.yml | head -8 > ${DC_FILE}-elasticsearch-huge-remote.yml
+	@(i=$$(( $(ES_NODES) * 2 ));j=$(ES_NODES); while [ $${i} -gt $${j} ]; \
+	        do \
+	              if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/node$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/.); fi; \
+	              cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" | egrep -v 'depends_on|- elasticsearch' >> ${DC_FILE}-elasticsearch-huge-remote.yml; \
+	              i=`expr $$i - 1`; \
+	 	done;\
+	true)
+	${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml up -d
 
 kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
