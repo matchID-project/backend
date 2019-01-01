@@ -5,6 +5,7 @@
 # IN THE 'artifacts' FILE, AS NOT COMMITTED  #
 ##############################################
 
+SHELL=/bin/bash
 #matchID default exposition port
 export PORT=8081
 
