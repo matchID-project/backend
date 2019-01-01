@@ -22,6 +22,7 @@ export DC_DIR=${BACKEND}/docker-components
 export DC_FILE=${DC_DIR}/docker-compose
 export DC_PREFIX=matchid
 export DC_NETWORK=matchid
+export DC_NETWORK_OPT=
 
 export API_SECRET_KEY:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//')
 export ADMIN_PASSWORD:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//' )
@@ -103,7 +104,7 @@ network-stop:
 	docker network rm ${DC_NETWORK}
 
 network: install-prerequisites
-	@docker network create ${DC_NETWORK} 2> /dev/null; true
+	@docker network create ${DC_NETWORK_OPT} ${DC_NETWORK} 2> /dev/null; true
 
 elasticsearch-stop:
 	@echo docker-compose down matchID elasticsearch
