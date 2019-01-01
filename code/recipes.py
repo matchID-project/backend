@@ -359,8 +359,8 @@ class Dataset(Configured):
                     self.reader = itertools.chain.from_iterable(pd.read_hdf(
                         file, chunksize=self.chunk) for file in self.files)
                 elif (self.type == "msgpack"):
-                    self.reader = itertools.chain.from_iterable(pd.read_msgpack(
-                        file, iterator=True, encoding=self.encoding) for file in self.files)
+                    self.reader = itertools.chain.from_iterable(self.iterator_chunk(pd.read_msgpack(
+                        file, iterator=True, encoding=self.encoding)) for file in self.files)
 
             elif (self.connector.type == "elasticsearch"):
                 self.reader = self.scanner()
@@ -381,6 +381,25 @@ class Dataset(Configured):
         else:
             self.log.write(msg="couldn't initiate dataset {}".format(
                 self.name), error=err(), exit=True)
+
+
+    def iterator_chunk(self, iterator):
+        df_list=[]
+        current_size = 0
+        for j, df in enumerate(iterator):
+            while (current_size + df.shape[0] > self.chunk):
+                df_list.append(df.head(n = self.chunk - current_size))
+                yield pd.concat(df_list)
+                df_list = []
+                current_size = 0
+                df = df.tail(n = df.shape[0] - (self.chunk - current_size))
+                if (current_size > 0):
+                    df_list.append(df.tail(n = current_size))
+            if (df.shape[0] > 0):
+                df_list.append(df)
+                current_size = current_size + df.shape[0]
+        if (current_size > 0):
+            yield pd.concat(df_list)
 
     def scanner(self, **kwargs):
         self.select = json.loads(json.dumps(self.select))
