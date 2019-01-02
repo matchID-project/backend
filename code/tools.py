@@ -162,7 +162,7 @@ def levenshtein(s1, s2):
     if len(s2) == 0:
         return len(s1)
 
-    return jellyfish.levenshtein_distance(unicode(s1),unicode(s2))
+    return jellyfish.damerau_levenshtein_distance(unicode(s1),unicode(s2))
 
     # cached version
     try:
