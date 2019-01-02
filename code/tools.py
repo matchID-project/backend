@@ -16,6 +16,7 @@ from geopy.distance import vincenty
 # from fuzzywuzzy import fuzz, process
 # from fastcomp import compare
 import jellyfish
+import jellyfish._jellyfish as py_jellyfish
 from log import err
 import json
 
@@ -162,8 +163,11 @@ def levenshtein(s1, s2):
     if len(s2) == 0:
         return len(s1)
 
-    return jellyfish.damerau_levenshtein_distance(unicode(s1),unicode(s2))
-
+    try:
+        return jellyfish.damerau_levenshtein_distance(unicode(s1),unicode(s2))
+    except:
+        # workaround for unicode : fallback from c to python version
+	return py_jellyfish.damerau_levenshtein_distance(unicode(s1),unicode(s2))
     # cached version
     try:
         return levCache[tuple(s1,s2)]
