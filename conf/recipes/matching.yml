@@ -79,14 +79,16 @@ recipes:
       - eval:
          #scoring location
         - matchid_hit_score_location_lv_city: levenshtein_norm(matchid_location_city,hit_matchid_location_city)      
+        - matchid_hit_score_location_lv_city_src: levenshtein_norm(matchid_location_city_src,hit_matchid_location_city_src)      
         - matchid_hit_score_location_lv_country: levenshtein_norm(matchid_location_country,hit_matchid_location_country)      
-        - matchid_hit_score_location_citycode_history: 1 if (len([x for x in matchid_location_citycode_history if x in hit_matchid_location_citycode_history])>0) else 0      
+        - matchid_hit_score_location_citycode_history: 1 if (len([x for x in matchid_location_citycode_history if x in hit_matchid_location_citycode_history])>0) else 0     
         - matchid_hit_score_location_citycode: 1 if ((len(matchid_location_citycode)>0) & (matchid_location_citycode == hit_matchid_location_citycode)) else 0
         - matchid_hit_score_location_depcode: 1 if (matchid_location_depcode == hit_matchid_location_depcode) else 0      
         - matchid_hit_score_location_countrycode: 1 if (matchid_location_countrycode == hit_matchid_location_countrycode) else 0   
         - matchid_hit_distance: distance(matchid_location_city_geopoint_2d,hit_matchid_location_city_geopoint_2d)
         - matchid_hit_score_location_distance: 0 if (matchid_hit_distance == "") else round(100*40/(40+matchid_hit_distance))/100
-        - matchid_hit_score_location: round(0.5*max(matchid_hit_score_location_citycode,matchid_hit_score_location_citycode_history,matchid_hit_score_location_lv_city,matchid_hit_score_location_distance)+0.25*matchid_hit_score_location_depcode+0.25*max(matchid_hit_score_location_countrycode,matchid_hit_score_location_lv_country),2)
+        - matchid_hit_score_location: round(0.5*max(matchid_hit_score_location_citycode,matchid_hit_score_location_citycode_history,max(matchid_hit_score_location_lv_city,matchid_hit_score_location_lv_city_src),matchid_hit_score_location_distance)+0.25*max(matchid_hit_score_location_depcode, matchid_hit_score_location_citycode_history)+0.25*max(matchid_hit_score_location_countrycode,matchid_hit_score_location_lv_country,matchid_hit_score_location_citycode_history),2)
+
   scoring_date:
     steps:   
       - eval:
