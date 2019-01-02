@@ -93,7 +93,7 @@ recipes:
     steps:   
       - eval:
         #scoring date
-        - matchid_hit_score_date: round(levenshtein_norm(matchid_date_birth_str,hit_matchid_date_birth_str)*(0.9 if re.search('0101$',matchid_date_birth_str) else 1),2) 
+        - matchid_hit_score_date: round((levenshtein_norm(matchid_date_birth_str,hit_matchid_date_birth_str)**2)*(0.9 if re.search('0101$',matchid_date_birth_str) else 1) ,2) 
   scoring_sex:
     steps:   
       - eval:
