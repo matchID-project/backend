@@ -11,6 +11,7 @@ import datetime
 import hashlib
 import unicodedata
 import shutil
+import csv
 from werkzeug.utils import secure_filename
 from cStringIO import StringIO
 from sqlalchemy import create_engine, Column, Integer, Sequence, String, Date, Float, BIGINT
@@ -330,6 +331,19 @@ class Dataset(Configured):
             except:
                 self.encoding = "utf8"
 
+            try:
+                quoting = self.conf["quoting"]
+                if (quoting == 'QUOTE_MINIMAL'):
+                    self.quoting = csv.QUOTE_MINIMAL
+                elif (quoting == 'QUOTE_NONE'):
+                    self.quoting = csv.QUOTE_NONE
+                elif (quoting == 'QUOTE_ALL'):
+                    self.quoting = csv.QUOTE_ALL
+                elif (quoting == 'QUOTE_NONNUMERIC'):
+                    self.quoting = csv.QUOTE_NONNUMERIC
+            except:
+                self.quoting = csv.QUOTE_MINIMAL
+
     def init_reader(self, df=None):
         try:
             self.log = self.parent.log
@@ -567,7 +581,11 @@ class Dataset(Configured):
                             header = self.header
                         else:
                             header = None
-                        df.to_csv(self.file, mode='a', index=False, sep=self.sep,
+                        if (self.names != None):
+                            df=df[self.names]
+                        else:
+                            df.sort_index(axis=1, inplace=True)
+                        df.to_csv(self.file, mode='a', index=False, sep=self.sep, quoting=self.quoting,
                                   compression=self.compression, encoding=self.encoding, header=header)
                     except:
                         self.log.write(
