@@ -2082,16 +2082,7 @@ class Recipe(Configured):
             return df
 
     def internal_pause(self, df=None):
-        try:
-            try:
-                head = self.args["head"]
-            except:
-                head = config.conf["global"]["test_chunk_size"]
-
-            self.select_columns(df=df)
-            return df[self.cols].head(n=head)
-        except:
-            return df
+        return df
 
 
 def thread_job(recipe=None):
