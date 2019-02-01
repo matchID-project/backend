@@ -1229,6 +1229,16 @@ class Recipe(Configured):
         # 	self.log.write("Ooops: problem in {} - {}: {} - {}".format(self.name,col,step[col],err()),exit=False)
         # 	return df
 
+    def internal_exec(self,df=None):
+        print self.args
+        if ((type(self.args) == str) | (type(self.args) == unicode)):
+            exec self.args
+        elif (type(self.args) == list):
+            for expression in self.args:
+                print expression
+                exec expression
+        return df
+
     def internal_eval(self, df=None):
         try:
             cols = []
