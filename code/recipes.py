@@ -624,11 +624,30 @@ class Dataset(Configured):
                 try:
                     self.log.write(
                         msg="try to write {} rows".format(df.shape[0]))
-                    df.to_sql(name=self.table, con=self.connector.sql,
-                              if_exists='append', index=False, chunksize=self.chunk)
+                    df.sort_index(axis=1, inplace=True)
+                    try:
+                       df[:0].to_sql(name=self.table, con=self.connector.sql, if_exists='fail', index=False)
+                       self.log.write(msg="created table {}".format(self.table))
+                    except:
+                       pass
+                    try:
+                        sql_cnxn = self.connector.sql.raw_connection()
+                        cursor = sql_cnxn.cursor()
+                        fbuf = StringIO()
+                        df.to_csv(fbuf, index=False, header=False, sep="|", quoting=csv.QUOTE_NONE, encoding="utf8")
+                        fbuf.seek(0)
+                        cursor.copy_from(fbuf, self.table, sep="|", null='')
+                        sql_cnxn.commit()
+                        cursor.close()
+                    except:
+                        self.log.write(msg="direct COPY to {} method failed, fall back to to_sql".format(self.table),
+                            error=err())
+                        df.to_sql(name=self.table, con=self.connector.sql,
+                            if_exists='append', index=False, chunksize=self.chunk)
+
                 except:
-                    self.log.write(msg="couldn't write to {}".format(
-                        self.table), error=err())
+                    self.log.write(msg="couldn't write to {}".format(self.table),
+                        error=err())
 
         return processed
 
