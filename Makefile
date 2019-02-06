@@ -33,6 +33,7 @@ export CRED_FILE=conf/security/creds.yml
 
 # elasticsearch defaut configuration
 export ES_NODES = 3		# elasticsearch number of nodes
+export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
 export ES_MEM = 1024m		# elasticsearch : memory of each node
 export ES_VERSION = 6.5.3
 
@@ -141,7 +142,7 @@ elasticsearch: network vm_max
 elasticsearch2:
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | head -8 > ${DC_FILE}-elasticsearch-huge-remote.yml
-	@(i=$$(( $(ES_NODES) * 2 ));j=$(ES_NODES); while [ $${i} -gt $${j} ]; \
+	@(i=$$(( $(ES_NODES) * $(ES_SWARM_NODE_NUMBER) ));j=$(ES_NODES); while [ $${i} -gt $${j} ]; \
 	        do \
 	              if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/node$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/.); fi; \
 	              cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" | egrep -v 'depends_on|- elasticsearch' >> ${DC_FILE}-elasticsearch-huge-remote.yml; \
