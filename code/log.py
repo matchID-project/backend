@@ -38,6 +38,7 @@ class Log(object):
                 except:
                     self.dir=""
                 self.file="{}./{}-{}.log".format(self.dir,datetime.datetime.now().isoformat(),self.name)
+                self.reject_file="{}./{}-{}.reject.csv".format(self.dir,datetime.datetime.now().isoformat(),self.name)
 
                 try :
                     self.writer=open(self.file,"w+")
@@ -54,6 +55,10 @@ class Log(object):
 
         except:
             self.verbose=False
+
+    def reject(self, string=None, exit=False):
+        with open(self.reject_file,"a") as w:
+            w.write(string)
 
     def write(self,msg=None,error=None,exit=False,level=1):
         try:
