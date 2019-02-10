@@ -374,11 +374,15 @@ class Dataset(Configured):
             except:
                 self.quoting = csv.QUOTE_MINIMAL
 
-    def init_reader(self, df=None):
+    def init_reader(self, df = None, test = False):
         try:
             self.log = self.parent.log
         except:
             self.log = config.log
+        try:
+            test_chunk_size = self.parent.test_chunk_size
+        except:
+            test_chunk_size = config.conf["global"]["test_chunk_size"]        
 
         if True:
             if (self.name == "inmemory"):
@@ -409,9 +413,27 @@ class Dataset(Configured):
             elif (self.connector.type == "elasticsearch"):
                 self.reader = self.scanner()
             elif (self.connector.type == "sql"):
-                self.reader = pd.read_sql_table(
-                    table_name=self.table, con=self.connector.sql, chunksize=self.chunk)
-
+                if (self.select == None):
+                    if test:
+                        self.reader = pd.read_sql_table(
+                            table_name=self.table, con=self.connector.sql, chunksize = test_chunk_size)
+                    else:
+                        self.reader = pd.read_sql_table(
+                            table_name=self.table, con=self.connector.sql, chunksize=self.chunk)
+                else:
+                    fbuf = StringIO()
+                    if test:
+                        query = "COPY (select * from (\n{}) query limit {}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(self.select, test_chunk_size)
+                    else:
+                        query = "COPY (\n{}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(self.select)
+                    self.log.write("execute statement:\n{}".format(query))                  
+                    self.connector.sql.raw_connection().cursor().copy_expert(query, fbuf)
+                    fbuf.seek(0)
+                    self.reader = pd.read_csv(fbuf, sep='\x01', dtype=object, encoding="utf8", iterator=True, keep_default_na=False, chunksize=self.chunk)
+                    # for j, df in enumerate(self.reader):
+                    #     self.log.write("j:{}\ndf:{}".format(j,df))
+                    # self.log.write("result:\n{}".format(fbuf.getvalue()))                  
+                    
             try:
                 if (self.filter != None):
                     self.filter.init(df=self.reader, parent=self)
@@ -888,7 +910,7 @@ class Recipe(Configured):
             self.log.write(msg="couldn't init log for recipe {}".format(
                 self.name), error=err(), exit=True)
         try:
-            self.input.init_reader(df=df)
+            self.input.init_reader(df=df, test=test)
         except:
             if ((len(self.before) + len(self.after)) == 0):
                 self.log.write(msg="couldn't init input {} of recipe {}".format(
