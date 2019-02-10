@@ -181,6 +181,19 @@ class Connector(Configured):
             self.uri = self.conf["uri"]
             self.sql = create_engine(self.uri, encoding=self.encoding)
 
+        if (self.type == "redisearch"):
+            try:
+                self.host = self.conf["host"]
+            except:
+                self.host = "redis"
+            try:
+                self.port = self.conf["port"]
+            except:
+                self.port = 6379
+            try:
+                self.batchIndexer = self.conf["batchIndexer"]
+            except:
+                self.batchIndexer = 100000
 
 class Dataset(Configured):
     # a dataset is mainly a table linked to a pandas dataframe
