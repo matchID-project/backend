@@ -2,10 +2,10 @@ version: '2'
 
 services:
   postgres:
-    image: postgres:10
+    image: postgres:11
     container_name: ${DC_PREFIX}-postgres
     environment:
-      POSTGRES_PASSWORD: matchid 
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 
     mem_limit: 2g
     volumes:
       - ${BACKEND}/pgdata:/var/lib/postgresql/data
