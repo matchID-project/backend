@@ -686,23 +686,21 @@ class Dataset(Configured):
                     self.log.write(
                         msg="try to write {} rows".format(df.shape[0]))
                     df.sort_index(axis=1, inplace=True)
-                    try:
+                    if not self.connector.sql.has_table(self.table):
                        df[:0].to_sql(name=self.table, con=self.connector.sql, if_exists='fail', index=False)
-                       self.log.write(msg="created table {}".format(self.table))
-                    except:
-                       pass
+                       self.log.write(msg="created table {} with columns {}".format(self.table, list(df)))
                     try:
                         sql_cnxn = self.connector.sql.raw_connection()
                         cursor = sql_cnxn.cursor()
                         fbuf = StringIO()
-                        df.to_csv(fbuf, index=False, header=False, sep="|", quoting=csv.QUOTE_NONE, encoding="utf8")
+                        df.to_csv(fbuf, index=False, header=False, sep='\x01', encoding="utf8")
                         fbuf.seek(0)
-                        cursor.copy_from(fbuf, self.table, sep="|", null='')
+                        cursor.copy_expert("COPY " + self.table + " FROM STDIN WITH DELIMITER '\x01' NULL ''", fbuf)
                         sql_cnxn.commit()
                         cursor.close()
                     except:
-                        self.log.write(msg="direct COPY to {} method failed, fall back to to_sql".format(self.table),
-                            error=err())
+                        self.log.write(msg="WARNING: direct COPY to {} method failed, fall back to to_sql\n{}".format(self.table, err()))
+                        self.log.reject(fbuf.getvalue())
                         df.to_sql(name=self.table, con=self.connector.sql,
                             if_exists='append', index=False, chunksize=self.chunk)
 
@@ -1762,15 +1760,14 @@ class Recipe(Configured):
             self.log.write(msg="", error=err())
         return df
 
-    # def internal_sql(self,df=None):
-    # 	if True:
-    # 		if ("query" in self.args.keys()):
-    # 			print self.args["query"]
-    # 			print sqldf(self.args["query"], locals())
-    # 		return df
-    # 	else:
-    # 		return df
-
+    def internal_sql(self,df=None):
+        if ((type(self.args) == str) | (type(self.args) == unicode)):
+            self.input.connector.sql.execute(self.args)
+        elif (type(self.args) == list):
+            for expression in self.args:
+                self.input.connector.sql.execute(expression)
+        return df
+        
     def internal_delete(self, df=None):
         # keep only selected columns
         self.select_columns(df=df)
