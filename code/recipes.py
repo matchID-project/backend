@@ -174,8 +174,12 @@ class Connector(Configured):
             self.thread_count = 1
 
         if (self.type == "sql"):
+            try:
+                self.encoding = self.conf["encoding"]
+            except:
+                self.encoding = "UTF8"
             self.uri = self.conf["uri"]
-            self.sql = create_engine(self.uri)
+            self.sql = create_engine(self.uri, encoding=self.encoding)
 
 
 class Dataset(Configured):
