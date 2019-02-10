@@ -14,9 +14,6 @@ import shutil
 import csv
 from werkzeug.utils import secure_filename
 from cStringIO import StringIO
-from sqlalchemy import create_engine, Column, Integer, Sequence, String, Date, Float, BIGINT
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 
 import traceback
 import yaml as y
@@ -36,6 +33,10 @@ import gzip
 #from pandasql import sqldf
 import elasticsearch
 from elasticsearch import Elasticsearch, helpers
+from sqlalchemy import create_engine, Column, Integer, Sequence, String, Date, Float, BIGINT
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import redisearch as rs
 import pandas as pd
 
 # parallelize
@@ -150,7 +151,7 @@ class Connector(Configured):
             try:
                 self.max_tries = self.conf["max_tries"]
             except:
-                self.max_tries = 4
+                self.max_tries = 2
 
             try:
                 self.safe = self.conf["safe"]
@@ -220,6 +221,18 @@ class Dataset(Configured):
             self.chunk = self.conf["chunk"]
         except:
             self.chunk = self.connector.chunk
+
+        if (self.connector.type == "redisearch"):
+            try:
+                self.index = self.conf["index"]
+            except:
+                self.index = []
+
+        if (self.connector.type == "sql"):
+            try:
+                self.select = self.conf["select"].replace('\n', ' ')
+            except:
+                self.select = None
 
         if (self.connector.type == "elasticsearch"):
             try:
@@ -476,6 +489,15 @@ class Dataset(Configured):
             if (self.mode == 'create'):
                 self.connector.sql.execute(
                     'DROP TABLE IF EXISTS {};'.format(self.table))
+                    
+        elif (self.connector.type == "redisearch"):
+            self.client = rs.Client(self.table, host=self.connector.host, port=self.connector.port)
+            if (self.mode == 'create'):
+                try:
+                    self.client.drop_index()
+                    self.log.write(msg="DROP previously created index {}".format(self.table))
+                except:
+                    pass
 
         return None
 
@@ -645,6 +667,28 @@ class Dataset(Configured):
                         df.to_sql(name=self.table, con=self.connector.sql,
                             if_exists='append', index=False, chunksize=self.chunk)
 
+                except:
+                    self.log.write(msg="couldn't write to {}".format(self.table),
+                        error=err())
+
+            elif (self.connector.type == "redisearch"):
+                self.log.write(
+                    msg="try to write {} rows".format(df.shape[0]))
+                df.sort_index(axis=1, inplace=True)
+                try:
+                    self.client.create_index([rs.TagField(col, separator = ' ', no_index=(True if col in self.index else False)) for col in list(set(list(df)))])
+                    self.client.batch_indexer(chunk_size=self.batchIndexer)
+                    self.log.write(
+                        msg="created table {} with index for {}".format(self.table,", ".join([col for col in list.df and col in self.inx])))
+                except:
+                    self.log.write(msg="couldn't create {}".format(self.table),
+                        error=err())
+
+                try:
+                    for index, row in df.iterrows():
+                        doc_id = size * chunk + self.chunk * i + index
+                        row = row.to_dict()
+                        self.client.add_document(doc_id, **row)
                 except:
                     self.log.write(msg="couldn't write to {}".format(self.table),
                         error=err())

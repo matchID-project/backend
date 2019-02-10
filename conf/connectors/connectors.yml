@@ -21,4 +21,11 @@ connectors:
     type: sql 
     uri: postgres://postgres:matchid@postgres:5432 
     chunk: 2000
-
+    thread_count: 1
+  redisearch:
+    type: redisearch
+    host: redis
+    chunk: 10000
+    batchIndexer: 1000000
+    thread_count: 40
+    port: 6379
