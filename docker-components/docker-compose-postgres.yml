@@ -6,7 +6,7 @@ services:
     container_name: ${DC_PREFIX}-postgres
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 
-    mem_limit: 2g
+    shm_size: '2gb'
     volumes:
       - ${BACKEND}/pgdata:/var/lib/postgresql/data
     # ports:

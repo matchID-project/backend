@@ -423,7 +423,10 @@ class Dataset(Configured):
                 else:
                     fbuf = StringIO()
                     if test:
-                        query = "COPY (select * from (\n{}) query limit {}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(self.select, test_chunk_size)
+                        table = r"(^|\s+|\()" + re.escape(self.table) + r"(\s+|\.|\)|$)"
+                        query = 'WITH MATCHID_INPUT_TABLE AS (SELECT * from {} limit {})\n'.format(self.table, test_chunk_size)
+                        query = query + re.sub(table, r'\1MATCHID_INPUT_TABLE\2', self.select, flags=re.IGNORECASE)
+                        query = "COPY (select * from (\n{}) query limit {}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(query, test_chunk_size)
                     else:
                         query = "COPY (\n{}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(self.select)
                     self.log.write("execute statement:\n{}".format(query))                  
@@ -908,6 +911,12 @@ class Recipe(Configured):
             self.log.write(msg="couldn't init log for recipe {}".format(
                 self.name), error=err(), exit=True)
         try:
+            if ((test == False) & (len(self.steps) == 0) & (self.input.connector.name == self.output.connector.name) & (self.input.connector.type == "sql") & (self.input.select != None)):
+                return
+        except:
+            pass
+
+        try:
             self.input.init_reader(df=df, test=test)
         except:
             if ((len(self.before) + len(self.after)) == 0):
@@ -1118,7 +1127,12 @@ class Recipe(Configured):
             # 	self.run_chunk(i,df,test)
             # first lauch the first chunk for initialization of "inmemory"
             # datasets, then iterate with // threads
-            if ((self.input.chunked == True) | (self.test == True)):
+            sql_direct = False
+
+            if ((self.test == False) & (len(self.steps) == 0) & (self.input.connector.type == "sql") & (self.input.select != None) & (self.input.connector.name == self.output.connector.name)):
+                sql_direct = True
+            
+            elif ((self.input.chunked == True) | (self.test == True)):
                 try:
                     self.df = next(self.input.reader, "")
                     if(self.test == True):
@@ -1144,7 +1158,7 @@ class Recipe(Configured):
                 # end of work if in test mode
                 self.df = self.run_chunk(0, self.df)
                 return self.df
-            else:
+            elif (not sql_direct):
                 if (supervisor == None):
                     supervisor = config.manager.dict()
                 if (write_queue == None):
@@ -1201,20 +1215,28 @@ class Recipe(Configured):
                 supervisor["end"] = True
                 supervisor_thread.terminate()
 
+            else:
+                query = 'DROP TABLE IF EXISTS {};\nCREATE TABLE {} as select * from ({}) query;'.format(self.output.table, self.output.table, self.input.select)
+                if (self.input.table not in query):
+                    self.log.write(msg="input table {} not in query:{".format(self.input.table,self.input.query), err="", exit=True)
+                self.log.write(msg="recipe is a direct SQL statement:\n{}".format(query))
+                sql_response = self.input.connector.sql.execute(query)
+
         except SystemExit:
             try:
                 self.log.write("terminating ...")
-                write_queue.put(True)
-                write_thread.terminate()
-                supervisor["end"] = True
-                supervisor_thread.terminate()
+                if (not sql_direct):
+                    write_queue.put(True)
+                    write_thread.terminate()
+                    supervisor["end"] = True
+                    supervisor_thread.terminate()
 
-                for t in run_queue:
-                    try:
-                        self.log.write("terminating chunk {}".format(t[0]))
-                        t[1].terminate()
-                    except:
-                        pass
+                    for t in run_queue:
+                        try:
+                            self.log.write("terminating chunk {}".format(t[0]))
+                            t[1].terminate()
+                        except:
+                            pass
 
             except:
                 pass
@@ -1246,17 +1268,18 @@ class Recipe(Configured):
                     self.name), error=error)
             try:
                 self.log.write("terminating ...")
-                write_queue.put(True)
-                write_thread.terminate()
-                supervisor["end"] = True
-                supervisor_thread.terminate()
+                if (not sql_direct):
+                    write_queue.put(True)
+                    write_thread.terminate()
+                    supervisor["end"] = True
+                    supervisor_thread.terminate()
 
-                for t in run_queue:
-                    try:
-                        self.log.write("terminating chunk {}".format(t[0]))
-                        t[1].terminate()
-                    except:
-                        pass
+                    for t in run_queue:
+                        try:
+                            self.log.write("terminating chunk {}".format(t[0]))
+                            t[1].terminate()
+                        except:
+                            pass
             except:
                 pass
 
@@ -1266,26 +1289,34 @@ class Recipe(Configured):
         chunk_number = self.log.chunk
 
         self.log.chunk = "end"
-        try:
-            with open(self.log.file, 'r') as f:
-                logtext = f.read().split("\n")
-            self.errors = len(set([re.search('chunk (\d+)', line).group(1)
-                                  for line in logtext if (("Ooops" in line) & ("chunk " in line))])) 
-            self.processed = sum([int(re.search(
-                'proceed (\d+) rows', line).group(1)) for line in logtext if "proceed" in line])
-            self.written = sum([int(re.search('wrote (\d+)', line).group(1))
-                                for line in logtext if "wrote" in line])
+        if (not sql_direct):
+            try:
+                with open(self.log.file, 'r') as f:
+                    logtext = f.read().split("\n")
+                self.errors = len(set([re.search('chunk (\d+)', line).group(1)
+                                    for line in logtext if (("Ooops" in line) & ("chunk " in line))])) 
+                self.processed = sum([int(re.search(
+                    'proceed (\d+) rows', line).group(1)) for line in logtext if "proceed" in line])
+                self.written = sum([int(re.search('wrote (\d+)', line).group(1))
+                                    for line in logtext if "wrote" in line])
 
-        except:
-            self.errors = err()
-            self.processed = 0
-            self.written = 0
-        if (self.errors > 0):
-            self.log.write(msg="Recipe {} finished with errors on {} chunks (i.e. max {} errors out of {}) - {} lines written".format(
-                self.name, self.errors, self.errors * self.input.connector.chunk, self.processed, self.written))
+            except:
+                self.errors = err()
+                self.processed = 0
+                self.written = 0
+            if (self.errors > 0):
+                self.log.write(msg="Recipe {} finished with errors on {} chunks (i.e. max {} errors out of {}) - {} lines written".format(
+                    self.name, self.errors, self.errors * self.input.connector.chunk, self.processed, self.written))
+            else:
+                self.log.write(msg="Recipe {} successfully fininshed with no error, {} lines processed, {} lines written".format(
+                    self.name, self.processed, self.written))
+
         else:
-            self.log.write(msg="Recipe {} successfully fininshed with no error, {} lines processed, {} lines written".format(
-                self.name, self.processed, self.written))
+            try:
+                self.log.write(msg="successfully executed SQL statement: {} rows inserted".format(sql_response.rowcount))
+            except:
+                self.log.write(msg="SQL statement ended with error, please check error message above")
+
 
     def select_columns(self, df=None, arg="select"):
         try:
