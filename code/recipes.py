@@ -911,7 +911,7 @@ class Recipe(Configured):
             self.log.write(msg="couldn't init log for recipe {}".format(
                 self.name), error=err(), exit=True)
         try:
-            if ((test == False) & (len(self.steps) == 0) & (self.input.connector.name == self.output.connector.name) & (self.input.connector.type == "sql") & (self.input.select != None)):
+            if ((self.test == False) and (len(self.steps) == 0) and (self.input.connector.type == "sql") and (self.output.connector.type == "sql") and (self.input.select != None) and (self.input.connector.name == self.output.connector.name)):
                 return
         except:
             pass
@@ -1129,7 +1129,7 @@ class Recipe(Configured):
             # datasets, then iterate with // threads
             sql_direct = False
 
-            if ((self.test == False) & (len(self.steps) == 0) & (self.input.connector.type == "sql") & (self.input.select != None) & (self.input.connector.name == self.output.connector.name)):
+            if ((self.test == False) and (len(self.steps) == 0) and (self.input.connector.type == "sql") and (self.output.connector.type == "sql") and (self.input.select != None) and (self.input.connector.name == self.output.connector.name)):
                 sql_direct = True
             
             elif ((self.input.chunked == True) | (self.test == True)):
