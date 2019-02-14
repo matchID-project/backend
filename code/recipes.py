@@ -374,13 +374,13 @@ class Dataset(Configured):
             except:
                 self.quoting = csv.QUOTE_MINIMAL
 
-    def init_reader(self, df = None, test = False):
+    def init_reader(self, df = None, test = False, test_chunk_size=None):
         try:
             self.log = self.parent.log
         except:
             self.log = config.log
         try:
-            test_chunk_size = self.parent.test_chunk_size
+            test_chunk_size = self.parent.conf["test_chunk_size"]
         except:
             test_chunk_size = config.conf["global"]["test_chunk_size"]        
 
