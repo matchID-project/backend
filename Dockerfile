@@ -16,6 +16,7 @@ VOLUME /matchid/projects
 VOLUME /matchid/referential_data
 VOLUME /matchid/log
 VOLUME /matchid/models
+VOLUME /matchid/upload
 
 EXPOSE 8081
 
