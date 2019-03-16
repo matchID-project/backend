@@ -572,7 +572,10 @@ class DatasetApi(Resource):
             if (ds.random_view == True):
                 ds.select = {"query": {"function_score": {
                     "query": ds.select["query"], "random_score": {}}}}
-        ds.init_reader()
+        elif (ds.connector.type == "sql"): 
+            if (ds.select == None):
+                ds.select = "select * from {}".format(ds.table)
+        ds.init_reader(test=True)
         try:
             df = next(ds.reader, "")
             schema = df.dtypes.apply(lambda x: str(x)).to_dict()
