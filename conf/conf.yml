@@ -13,7 +13,7 @@ global:
     threaded: True
     debug: Flase
   threads_by_job: 2
-  write_queue_length: 100
+  write_queue_length: 20
   paths:
     conf: conf #optionnal self-link
     projects: projects

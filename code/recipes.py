@@ -884,7 +884,7 @@ class Recipe(Configured):
                 self.write_queue_length = config.conf[
                     "global"]["write_queue_length"]
             except:
-                self.write_queue_length = 50
+                self.write_queue_length = 20
 
         try:
             self.steps = []
