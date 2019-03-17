@@ -249,7 +249,7 @@ class Dataset(Configured):
             try:
                 self.select = self.conf["select"].replace('\n', ' ')
             except:
-                self.select = None
+                self.select = "select * from {}".format(self.table)
             try:
                 self.mode = self.conf["mode"]
             except:
@@ -438,6 +438,8 @@ class Dataset(Configured):
                         query = 'WITH MATCHID_INPUT_TABLE AS (SELECT * from {} limit {})\n'.format(self.table, test_chunk_size)
                         query = query + re.sub(table, r'\1MATCHID_INPUT_TABLE\2', self.select, flags=re.IGNORECASE)
                         query = "select * from (\n{}) query limit {}".format(query, test_chunk_size)
+                    else:
+                        query = self.select
                     self.log.write("execute statement:\n{}".format(query))                  
                     self.reader = pd.read_sql(query, self.connector.sql, chunksize=self.chunk)
                
