@@ -1368,7 +1368,6 @@ class Recipe(Configured):
         # 	return df
 
     def internal_exec(self,df=None):
-        print self.args
         if ((type(self.args) == str) | (type(self.args) == unicode)):
             exec self.args
         elif (type(self.args) == list):
