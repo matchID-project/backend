@@ -250,6 +250,10 @@ class Dataset(Configured):
                 self.select = self.conf["select"].replace('\n', ' ')
             except:
                 self.select = None
+            try:
+                self.mode = self.conf["mode"]
+            except:
+                self.mode = 'basic'
 
         if (self.connector.type == "elasticsearch"):
             try:
@@ -414,13 +418,8 @@ class Dataset(Configured):
                 self.reader = self.scanner()
             elif (self.connector.type == "sql"):
                 if (self.select == None):
-                    if test:
-                        self.reader = pd.read_sql_table(
-                            table_name=self.table, con=self.connector.sql, chunksize = test_chunk_size)
-                    else:
-                        self.reader = pd.read_sql_table(
-                            table_name=self.table, con=self.connector.sql, chunksize=self.chunk)
-                else:
+                    self.select = "select * from {}".format(self.table)
+                if self.mode == 'expert':
                     fbuf = StringIO()
                     if test:
                         table = r"(^|\s+|\()" + re.escape(self.table) + r"(\s+|\.|\)|$)"
@@ -429,13 +428,19 @@ class Dataset(Configured):
                         query = "COPY (select * from (\n{}) query limit {}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(query, test_chunk_size)
                     else:
                         query = "COPY (\n{}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(self.select)
-                    self.log.write("execute statement:\n{}".format(query))                  
+                    self.log.write("execute statement using expert mode (WARNING: all typed columns will be converted to string):\n{}".format(query))                  
                     self.connector.sql.raw_connection().cursor().copy_expert(query, fbuf)
                     fbuf.seek(0)
                     self.reader = pd.read_csv(fbuf, sep='\x01', dtype=object, encoding="utf8", iterator=True, keep_default_na=False, chunksize=self.chunk)
-                    # for j, df in enumerate(self.reader):
-                    #     self.log.write("j:{}\ndf:{}".format(j,df))
-                    # self.log.write("result:\n{}".format(fbuf.getvalue()))                  
+                else:
+                    if test:
+                        table = r"(^|\s+|\()" + re.escape(self.table) + r"(\s+|\.|\)|$)"
+                        query = 'WITH MATCHID_INPUT_TABLE AS (SELECT * from {} limit {})\n'.format(self.table, test_chunk_size)
+                        query = query + re.sub(table, r'\1MATCHID_INPUT_TABLE\2', self.select, flags=re.IGNORECASE)
+                        query = "select * from (\n{}) query limit {}".format(query, test_chunk_size)
+                    self.log.write("execute statement:\n{}".format(query))                  
+                    self.reader = pd.read_sql(query, self.connector.sql, chunksize=self.chunk)
+               
                     
             try:
                 if (self.filter != None):
