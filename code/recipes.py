@@ -1373,7 +1373,6 @@ class Recipe(Configured):
             exec self.args
         elif (type(self.args) == list):
             for expression in self.args:
-                print expression
                 exec expression
         return df
 
