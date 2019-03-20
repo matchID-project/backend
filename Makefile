@@ -244,7 +244,7 @@ start-all: start postgres
 	@sleep 2 && echo all components started, please enter following command to supervise:
 	@echo tail log/docker-*.log
 
-start: frontend-build elasticsearch backend frontend-stop frontend
+start: frontend-build elasticsearch postgres backend frontend-stop frontend
 	@sleep 2 && docker-compose logs
 
 up: start
