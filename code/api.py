@@ -759,7 +759,7 @@ class pushToValidation(Resource):
 
     @login_required
     @authorize(right="update")
-    @api.expect(parsers.live_parser)
+    @api.expect(parsers.es_parser)
     def post(self, dataset, doc_type, id, action):
         '''elasticsearch update api proxy'''
         if ((action == "_update")):
