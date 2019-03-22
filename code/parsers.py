@@ -26,3 +26,9 @@ es_parser.add_argument('size', location='args',
 login_parser = reqparse.RequestParser()
 login_parser.add_argument('json', location='json',
                           type='json', required=True, help='json')
+
+download_parser = reqparse.RequestParser()
+download_parser.add_argument('size', location='args',
+                       type=int, required=False, help='limit size of search')
+download_parser.add_argument('type', location='args',
+                       type=str, required=False, help='type: csv, default json')
