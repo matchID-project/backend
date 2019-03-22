@@ -230,6 +230,11 @@ class Dataset(Configured):
                 error="table of dataset {} has to be defined".format(self.name))
 
         try:
+            self.encoding = self.conf["encoding"]
+        except:
+            self.encoding = "utf8"
+
+        try:
             self.thread_count = self.conf["thread_count"]
         except:
             self.thread_count = self.connector.thread_count
@@ -359,11 +364,6 @@ class Dataset(Configured):
                 self.widths = self.conf["widths"]
             except:
                 self.widths = [1000]
-
-            try:
-                self.encoding = self.conf["encoding"]
-            except:
-                self.encoding = "utf8"
 
             try:
                 quoting = self.conf["quoting"]
