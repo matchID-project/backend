@@ -329,7 +329,7 @@ class Upload(Resource):
 
 
 @api.route('/upload/<file>', endpoint='upload/<file>')
-@api.doc(parmas={'file': 'file name of a previously uploaded file'})
+@api.doc(params={'file': 'file name of a previously uploaded file'})
 class actionFile(Resource):
 
     @login_required
