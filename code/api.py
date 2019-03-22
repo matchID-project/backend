@@ -637,7 +637,7 @@ class pushToValidation(Resource):
     @login_required
     @authorize()
     def get(self, dataset, action):
-        '''get text/yaml source code including the dataset (warning: a yaml source may include other resources'''
+        '''get text/yaml source code including the dataset (warning: a yaml source may include other resources)'''
         if (action == "yaml"):
             try:
                 project = config.conf["datasets"][dataset]["project"]
@@ -1009,6 +1009,20 @@ class RecipeRun(Resource):
             except:
                 api.abort(404)
 
+    @login_required
+    @authorize()
+    def delete(self, recipe, action):
+        '''delete text/yaml source code including the recipe (warning: a yaml source may include other resources)'''
+        if (action == "yaml"):
+            try:
+                project = config.conf["recipes"][recipe]["project"]
+                file = config.conf["recipes"][recipe]["source"]
+                pfile = os.path.join(config.conf["global"]["projects"][
+                    project]["path"], file)
+                os.remove(pfile)
+                return {"file": file, "status": "deleted"}
+            except:
+                api.abort(503, {"error": err()})
 
 @api.route('/jobs/', endpoint='jobs')
 class jobsList(Resource):
