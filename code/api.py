@@ -637,7 +637,7 @@ class pushToValidation(Resource):
     @login_required
     @authorize()
     def get(self, dataset, action):
-        '''alternative way to get text/yaml source code including the dataset'''
+        '''get text/yaml source code including the dataset (warning: a yaml source may include other resources'''
         if (action == "yaml"):
             try:
                 project = config.conf["datasets"][dataset]["project"]
@@ -646,6 +646,21 @@ class pushToValidation(Resource):
                     project]["path"], file)
                 with open(pfile) as f:
                     return Response(f.read(), mimetype="text/plain")
+            except:
+                api.abort(503, {"error": err()})
+
+    @login_required
+    @authorize()
+    def delete(self, dataset, action):
+        '''delete text/yaml source code including the dataset (warning: a yaml source may include other resources'''
+        if (action == "yaml"):
+            try:
+                project = config.conf["datasets"][dataset]["project"]
+                file = config.conf["datasets"][dataset]["source"]
+                pfile = os.path.join(config.conf["global"]["projects"][
+                    project]["path"], file)
+                os.remove(pfile)
+                return {"file": file, "status": "deleted"}
             except:
                 api.abort(503, {"error": err()})
 
