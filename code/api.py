@@ -565,9 +565,23 @@ class DatasetApi(Resource):
 
     @login_required
     @authorize()
+    @api.expect(parsers.download_parser)
     def post(self, dataset):
         '''get sample of a configured dataset, number of rows being configured in connector.samples'''
         ds = Dataset(dataset)
+        try:
+            args = parsers.download_parser.parse_args()
+            size = args['size']
+            format_type = args['type']
+            if size == None:
+                size = ds.connector.sample
+            if format_type == None:
+                format_type = 'json'
+        except:
+            size = ds.connector.sample
+            format_type = 'json'
+        print "args {} {}".format(format_type,size)
+
         if (ds.connector.type == "elasticsearch"):
             if (ds.random_view == True):
                 ds.select = {"query": {"function_score": {
@@ -584,8 +598,11 @@ class DatasetApi(Resource):
                     return {"data": [{"error": "error: no such file {}".format(ds.file)}]}
                 except:
                     return {"data": [{"error": "error: no such table {}".format(ds.table)}]}
-            df = df.head(n=ds.connector.sample).reset_index(drop=True)
-            return {"data": list(df.fillna("").T.to_dict().values()), "schema": schema}
+            df = df.head(n=size).reset_index(drop=True)
+            if (format_type == 'json'):
+                return {"data": list(df.fillna("").T.to_dict().values()), "schema": schema}
+            elif (format_type == 'csv'):
+                return df.to_csv(index=False, encoding = "utf8" if ds.encoding == None else ds.encoding)
         except:
             error = err()
             try:
