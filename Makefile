@@ -23,6 +23,8 @@ export DC_FILE=${DC_DIR}/docker-compose
 export DC_PREFIX=matchid
 export DC_NETWORK=matchid
 export DC_NETWORK_OPT=
+export GIT_ORIGIN=origin
+export GIT_BRANCH=dev
 
 export API_SECRET_KEY:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//')
 export ADMIN_PASSWORD:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//' )
@@ -197,10 +199,10 @@ ifeq ("$(wildcard ${FRONTEND})","")
 endif
 
 frontend-update:
-	@cd ${FRONTEND}; git pull
+	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} ${GIT_BRANCH}
 
 backend-update:
-	@cd ${BACKEND}; git pull
+	@cd ${BACKEND}; git pull ${GIT_ORIGIN} ${GIT_BRANCH}
 
 update: frontend-update backend-update
 
