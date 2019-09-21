@@ -272,7 +272,7 @@ class Logout(Resource):
         logout_user()
         return {"status": "logged out"}
 
-@api.route('/shutdown', endpoint='shutdown')
+@api.route('/shutdown/', endpoint='shutdown')
 class Shutdown(Resource):
 
     @login_required
@@ -283,7 +283,7 @@ class Shutdown(Resource):
         if func is None:
             raise RuntimeError('Not running with the Werkzeug Server')
         func()
-        return 'Server shutting down...'
+        return {"message": "Server restarting..."}
 
 @api.route('/conf/', endpoint='conf')
 class Conf(Resource):
