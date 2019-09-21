@@ -272,6 +272,18 @@ class Logout(Resource):
         logout_user()
         return {"status": "logged out"}
 
+@api.route('/shutdown', endpoint='shutdown')
+class Shutdown(Resource):
+
+    @login_required
+    @authorize(right="admin")
+    def put(self):
+        '''stop matchID backend service'''
+        func = request.environ.get('werkzeug.server.shutdown')
+        if func is None:
+            raise RuntimeError('Not running with the Werkzeug Server')
+        func()
+        return 'Server shutting down...'
 
 @api.route('/conf/', endpoint='conf')
 class Conf(Resource):
