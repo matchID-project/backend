@@ -283,7 +283,7 @@ class Shutdown(Resource):
         if func is None:
             raise RuntimeError('Not running with the Werkzeug Server')
         func()
-        return {"message": "Server restarting..."}
+        return {"message": "Server restarting   ..."}
 
 @api.route('/conf/', endpoint='conf')
 class Conf(Resource):
@@ -598,7 +598,7 @@ class DatasetApi(Resource):
             if (ds.random_view == True):
                 ds.select = {"query": {"function_score": {
                     "query": ds.select["query"], "random_score": {}}}}
-        elif (ds.connector.type == "sql"): 
+        elif (ds.connector.type == "sql"):
             if (ds.select == None):
                 ds.select = "select * from {}".format(ds.table)
         ds.init_reader(test=True)
@@ -644,12 +644,13 @@ class DatasetApi(Resource):
 
 
 @api.route('/datasets/<dataset>/<action>', endpoint='datasets/<dataset>/<action>')
+
 class pushToValidation(Resource):
 
     @login_required
     @authorize()
     def get(self, dataset, action):
-        '''get text/yaml source code including the dataset (warning: a yaml source may include other resources)'''
+        '''action = validation : get text/yaml source code including the dataset (warning: a yaml source may include other resources)'''
         if (action == "yaml"):
             try:
                 project = config.conf["datasets"][dataset]["project"]
@@ -679,7 +680,7 @@ class pushToValidation(Resource):
     @login_required
     @authorize(right="update")
     def put(self, dataset, action):
-        '''action = validation : configure the frontend to point to this dataset'''
+        '''action = validation : configure the frontend to point to this dataset / action = search : search within dataset'''
         import config
         config.init()
         config.read_conf()
@@ -749,7 +750,7 @@ class pushToValidation(Resource):
     @authorize()
     @api.expect(parsers.live_parser)
     def post(self, dataset, action):
-        '''direct search into the dataset'''
+        '''action = _search : proxy _search api for elasticsearch dataset'''
         if ((action == "_search")):
             try:
                 args = parsers.es_parser.parse_args()
