@@ -592,8 +592,7 @@ class DatasetApi(Resource):
         except:
             size = ds.connector.sample
             format_type = 'json'
-        print "args {} {}".format(format_type,size)
-
+        print("args {} {}".format(format_type,size))
         if (ds.connector.type == "elasticsearch"):
             if (ds.random_view == True):
                 ds.select = {"query": {"function_score": {
@@ -706,8 +705,8 @@ class pushToValidation(Resource):
                             "dataset": dataset
                         }
                         props[conf] = replace_dict(cfg[conf], dic)
-                        print conf
-                    print {"dataset": dataset, "status": "to validation", "props": props}
+                        print(conf)
+                    print({"dataset": dataset, "status": "to validation", "props": props})
                     return {"dataset": dataset, "status": "to validation", "props": props}
                 except:
                     return api.abort(500, {"dataset": dataset, "status": "error: " + err()})

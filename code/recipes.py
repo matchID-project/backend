@@ -386,7 +386,7 @@ class Dataset(Configured):
         try:
             test_chunk_size = self.parent.conf["test_chunk_size"]
         except:
-            test_chunk_size = config.conf["global"]["test_chunk_size"]        
+            test_chunk_size = config.conf["global"]["test_chunk_size"]
 
         if True:
             if (self.name == "inmemory"):
@@ -428,7 +428,7 @@ class Dataset(Configured):
                         query = "COPY (select * from (\n{}) query limit {}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(query, test_chunk_size)
                     else:
                         query = "COPY (\n{}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(self.select)
-                    self.log.write("execute statement using expert mode (WARNING: all typed columns will be converted to string):\n{}".format(query))                  
+                    self.log.write("execute statement using expert mode (WARNING: all typed columns will be converted to string):\n{}".format(query))
                     self.connector.sql.raw_connection().cursor().copy_expert(query, fbuf)
                     fbuf.seek(0)
                     self.reader = pd.read_csv(fbuf, sep='\x01', dtype=object, encoding="utf8", iterator=True, keep_default_na=False, chunksize=self.chunk)
@@ -440,10 +440,10 @@ class Dataset(Configured):
                         query = "select * from (\n{}) query limit {}".format(query, test_chunk_size)
                     else:
                         query = self.select
-                    self.log.write("execute statement:\n{}".format(query))                  
+                    self.log.write("execute statement:\n{}".format(query))
                     self.reader = pd.read_sql(query, self.connector.sql, chunksize=self.chunk)
-               
-                    
+
+
             try:
                 if (self.filter != None):
                     self.filter.init(df=self.reader, parent=self)
@@ -538,7 +538,7 @@ class Dataset(Configured):
             if (self.mode == 'create'):
                 self.connector.sql.execute(
                     'DROP TABLE IF EXISTS {};'.format(self.table))
-                    
+
         elif (self.connector.type == "redisearch"):
             self.client = rs.Client(self.table, host=self.connector.host, port=self.connector.port)
             if (self.mode == 'create'):
@@ -1138,7 +1138,7 @@ class Recipe(Configured):
 
             if ((self.test == False) and (len(self.steps) == 0) and (self.input.connector.type == "sql") and (self.output.connector.type == "sql") and (self.input.select != None) and (self.input.connector.name == self.output.connector.name)):
                 sql_direct = True
-            
+
             elif ((self.input.chunked == True) | (self.test == True)):
                 try:
                     self.df = next(self.input.reader, "")
@@ -1301,7 +1301,7 @@ class Recipe(Configured):
                 with open(self.log.file, 'r') as f:
                     logtext = f.read().split("\n")
                 self.errors = len(set([re.search('chunk (\d+)', line).group(1)
-                                    for line in logtext if (("Ooops" in line) & ("chunk " in line))])) 
+                                    for line in logtext if (("Ooops" in line) & ("chunk " in line))]))
                 self.processed = sum([int(re.search(
                     'proceed (\d+) rows', line).group(1)) for line in logtext if "proceed" in line])
                 self.written = sum([int(re.search('wrote (\d+)', line).group(1))
@@ -1803,7 +1803,7 @@ class Recipe(Configured):
             for expression in self.args:
                 self.input.connector.sql.execute(expression)
         return df
-        
+
     def internal_delete(self, df=None):
         # keep only selected columns
         self.select_columns(df=df)
