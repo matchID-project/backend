@@ -13,6 +13,7 @@ services:
       - cluster.name=matchid-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms%M -Xmx%M"
+      - discovery.type=single-node
     ulimits:
       memlock:
         soft: -1

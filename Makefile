@@ -38,7 +38,7 @@ export CRED_FILE=conf/security/creds.yml
 export ES_NODES = 3		# elasticsearch number of nodes
 export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
 export ES_MEM = 1024m		# elasticsearch : memory of each node
-export ES_VERSION = 6.5.3
+export ES_VERSION = 7.5.0
 
 dummy		    := $(shell touch artifacts)
 include ./artifacts
