@@ -480,7 +480,7 @@ class Dataset(Configured):
     def scanner(self, **kwargs):
         self.select = json.loads(json.dumps(self.select))
         scan = helpers.scan(client=self.connector.es, scroll=u'1000m', clear_scroll=False, query=self.select,
-                            index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
+                            index=self.table, preserve_order=True, size=self.chunk)
 
         hits = []
         ids = []
