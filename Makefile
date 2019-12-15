@@ -132,10 +132,10 @@ endif
 elasticsearch: network vm_max
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
-	@(if [ ! -d ${BACKEND}/esdata/node1 ]; then sudo mkdir -p ${BACKEND}/esdata/node1 ; sudo chmod 777 ${BACKEND}/esdata/node1/.; fi)
+	@(if [ ! -d ${BACKEND}/esdata/node1 ]; then sudo mkdir -p ${BACKEND}/esdata/node1 ; sudo chmod g+rw ${BACKEND}/esdata/node1/.; sudo chgrp 1000 ${BACKEND}/esdata/node1/.; fi)
 	@(i=$(ES_NODES); while [ $${i} -gt 1 ]; \
 		do \
-			if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/node$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/.); fi; \
+			if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/node$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod g+rw ${BACKEND}/esdata/node$$i/. && sudo chgrp 1000 ${BACKEND}/esdata/node$$i/.); fi; \
 		cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" >> ${DC_FILE}-elasticsearch-huge.yml; \
 		i=`expr $$i - 1`; \
 	done;\
@@ -147,7 +147,8 @@ elasticsearch2:
 	@cat ${DC_FILE}-elasticsearch.yml | head -8 > ${DC_FILE}-elasticsearch-huge-remote.yml
 	@(i=$$(( $(ES_NODES) * $(ES_SWARM_NODE_NUMBER) ));j=$$(( $(ES_NODES) * $(ES_SWARM_NODE_NUMBER) - $(ES_NODES))); while [ $${i} -gt $${j} ]; \
 	        do \
-	              if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/node$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod 777 ${BACKEND}/esdata/node$$i/.); fi; \
+	              if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/no
+	              if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdatde$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod g+rw ${BACKEND}/esdata/node$$i/. && sudo chgrp 1000 ${BACKEND}/esdata/node$$i/.); fi; \
 	              cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" | egrep -v 'depends_on|- elasticsearch' >> ${DC_FILE}-elasticsearch-huge-remote.yml; \
 	              i=`expr $$i - 1`; \
 	 	done;\
@@ -158,7 +159,7 @@ kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
 kibana: network
 ifeq ("$(wildcard ${BACKEND}/kibana)","")
-	sudo mkdir -p ${BACKEND}/kibana && sudo chmod 777 ${BACKEND}/kibana/.
+	sudo mkdir -p ${BACKEND}/kibana && sudo chmod g+rw ${BACKEND}/kibana/. && sudo chgrp 1000 ${BACKEND}/kibana/.
 endif
 	${DC} -f ${DC_FILE}-kibana.yml up -d
 
