@@ -569,7 +569,7 @@ class Dataset(Configured):
                 df = df.fillna("")
                 if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode == 'create'):
                         # unsafe insert speed enable to speed up
-                    actions = [{'_op_type': mode, '_index': self.table, '_type': self.name, '_source': dict(
+                    actions = [{'_op_type': mode, '_index': self.table, '_source': dict(
                         (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
                 else:
                     if ('_id' not in df.columns):
@@ -577,10 +577,10 @@ class Dataset(Configured):
                     records = df.drop(['_id'], axis=1).T.to_dict()
                     ids = df['_id'].T.to_dict()
                     if (self.mode == "update"):
-                        actions = [{'_op_type': 'update', '_id': ids[it], '_index': self.table, '_type': self.name, 'doc_as_upsert': True, 'doc': dict(
+                        actions = [{'_op_type': 'update', '_id': ids[it], '_index': self.table, 'doc_as_upsert': True, 'doc': dict(
                             (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
                     else:
-                        actions = [{'_op_type': 'index', '_id': ids[it], '_index': self.table, '_type': self.name, '_source': dict(
+                        actions = [{'_op_type': 'index', '_id': ids[it], '_index': self.table, '_source': dict(
                             (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
                 try:
                     tries = 0
