@@ -1,11 +1,11 @@
 connectors:
   upload:
     type: filesystem
-    database: upload/
-    chunk: 2000
+    directory: upload/
+    chunk: 10000
   referential_data:
     type: filesystem
-    database: referential_data/
+    directory: referential_data/
     chunk: 10000
   models:
     type: filesystem
@@ -13,7 +13,7 @@ connectors:
   elasticsearch:
     type: elasticsearch
     host: elasticsearch
-    thread_count: 3
+    thread_count: 2
     chunk: 500
     chunk_search: 20
     port: 9200

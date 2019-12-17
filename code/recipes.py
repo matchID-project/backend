@@ -12,6 +12,7 @@ import hashlib
 import unicodedata
 import shutil
 import csv
+import s3fs
 from werkzeug.utils import secure_filename
 from cStringIO import StringIO
 
@@ -117,13 +118,60 @@ class Connector(Configured):
             sys.exit(
                 "Ooops: type of connector {} has to be defined".format(self.name))
 
-        if (self.type == "filesystem") | (self.type == "mongodb"):
+        if (self.type == "mongodb"):
             try:
                 self.database = self.conf["database"]
             except:
-                sys.exit("Ooops: database of connector {} has to be defined as type is {}".format(
-                    self.name, self.type))
+                sys.exit("Ooops: database of {} connector {} has to be defined".format(
+                    self.type, self.name))
+        if (self.type == "filesystem"):
+            try:
+                self.directory = self.conf["directory"]
+            except:
+                sys.exit("Ooops: directory of {} connector {} has to be defined".format(
+                    self.type, self.name))
 
+        if (self.type == "s3"):
+            try:
+                self.bucket = self.conf["bucket"]
+            except:
+                sys.exit("Ooops: bucket of {} connector {} has to be defined".format(
+                    self.type, self.name))
+            try:
+                self.endpoint_url = self.conf["endpoint_url"]
+            except:
+                self.endpoint_url = None
+            try:
+                self.region_name = self.conf["region_name"]
+            except:
+                self.region_name = None
+            try:
+                self.signature_version = self.conf["signature_version"]
+            except:
+                self.signature_version = None
+
+            try:
+                self.key = self.conf["key"]
+            except:
+                try:
+                    self.key = os.getenv("aws_access_key_id")
+                except:
+                    sys.exit("Ooops: aws_access_key_id of {} connector {} has to be defined directly or through env".format(
+                        self.type, self.name))
+            try:
+                self.secret = self.conf["secret"]
+            except:
+                try:
+                    self.secret = os.getenv("aws_secret_access_key")
+                except:
+                    sys.exit("Ooops: aws_secret_access_key of {} connector {} has to be defined directly or through env".format(
+                        self.type, self.name))
+            self.s3fs = s3fs.S3FileSystem(
+                key=self.key,
+                secret=self.secret,
+                use_ssl=True,
+                client_kwargs={"endpoint_url": self.endpoint_url, "region_name": self.region_name}
+                )
         try:
             self.timeout = self.conf["timeout"]
         except:
@@ -305,15 +353,29 @@ class Dataset(Configured):
         if (self.connector.type == "filesystem"):
             self.select = None
             try:
-                self.files = [os.path.join(self.connector.database, f)
-                              for f in os.listdir(self.connector.database)
+                self.files = [os.path.join(self.connector.directory, f)
+                              for f in os.listdir(self.connector.directory)
                               if re.match(r'^' + self.table['regex'] + '$', f)]
                 self.file = self.files[0]
             except:
-                self.file = os.path.join(self.connector.database, self.table)
+                self.file = os.path.join(self.connector.directory, self.table)
                 self.files = [self.file]
                 #log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
 
+        if (self.connector.type == "s3"):
+            self.select = None
+            try:
+                self.files = [f
+                              for f in self.connector.s3fs.ls(self.connector.bucket)
+                              if re.match(r'^' + self.connector.bucket + '\/' + self.table['regex'] + '$', f)]
+                self.file = self.files[0]
+            except:
+                self.file = os.path.join(self.connector.bucket, self.table)
+                self.files = [self.file]
+                #log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
+
+
+        if (self.connector.type == "filesystem") | (self.connector.type == "s3"):
             try:
                 self.skiprows = self.conf["skiprows"]
             except:
@@ -398,21 +460,42 @@ class Dataset(Configured):
                             error="can't initiate inmemory dataset with no dataframe", exit=True)
                     else:
                         self.reader = []
-            elif (self.connector.type == "filesystem"):
+            elif (self.connector.type == "filesystem") | (self.connector.type == "s3"):
                 if (self.type == "csv"):
-                    self.reader = itertools.chain.from_iterable(pd.read_csv(file, sep=self.sep, usecols=self.select, chunksize=self.chunk,
-                                                                            compression=self.compression, encoding=self.encoding, dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
-                                                                            prefix=self.prefix, iterator=True, index_col=False, keep_default_na=False) for file in self.files)
+                    self.reader = itertools.chain.from_iterable(
+                        pd.read_csv(
+                            file if (self.connector.type == "filesystem") else self.connector.s3fs.open(file),
+                            sep=self.sep, usecols=self.select, chunksize=self.chunk,
+                            compression=self.compression, encoding=self.encoding, dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
+                            prefix=self.prefix, iterator=True, index_col=False, keep_default_na=False
+                            )
+                        for file in self.files)
                 elif (self.type == "fwf"):
-                    self.reader = itertools.chain.from_iterable(pd.read_fwf(file, chunksize=self.connector.chunk, skiprows=self.skiprows,
-                                                                            encoding=self.encoding, delimiter=self.sep, compression=self.compression, dtype=object, names=self.names, widths=self.widths,
-                                                                            iterator=True, keep_default_na=False) for file in self.files)
+                    self.reader = itertools.chain.from_iterable(
+                        pd.read_fwf(
+                            file if (self.connector.type == "filesystem") else self.connector.s3fs.open(file),
+                            chunksize=self.connector.chunk, skiprows=self.skiprows,
+                            encoding=(self.encoding if (self.compression == 'infer') else None),
+                            delimiter=self.sep, compression=self.compression, dtype=object, names=self.names, widths=self.widths,
+                            iterator=True, keep_default_na=False
+                            )
+                        for file in self.files)
                 elif (self.type == "hdf"):
-                    self.reader = itertools.chain.from_iterable(pd.read_hdf(
-                        file, chunksize=self.chunk) for file in self.files)
+                    self.reader = itertools.chain.from_iterable(
+                        pd.read_hdf(
+                            file if (self.connector.type == "filesystem") else self.connector.s3fs.open(file),
+                            chunksize=self.chunk
+                            )
+                        for file in self.files)
                 elif (self.type == "msgpack"):
-                    self.reader = itertools.chain.from_iterable(self.iterator_chunk(pd.read_msgpack(
-                        file, iterator=True, encoding=self.encoding)) for file in self.files)
+                    self.reader = itertools.chain.from_iterable(
+                        self.iterator_chunk(
+                            pd.read_msgpack(
+                                file if (self.connector.type == "filesystem") else self.connector.s3fs.open(file),
+                                iterator=True, encoding=self.encoding
+                                )
+                            )
+                        for file in self.files)
 
             elif (self.connector.type == "elasticsearch"):
                 self.reader = self.scanner()

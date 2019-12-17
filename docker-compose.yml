@@ -8,6 +8,11 @@ services:
         proxy: ${http_proxy}
     image: matchid-backend:latest
     container_name: ${DC_PREFIX}-backend
+    environment:
+      - http_proxy
+      - https_proxy
+      - aws_access_key_id
+      - aws_secret_access_key
     volumes:
       - ${BACKEND}/code/:/matchid/code/
       - ${BACKEND}/conf/:/matchid/conf/
