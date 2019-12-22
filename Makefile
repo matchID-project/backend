@@ -70,7 +70,7 @@ endif
 
 install-prerequisites:
 ifeq ("$(wildcard /usr/bin/envsubst)","")
-	sudo apt-get update; true 
+	sudo apt-get update; true
 	sudo apt install -y gettext; true
 endif
 

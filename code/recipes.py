@@ -12,7 +12,9 @@ import hashlib
 import unicodedata
 import shutil
 import csv
-import s3fs
+import boto3
+from smart_open import open
+
 from werkzeug.utils import secure_filename
 from cStringIO import StringIO
 
@@ -31,6 +33,7 @@ from collections import deque
 
 # interact with datasets
 import gzip
+
 #from pandasql import sqldf
 import elasticsearch
 from elasticsearch import Elasticsearch, helpers
@@ -72,7 +75,6 @@ from log import Log, err
 import automata
 from tools import *
 
-
 def fwf_format(row, widths, sep=""):
     return sep.join([row[col].ljust(widths[i] - len(sep)) for i, col in enumerate(row.keys())])
 
@@ -113,6 +115,11 @@ class Connector(Configured):
         Configured.__init__(self, "connectors", name)
 
         try:
+            self.thread_count = self.conf["thread_count"]
+        except:
+            self.thread_count = 1
+
+        try:
             self.type = self.conf["type"]
         except:
             sys.exit(
@@ -138,40 +145,37 @@ class Connector(Configured):
                 sys.exit("Ooops: bucket of {} connector {} has to be defined".format(
                     self.type, self.name))
             try:
+                self.aws_access_key_id = self.conf["aws_access_key_id"]
+            except:
+                self.aws_access_key_id = os.getenv('aws_access_key_id')
+            try:
+                self.aws_secret_access_key = self.conf["aws_secret_access_key"]
+            except:
+                self.aws_secret_access_key = os.getenv('aws_secret_access_key')
+            try:
                 self.endpoint_url = self.conf["endpoint_url"]
             except:
                 self.endpoint_url = None
             try:
-                self.region_name = self.conf["region_name"]
-            except:
-                self.region_name = None
-            try:
                 self.signature_version = self.conf["signature_version"]
             except:
                 self.signature_version = None
-
             try:
-                self.key = self.conf["key"]
+                self.region_name = self.conf["region_name"]
             except:
-                try:
-                    self.key = os.getenv("aws_access_key_id")
-                except:
-                    sys.exit("Ooops: aws_access_key_id of {} connector {} has to be defined directly or through env".format(
-                        self.type, self.name))
-            try:
-                self.secret = self.conf["secret"]
-            except:
-                try:
-                    self.secret = os.getenv("aws_secret_access_key")
-                except:
-                    sys.exit("Ooops: aws_secret_access_key of {} connector {} has to be defined directly or through env".format(
-                        self.type, self.name))
-            self.s3fs = s3fs.S3FileSystem(
-                key=self.key,
-                secret=self.secret,
-                use_ssl=True,
-                client_kwargs={"endpoint_url": self.endpoint_url, "region_name": self.region_name}
+                self.region_name = None
+            self.s3_session = boto3.Session(
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                region_name=self.region_name
                 )
+            #self.client = session.client('s3', endpoint_url=self.endpoint_url)
+            self.s3_resource =  self.s3_session.resource('s3', endpoint_url =  self.endpoint_url)
+            self.transport_params={
+                "session": self.s3_session,
+                "resource_kwargs": {"endpoint_url": self.endpoint_url}
+            }
+
         try:
             self.timeout = self.conf["timeout"]
         except:
@@ -216,11 +220,6 @@ class Connector(Configured):
         except:
             self.sample = 500
 
-        try:
-            self.thread_count = self.conf["thread_count"]
-        except:
-            self.thread_count = 1
-
         if (self.type == "sql"):
             try:
                 self.encoding = self.conf["encoding"]
@@ -256,7 +255,7 @@ class Dataset(Configured):
                 self.filter = None
                 return
             else:
-                log.write(error="no conf for dataset {}".format(self.name))
+                config.log.write(error="no conf for dataset {}".format(self.name))
 
         try:
             self.parent = parent
@@ -364,15 +363,18 @@ class Dataset(Configured):
 
         if (self.connector.type == "s3"):
             self.select = None
-            try:
-                self.files = [f
-                              for f in self.connector.s3fs.ls(self.connector.bucket)
-                              if re.match(r'^' + self.connector.bucket + '\/' + self.table['regex'] + '$', f)]
-                self.file = self.files[0]
-            except:
-                self.file = os.path.join(self.connector.bucket, self.table)
+            if (type(self.table) == str):
+                self.file = "s3://" + os.path.join(self.connector.bucket,self.table)
                 self.files = [self.file]
-                #log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
+            else:
+                try:
+                    self.files = ["s3://" + os.path.join(f.bucket_name,f.key)
+                              for f in self.connector.s3_resource.Bucket(self.connector.bucket).objects.all()
+                              if re.match(r'^' + self.table['regex'] + '$', f.key)]
+                    self.file = self.files[0]
+                except:
+                    self.files= [str(err())]
+                    # config.log.write("Ooops: couldn't match files for {} in connector {}".format(self.name,self.connector.name),exit=True)
 
 
         if (self.connector.type == "filesystem") | (self.connector.type == "s3"):
@@ -464,26 +466,26 @@ class Dataset(Configured):
                 if (self.type == "csv"):
                     self.reader = itertools.chain.from_iterable(
                         pd.read_csv(
-                            file if (self.connector.type == "filesystem") else self.connector.s3fs.open(file),
+                            self.open(file),
                             sep=self.sep, usecols=self.select, chunksize=self.chunk,
-                            compression=self.compression, encoding=self.encoding, dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
+                            encoding=self.encoding,dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
                             prefix=self.prefix, iterator=True, index_col=False, keep_default_na=False
                             )
                         for file in self.files)
                 elif (self.type == "fwf"):
                     self.reader = itertools.chain.from_iterable(
                         pd.read_fwf(
-                            file if (self.connector.type == "filesystem") else self.connector.s3fs.open(file),
+                            self.open(file),
                             chunksize=self.connector.chunk, skiprows=self.skiprows,
-                            encoding=(self.encoding if (self.compression == 'infer') else None),
-                            delimiter=self.sep, compression=self.compression, dtype=object, names=self.names, widths=self.widths,
+                            encoding=self.encoding,
+                            delimiter=self.sep, compression='infer', dtype=object, names=self.names, widths=self.widths,
                             iterator=True, keep_default_na=False
                             )
                         for file in self.files)
                 elif (self.type == "hdf"):
                     self.reader = itertools.chain.from_iterable(
                         pd.read_hdf(
-                            file if (self.connector.type == "filesystem") else self.connector.s3fs.open(file),
+                            self.open(file),
                             chunksize=self.chunk
                             )
                         for file in self.files)
@@ -491,7 +493,7 @@ class Dataset(Configured):
                     self.reader = itertools.chain.from_iterable(
                         self.iterator_chunk(
                             pd.read_msgpack(
-                                file if (self.connector.type == "filesystem") else self.connector.s3fs.open(file),
+                                self.open(file),
                                 iterator=True, encoding=self.encoding
                                 )
                             )
@@ -541,6 +543,10 @@ class Dataset(Configured):
             self.log.write(msg="couldn't initiate dataset {}".format(
                 self.name), error=err(), exit=True)
 
+    def open(self, file, mode='rb'):
+        if (self.connector.type == "s3"):
+            return open(file, mode, transport_params=self.connector.transport_params)
+        return open(file, mode)
 
     def iterator_chunk(self, iterator):
         df_list=[]
@@ -617,6 +623,15 @@ class Dataset(Configured):
                     # further better except should make difference btw no
                     # existing file and unwritable
                     pass
+                self.fs = open(self.file, 'wb')
+            else:
+                self.fs = open(self.file, 'ab')
+            self.log.write(msg="initiated stream output {}".format(self.name))
+        elif (self.connector.type == "s3"):
+            self.fs = open(self.file,
+                'wb', transport_params=self.connector.transport_params)
+            self.log.write(msg="initiated stream output {}".format(self.name))
+
         elif (self.connector.type == "sql"):
             if (self.mode == 'create'):
                 self.connector.sql.execute(
@@ -725,7 +740,7 @@ class Dataset(Configured):
                     self.log.write(msg="elasticsearch bulk of subchunk {} failed {}/{}".format(
                         i, self.connector.name, self.table), error=err())
 
-            elif (self.connector.type == "filesystem"):
+            elif (self.connector.type in ["filesystem", "s3"]):
                 # self.log.write("filesystem write {}".format(self.name))
                 if (self.type == "csv"):
                     try:
@@ -734,13 +749,16 @@ class Dataset(Configured):
                         if (chunk == 0):
                             header = self.header
                         else:
-                            header = None
+                            header = False
                         if (self.names != None):
                             df=df[self.names]
                         else:
                             df.sort_index(axis=1, inplace=True)
-                        df.to_csv(self.file, mode='a', index=False, sep=self.sep, quoting=self.quoting,
-                                  compression=self.compression, encoding=self.encoding, header=header)
+
+                        df.to_csv(
+                            self.fs,
+                            mode='a', index=False, sep=self.sep, quoting=self.quoting,
+                            encoding=self.encoding, header=header)
                     except:
                         self.log.write(
                             "write to csv failed writing {}".format(self.file), err())
@@ -750,30 +768,37 @@ class Dataset(Configured):
                     else:
                         header = False
                     try:
-                        to_fwf(df, self.file, names=self.names, header=header, sep=self.sep,
-                               widths=self.widths, append=True, encoding=self.encoding, log=self.log)
+                        to_fwf(df,
+                            self.fs,
+                            names=self.names, header=header, sep=self.sep,
+                            widths=self.widths, append=True, encoding=self.encoding, log=self.log)
                     except:
                         self.log.write(
                             "write to fwf failed writing {}".format(self.file), err())
                     pass
                 elif (self.type == "hdf"):
                     try:
-                        df.to_hdf(self.file, key=self.name,
-                                  mode='a', format='table')
+                        df.to_hdf(
+                            self.fs,
+                            key=self.name,
+                            mode='a', format='table')
                     except:
                         self.log.write(
                             "write to hdf failed writing {}".format(self.file), err())
                 elif (self.type == "msgpack"):
                     try:
-                        df.to_msgpack(self.file, append=True,
-                                      encoding=self.encoding)
+                        df.to_msgpack(
+                            self.fs,
+                            append=True,
+                            encoding=self.encoding)
                     except:
                         self.log.write(
                             "write to msgpack failed writing {}".format(self.file), err())
                 else:
                     self.log.write("no method for writing to {} with type {}".format(
                         self.file, self.type))
-
+                if self.connector.type == "filesystem":
+                    self.fs.flush()
             elif (self.connector.type == "sql"):
                 try:
                     self.log.write(
@@ -825,6 +850,9 @@ class Dataset(Configured):
 
         return processed
 
+    def close(self):
+        if self.connector.type in ["filesystem", "s3"]:
+            self.fs.close()
 
 class Recipe(Configured):
 
@@ -1012,12 +1040,6 @@ class Recipe(Configured):
             if ((len(self.before) + len(self.after)) == 0):
                 self.log.write(msg="couldn't init input {} of recipe {}".format(
                     self.input.name, self.name), error=err())
-        if (self.test == False):
-            try:
-                self.output.init_writer()
-            except:
-                self.log.write(msg="couldn't init output {} of recipe {}".format(
-                    self.output.name, self.name), error=err())
 
     def set_job(self, job=None):
         self.job = job
@@ -1063,12 +1085,18 @@ class Recipe(Configured):
 
     def write_queue(self, queue, supervisor=None):
         exit = False
+        if (self.test == False):
+            try:
+                self.output.init_writer()
+            except:
+                self.log.write(msg="couldn't init output {} of recipe {}".format(
+                    self.output.name, self.name), error=err())
         w_queue = []
         try:
             max_threads = self.output.thread_count
+            self.log.write("initiating queue with {} threads".format(max_threads))
         except:
             max_threads = 1
-        self.log.write("initiating queue with {} threads".format(max_threads))
         while (exit == False):
             try:
                 res = queue.get()
@@ -1083,11 +1111,15 @@ class Recipe(Configured):
                                 t[1].is_alive() & (supervisor[t[0]] == "writing"))]
                             time.sleep(0.05)
                     supervisor[res[0]] = "writing"
-                    thread = Process(target=self.write, args=[
-                                     res[0], res[1], supervisor])
-                    thread.start()
-                    w_queue.append([res[0], thread])
-                    time.sleep(0.05)
+                    if ((max_threads == 1) | (self.output.connector.type in ["filesystem", "s3"])):
+                        # filestream can't be parallelized
+                        self.write(res[0], res[1], supervisor)
+                    else:
+                        thread = Process(target=self.write, args=[
+                                        res[0], res[1], supervisor])
+                        thread.start()
+                        w_queue.append([res[0], thread])
+                        time.sleep(0.05)
             except:
                 # self.log.write("waiting to write - {}, {}".format(self.name, w_queue))
                 time.sleep(1)
@@ -1098,6 +1130,7 @@ class Recipe(Configured):
                     t[1].is_alive() & (supervisor[t[0]] == "writing"))]
         except:
             pass
+        self.output.close()
 
     def run_chunk(self, i, df, queue=None, supervisor=None):
         if (supervisor != None):
@@ -1407,6 +1440,7 @@ class Recipe(Configured):
             except:
                 self.log.write(msg="SQL statement ended with error, please check error message above")
 
+        self.log.write("end of all")
 
     def select_columns(self, df=None, arg="select"):
         try:
