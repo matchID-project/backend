@@ -628,6 +628,15 @@ class Dataset(Configured):
                 self.fs = open(self.file, 'ab')
             self.log.write(msg="initiated stream output {}".format(self.name))
         elif (self.connector.type == "s3"):
+            try:
+                self.log.write(msg="tries to remove {}".format(self.file))
+                self.connector.s3_resource.Object(self.connector.bucket, self.file.replace(self.connector.bucket + '/', '')).delete()
+                self.log.write(msg="removed successfully {}".format(self.file))
+            except:
+                self.log.write(msg="couldn't remove {} {}".format(self.file,err()))
+                # further better except should make difference btw no
+                # existing file and unwritable
+                pass
             self.fs = open(self.file,
                 'wb', transport_params=self.connector.transport_params)
             self.log.write(msg="initiated stream output {}".format(self.name))
