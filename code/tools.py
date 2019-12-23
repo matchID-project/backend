@@ -120,6 +120,16 @@ def tokenize (x=None):
     else:
         return tokenize(str(x))
 
+def unicode_safe(x):
+    try:
+        return unicode(x)
+    except:
+        pass
+    try:
+        return "Ooops: '{}' return an unicode error: {}".format(unicode(x, "utf8", errors="ignore"),err())
+    except:
+        pass
+    return "Ooops: '{}' return an unicode error: {}".format(str.encode(x, "ascii", errors="ignore"),err())
 
 def normalize(x=None):
     if (type(x)==unicode):
