@@ -455,7 +455,18 @@ class Dataset(Configured):
         if True:
             if (self.name == "inmemory"):
                 if (df is not None):
-                    self.reader = [df]
+                    self.reader = [
+                        dict({
+                            "desc": {
+                                "source": {
+                                    "type": "inmemory",
+                                    "name": "inmemory"
+                                },
+                                "chunk": {"id": 0}
+                            },
+                            "df": df
+                            })
+                        ]
                 else:
                     if((len(self.before) + len(self.after)) == 0):
                         self.log.write(
@@ -463,42 +474,7 @@ class Dataset(Configured):
                     else:
                         self.reader = []
             elif (self.connector.type == "filesystem") | (self.connector.type == "s3"):
-                if (self.type == "csv"):
-                    self.reader = itertools.chain.from_iterable(
-                        pd.read_csv(
-                            self.open(file),
-                            sep=self.sep, usecols=self.select, chunksize=self.chunk,
-                            encoding=self.encoding,dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
-                            prefix=self.prefix, iterator=True, index_col=False, keep_default_na=False
-                            )
-                        for file in self.files)
-                elif (self.type == "fwf"):
-                    self.reader = itertools.chain.from_iterable(
-                        pd.read_fwf(
-                            self.open(file),
-                            chunksize=self.connector.chunk, skiprows=self.skiprows,
-                            encoding=self.encoding,
-                            delimiter=self.sep, compression='infer', dtype=object, names=self.names, widths=self.widths,
-                            iterator=True, keep_default_na=False
-                            )
-                        for file in self.files)
-                elif (self.type == "hdf"):
-                    self.reader = itertools.chain.from_iterable(
-                        pd.read_hdf(
-                            self.open(file),
-                            chunksize=self.chunk
-                            )
-                        for file in self.files)
-                elif (self.type == "msgpack"):
-                    self.reader = itertools.chain.from_iterable(
-                        self.iterator_chunk(
-                            pd.read_msgpack(
-                                self.open(file),
-                                iterator=True, encoding=self.encoding
-                                )
-                            )
-                        for file in self.files)
-
+                self.reader = self.iterator_from_files()
             elif (self.connector.type == "elasticsearch"):
                 self.reader = self.scanner()
             elif (self.connector.type == "sql"):
@@ -531,9 +507,12 @@ class Dataset(Configured):
 
             try:
                 if (self.filter != None):
-                    self.filter.init(df=self.reader, parent=self)
+                    self.filter.init(df=pd.DataFrame(), parent=self)
                     self.reader = itertools.imap(
-                        lambda df: self.filter.run_chunk(0, df), self.reader)
+                        lambda data: dict({
+                            "desc": data['desc'],
+                            "df": self.filter.run_chunk(data['chunk']['id'], data['df'], data['desc'])}),
+                        self.reader)
                     self.log.write(msg="filtered dataset")
             except:
                 self.log.write(
@@ -543,12 +522,77 @@ class Dataset(Configured):
             self.log.write(msg="couldn't initiate dataset {}".format(
                 self.name), error=err(), exit=True)
 
+    def iterator_from_files(self):
+        if (self.connector.type == "filesystem") | (self.connector.type == "s3"):
+            n_chunk_total = 0
+            n_rows_total = 0
+            for n_file, file in enumerate(self.files):
+                n_rows_file = 0
+                if (self.type == "csv"):
+                    reader = pd.read_csv(
+                        self.open(file),
+                        sep=self.sep, usecols=self.select, chunksize=self.chunk,
+                        encoding=self.encoding,dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
+                        prefix=self.prefix, iterator=True, index_col=False, keep_default_na=False
+                    )
+                elif (self.type == "fwf"):
+                    reader = pd.read_fwf(
+                        self.open(file),
+                        chunksize=self.connector.chunk, skiprows=self.skiprows,
+                        encoding=self.encoding,
+                        delimiter=self.sep, compression='infer', dtype=object, names=self.names, widths=self.widths,
+                        iterator=True, keep_default_na=False
+                    )
+                elif (self.type == "hdf"):
+                    reader = pd.read_hdf(
+                        self.open(file),
+                        chunksize=self.chunk
+                    )
+                elif (self.type == "msgpack"):
+                    reader = self.iterator_to_chunked_iterator(
+                        pd.read_msgpack(
+                            self.open(file),
+                            iterator=True, encoding=self.encoding
+                        )
+                    )
+                for n_chunk_file, df in enumerate(reader):
+                    size = df.shape[0]
+                    n_rows_total = n_rows_total + size
+                    n_rows_file = n_rows_file + size
+                    # print(df.head())
+                    # sys.stdout.flush()
+                    yield dict({ "desc": {
+                            "source": {
+                                "dataset": self.name,
+                                "type": "file",
+                                "name": file,
+                                "file_id": n_file + 1,
+                                "chunk_size": self.chunk
+                            },
+                            "chunk": {
+                                "id": n_chunk_total + 1,
+                                "local_id": n_chunk_file + 1,
+                                "rows": size
+                            },
+                            "sum": {
+                                "rows": n_rows_total,
+                                "file_rows": n_rows_file
+                            },
+                            "total": {
+                                "files": len(self.files)
+                            }
+                        },
+                        "df": df
+                    })
+                    n_chunk_total = n_chunk_total + 1
+
     def open(self, file, mode='rb'):
         if (self.connector.type == "s3"):
             return open(file, mode, transport_params=self.connector.transport_params)
         return open(file, mode)
 
-    def iterator_chunk(self, iterator):
+    def iterator_to_chunked_iterator(self, iterator):
+        # force to regroup in chunks iterators that are only line by line
         df_list=[]
         current_size = 0
         for j, df in enumerate(iterator):
@@ -574,6 +618,8 @@ class Dataset(Configured):
         hits = []
         ids = []
         labels = ['_id', '_source']
+        c = 0
+        s = 0
         for j, item in enumerate(scan):
             item = (item['_id'], item['_source'])
             hits.append(item)
@@ -584,11 +630,40 @@ class Dataset(Configured):
                     [df['_id'], df['_source'].apply(pd.Series)], axis=1)
                 hits = []
                 ids = []
-                yield df
+                size = df.shape[0]
+                s = s + size
+                yield dict({
+                    "desc": {
+                        "source": {
+                            "type": "elasticsearch",
+                            "name": self.table,
+                            "chunk_size": self.chunk
+                        },
+                        "chunk": {
+                            "id": c + 1,
+                            "rows": size
+                        },
+                        "sum": {
+                            "rows": s
+                        }
+                    },
+                    "df": df
+                })
+                c = c + 1
         if (len(hits) > 0):
             df = pd.DataFrame.from_records(hits, columns=labels)
             df = pd.concat([df['_id'], df['_source'].apply(pd.Series)], axis=1)
-            yield df
+            yield dict({
+                "source": {
+                    "type": "elasticsearch",
+                    "name": self.table
+                },
+                "chunk": {
+                    "total": c,
+                    "rows": df.shape[0]
+                },
+                "df": df
+            })
 
     def init_writer(self):
         try:
@@ -1141,7 +1216,7 @@ class Recipe(Configured):
             pass
         self.output.close()
 
-    def run_chunk(self, i, df, queue=None, supervisor=None):
+    def run_chunk(self, i, df, desc=None, queue=None, supervisor=None):
         if (supervisor != None):
             supervisor[i] = "run_chunk"
         df.rename(columns=lambda x: x.strip(), inplace=True)
@@ -1149,10 +1224,10 @@ class Recipe(Configured):
         # 	#stupid but working hack to leave time for inmemory preload of first thread first chunk
         # 	#the limit is if the treatment of a chunk takes more than 30s... better workaround has to be found
         # 	time.sleep(30)
-        self.log.chunk = i
+        self.log.chunk = desc if (desc != None) else i
         if (self.input.name != "inmemory"):
-            self.log.write("proceed {} rows from {} with recipe {}".format(
-                df.shape[0], self.input.name, self.name))
+                self.log.write("proceed {} rows from {} with recipe {}".format(
+                    df.shape[0], self.input.name, self.name))
         if (self.type == "internal"):
             df = getattr(self.__class__, "internal_" + self.name)(self, df=df)
         elif((len(self.steps) > 0) | ("steps" in self.conf.keys())):
@@ -1243,6 +1318,7 @@ class Recipe(Configured):
                     pass
 
     def run(self, head=None, write_queue=None, supervisor=None):
+        desc = None
         # recipes to run before
         self.run_deps(self.before)
 
@@ -1255,10 +1331,6 @@ class Recipe(Configured):
         self.df = pd.DataFrame()
         self.input.processed = 0
         try:
-            # for i, df in enumerate(self.input.reader):
-            # 	self.run_chunk(i,df,test)
-            # first lauch the first chunk for initialization of "inmemory"
-            # datasets, then iterate with // threads
             sql_direct = False
 
             if ((self.test == False) and (len(self.steps) == 0) and (self.input.connector.type == "sql") and (self.output.connector.type == "sql") and (self.input.select != None) and (self.input.connector.name == self.output.connector.name)):
@@ -1266,7 +1338,9 @@ class Recipe(Configured):
 
             elif ((self.input.chunked == True) | (self.test == True)):
                 try:
-                    self.df = next(self.input.reader, "")
+                    data = next(self.input.reader, "")
+                    self.df = data['df']
+                    desc = data['desc']
                     if(self.test == True):
                         self.df = self.df.head(n=head)
                 except:
@@ -1277,11 +1351,12 @@ class Recipe(Configured):
                 self.log.write("reading whole input before processing recipe")
                 self.df = []
                 size = 0
-                for i, df in enumerate(self.input.reader):
-                    self.log.chunk = i
+                for i, data in enumerate(self.input.reader):
+                    df = data['df']
+                    self.log.chunk = data['desc']
                     self.df.append(df)
-                    size = size + df.shape[0]
-                    self.log.write(msg="loaded {} rows".format(size))
+                    size = data['desc']['rows']['chunk']
+                    self.log.write(msg="loaded {} rows from {}".format(size, data['desc']['source']['name']))
                 self.df = pd.concat(self.df)
                 self.log.write(msg="concatenated {} rows".format(size))
 
@@ -1299,19 +1374,30 @@ class Recipe(Configured):
                     except:
                         self
                         write_queue = Queue()
-
                 # create the writer queue
-                supervisor_thread = Process(target=self.supervise, args=[
-                                            write_queue, supervisor])
-                supervisor_thread.start()
-                write_thread = Process(target=self.write_queue, args=[
+                try:
+                    supervisor_thread = Process(target=self.supervise, args=[
+                                                write_queue, supervisor])
+                    supervisor_thread.start()
+                except:
+                    self.log.write(msg="couldn't thread supervise", error=err())
+                self.log.write(msg="supervise thread initiated")
+
+                try:
+                    write_thread = Process(target=self.write_queue, args=[
                                        write_queue, supervisor])
-                write_thread.start()
+                    write_thread.start()
+                except:
+                    self.log.write(msg="couldn't thread write_queue", error=err())
+                self.log.write(msg="write_queue thread initiated")
                 run_queue = []
+                print("je suis dans run après write_queue threading")
 
-                self.df = self.run_chunk(0, self.df, write_queue, supervisor)
+                self.df = self.run_chunk(0, self.df, desc, write_queue, supervisor)
 
-                for i, df in enumerate(self.input.reader):
+                for i, data in enumerate(self.input.reader):
+                    df = data['df']
+                    desc = data['desc']
                     supervisor[i + 1] = "started"
                     self.log.chunk = "main_thread"
                     # wait if running queue is full
@@ -1326,7 +1412,7 @@ class Recipe(Configured):
                             time.sleep(0.05)
                     supervisor[i + 1] = "run_chunk"
                     run_thread = Process(target=self.run_chunk, args=[
-                                         i + 1, df, write_queue, supervisor])
+                                         i + 1, df, desc, write_queue, supervisor])
                     run_thread.start()
                     run_queue.append([i + 1, run_thread])
 
@@ -2000,7 +2086,7 @@ class Recipe(Configured):
                     config.inmemory[ds] = Dataset(self.args["dataset"])
                     config.inmemory[ds].init_reader()
                     config.inmemory[ds].df = pd.concat(
-                        [dx for dx in config.inmemory[ds].reader]).reset_index(drop=True)
+                        [dx['df'] for dx in config.inmemory[ds].reader]).reset_index(drop=True)
 
                 # collects useful columns
                 if ("select" in list(self.args.keys())):

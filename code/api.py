@@ -602,7 +602,7 @@ class DatasetApi(Resource):
                 ds.select = "select * from {}".format(ds.table)
         ds.init_reader(test=True)
         try:
-            df = next(ds.reader, "")
+            df = next(ds.reader, "")['df']
             schema = df.dtypes.apply(lambda x: str(x)).to_dict()
             if (type(df) == str):
                 try:
