@@ -6,8 +6,11 @@
 ##############################################
 
 SHELL=/bin/bash
+export USE_TTY := $(shell test -t 1 && USE_TTY="-t")
 #matchID default exposition port
 export PORT=8081
+export BACKEND_PORT=8081
+export TIMEOUT=30
 
 #matchID default paths
 export BACKEND := $(shell pwd)
@@ -295,7 +298,7 @@ down: stop
 
 restart: down up
 
-log:
+logs: backend
 	@docker logs ${DC_PREFIX}-backend
 
 example-download:
@@ -306,3 +309,12 @@ example-download:
 	@mv upload _${date}_${id}_upload 2> /dev/null; true
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
 	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
+
+wait-elasticsearch: elasticsearch
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
+
+wait-backend: backend
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s --fail -XGET localhost:${BACKEND_PORT}/matchID/api/v0/ > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for backend to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
+
+recipe-run: wait-backend
+	docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s -XPUT http://localhost:${PORT}/matchID/api/v0/recipes/${RECIPE}/run && echo ${RECIPE} run
