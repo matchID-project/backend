@@ -34,11 +34,16 @@ export POSTGRES_PASSWORD=matchid
 export CRED_TEMPLATE=./creds.yml
 export CRED_FILE=conf/security/creds.yml
 
+# backup dir
+export BACKUP_DIR=${BACKEND}/backup
+
 # elasticsearch defaut configuration
 export ES_NODES = 3		# elasticsearch number of nodes
 export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
 export ES_MEM = 1024m		# elasticsearch : memory of each node
 export ES_VERSION = 7.5.0
+export ES_DATA = ${BACKEND}/esdata
+export ES_BACKUP_FILE := $(shell echo esdata_`date +"%Y%m%d"`.tar)
 
 dummy		    := $(shell touch artifacts)
 include ./artifacts
@@ -121,7 +126,20 @@ endif
 elasticsearch2-stop:
 	@${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml down
 
+elasticsearch-backup: elasticsearch-stop backup-dir
+	@echo taring ${ES_DATA} to ${BACKUP_DIR}/${ES_BACKUP_FILE}
+	@sudo tar cf ${BACKUP_DIR}/${ES_BACKUP_FILE} $$(basename ${ES_DATA}) -C $$(dirname ${ES_DATA})
 
+elasticsearch-restore: elasticsearch-stop backup-dir
+	@if [ -d "$(ES_DATA)" ] ; then (echo purgin ${ES_DATA} && sudo rm -rf ${ES_DATA} && echo purge done) ; fi
+	@if [! -d "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (no such archive "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1;fi
+	@echo restoring from ${BACKUP_DIR}/${ES_BACKUP_FILE} to ${ES_DATA} && \
+	 sudo tar xf ${BACKUP_DIR}/${ES_BACKUP_FILE} -C $$(dirname ${ES_DATA}) && \
+	 echo backup restored
+
+
+backup-dir:
+	@if [ ! -d "$(BACKUP_DIR)" ] ; then mkdir -p $(BACKUP_DIR) ; fi
 
 vm_max:
 ifeq ("$(vm_max_count)", "")
@@ -132,11 +150,11 @@ endif
 elasticsearch: network vm_max
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
-	@(if [ ! -d ${BACKEND}/esdata/node1 ]; then sudo mkdir -p ${BACKEND}/esdata/node1 ; sudo chmod g+rw ${BACKEND}/esdata/node1/.; sudo chgrp 1000 ${BACKEND}/esdata/node1/.; fi)
+	@(if [ ! -d ${ES_DATA}/node1 ]; then sudo mkdir -p ${ES_DATA}/node1 ; sudo chmod g+rw ${ES_DATA}/node1/.; sudo chgrp 1000 ${ES_DATA}/node1/.; fi)
 	@(i=$(ES_NODES); while [ $${i} -gt 1 ]; \
 		do \
-			if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/node$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod g+rw ${BACKEND}/esdata/node$$i/. && sudo chgrp 1000 ${BACKEND}/esdata/node$$i/.); fi; \
-		cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" >> ${DC_FILE}-elasticsearch-huge.yml; \
+			if [ ! -d ${ES_DATA}/node$$i ]; then (echo ${ES_DATA}/node$$i && sudo mkdir -p ${ES_DATA}/node$$i && sudo chmod g+rw ${ES_DATA}/node$$i/. && sudo chgrp 1000 ${ES_DATA}/node$$i/.); fi; \
+		cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MEM}/g;s/%M/${ES_MEM}/g" >> ${DC_FILE}-elasticsearch-huge.yml; \
 		i=`expr $$i - 1`; \
 	done;\
 	true)
@@ -147,9 +165,8 @@ elasticsearch2:
 	@cat ${DC_FILE}-elasticsearch.yml | head -8 > ${DC_FILE}-elasticsearch-huge-remote.yml
 	@(i=$$(( $(ES_NODES) * $(ES_SWARM_NODE_NUMBER) ));j=$$(( $(ES_NODES) * $(ES_SWARM_NODE_NUMBER) - $(ES_NODES))); while [ $${i} -gt $${j} ]; \
 	        do \
-	              if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdata/no
-	              if [ ! -d ${BACKEND}/esdata/node$$i ]; then (echo ${BACKEND}/esdatde$$i && sudo mkdir -p ${BACKEND}/esdata/node$$i && sudo chmod g+rw ${BACKEND}/esdata/node$$i/. && sudo chgrp 1000 ${BACKEND}/esdata/node$$i/.); fi; \
-	              cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MMEM}/g;s/%M/${ES_MEM}/g" | egrep -v 'depends_on|- elasticsearch' >> ${DC_FILE}-elasticsearch-huge-remote.yml; \
+	              if [ ! -d ${ES_DATA}/node$$i ]; then (echo ${ES_DATA}/node$$i && sudo mkdir -p ${ES_DATA}/node$$i && sudo chmod g+rw ${ES_DATA}/node$$i/. && sudo chgrp 1000 ${ES_DATA}/node$$i/.); fi; \
+	              cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MEM}/g;s/%M/${ES_MEM}/g" | egrep -v 'depends_on|- elasticsearch' >> ${DC_FILE}-elasticsearch-huge-remote.yml; \
 	              i=`expr $$i - 1`; \
 	 	done;\
 	true)
