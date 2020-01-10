@@ -3,6 +3,9 @@ ARG proxy
 ENV http_proxy $proxy
 ENV https_proxy $proxy
 
+RUN apt-get update -y
+RUN apt-get install curl -y
+
 RUN pip install --upgrade pip
 RUN pip install `echo $proxy | sed 's/\(\S\S*\)/--proxy \1/'` simplejson tslib Flask Flask-OAuth flask-login enum34 flask_restplus rauth PyYAML nltk elasticsearch pandas Werkzeug scikit-learn[alldeps] geopy jellyfish networkx sqlalchemy psycopg2-binary redisearch boto3 smart-open typing
 
