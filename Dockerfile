@@ -1,4 +1,4 @@
-FROM python:2
+FROM python:2-slim
 ARG proxy
 ENV http_proxy $proxy
 ENV https_proxy $proxy
