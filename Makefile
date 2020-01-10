@@ -79,6 +79,13 @@ ifeq ("$(wildcard /usr/bin/envsubst)","")
 	sudo apt install -y gettext; true
 endif
 
+install-aws-cli:
+ifeq ("$(wildcard ~/.local/bin/aws)","")
+	sudo apt-get update; true
+	sudo apt install -y apt-get install python-pip; true
+	pip install aws awscli_plugin_endpoint ; true
+endif
+
 ifeq ("$(wildcard /usr/bin/docker)","")
 	echo install docker-ce, still to be tested
 	sudo apt-get update
