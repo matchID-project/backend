@@ -47,6 +47,7 @@ export BACKUP_DIR=${BACKEND}/backup
 # 	export aws_access_key_id=XXXXXXXXXXXXXXXXX
 # 	export aws_secret_access_key=XXXXXXXXXXXXXXXXXXXXXXXXXXX
 export S3_BUCKET=matchid
+export AWS=~/.local/bin
 
 # elasticsearch defaut configuration
 export ES_NODES = 3		# elasticsearch number of nodes
@@ -116,7 +117,7 @@ endif
 
 
 install-aws-cli:
-ifeq ("$(wildcard ~/.local/bin/aws)","")
+ifeq ("$(wildcard ${AWS})","")
 	sudo apt-get update; true
 	sudo apt install -y python-pip; true
 	pip install aws awscli_plugin_endpoint ; true
@@ -182,11 +183,11 @@ elasticsearch-restore: elasticsearch-stop backup-dir
 
 elasticsearch-s3-push:
 	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no archive to push: "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
-	aws s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE} s3://${S3_BUCKET}/${ES_BACKUP_FILE}
+	@${AWS} s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE} s3://${S3_BUCKET}/${ES_BACKUP_FILE}
 
 elasticsearch-s3-pull: backup-dir
 	@echo pulling s3://${S3_BUCKET}/${ES_BACKUP_FILE}
-	@aws s3 cp s3://${S3_BUCKET}/${ES_BACKUP_FILE} ${BACKUP_DIR}/${ES_BACKUP_FILE}
+	@${AWS} s3 cp s3://${S3_BUCKET}/${ES_BACKUP_FILE} ${BACKUP_DIR}/${ES_BACKUP_FILE}
 
 backup-dir:
 	@if [ ! -d "$(BACKUP_DIR)" ] ; then mkdir -p $(BACKUP_DIR) ; fi
