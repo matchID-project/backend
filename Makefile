@@ -8,6 +8,7 @@
 SHELL=/bin/bash
 #matchID default exposition port
 export PORT=8081
+export BACKEND_PORT=8081
 
 #matchID default paths
 export BACKEND := $(shell pwd)
@@ -229,6 +230,27 @@ ifeq ("$(wildcard docker-compose-local.yml)","")
 	${DC} up -d
 else
 	${DC} -f docker-compose.yml -f docker-compose-local.yml up -d
+endif
+
+backend-alone: network register-secrets
+ifeq ("$(wildcard ${UPLOAD})","")
+	@sudo mkdir -p ${UPLOAD}
+endif
+ifeq ("$(wildcard ${PROJECTS})","")
+	@sudo mkdir -p ${PROJECTS}
+endif
+ifeq ("$(wildcard ${MODELS})","")
+	@sudo mkdir -p ${PROJECTS}
+endif
+ifneq "$(commit)" "$(lastcommit)"
+	@echo building matchID backend after new commit
+	${DC} build
+	@echo "${commit}" > ${BACKEND}/.lastcommit
+endif
+ifeq ("$(wildcard docker-compose-local.yml)","")
+	${DC} -f docker-compose.yml -f docker-compose-alone.yml up -d
+else
+	${DC} -f docker-compose.yml -f docker-compose-local.yml -f docker-compose-alone.yml up -d
 endif
 
 frontend-download:
