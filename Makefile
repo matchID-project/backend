@@ -34,12 +34,16 @@ export POSTGRES_PASSWORD=matchid
 export CRED_TEMPLATE=./creds.yml
 export CRED_FILE=conf/security/creds.yml
 
+# backup dir
+export BACKUP_DIR=${BACKEND}/backup
+
 # elasticsearch defaut configuration
 export ES_NODES = 3		# elasticsearch number of nodes
 export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
 export ES_MEM = 1024m		# elasticsearch : memory of each node
 export ES_VERSION = 7.5.0
 export ES_DATA = ${BACKEND}/esdata
+export ES_BACKUP_FILE := $(shell echo esdata_`date +"%Y%m%d"`.tar)
 
 dummy		    := $(shell touch artifacts)
 include ./artifacts
@@ -122,7 +126,12 @@ endif
 elasticsearch2-stop:
 	@${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml down
 
+elasticsearch-backup: elasticsearch-stop backup-dir
+	@echo taring ${ES_DATA} to ${BACKUP_DIR}/${ES_BACKUP_FILE}
+	@tar cf ${BACKUP_DIR}/${ES_BACKUP_FILE} $$(basename ${ES_DATA}) -C $$(dirname ${ES_DATA})
 
+backup-dir:
+	@if [ ! -d "$(BACKUP_DIR)" ] ; then mkdir -p $(BACKUP_DIR) ; fi
 
 vm_max:
 ifeq ("$(vm_max_count)", "")
