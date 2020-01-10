@@ -157,7 +157,7 @@ elasticsearch-s3-push:
 	aws s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE} s3://${S3_BUCKET}/${ES_BACKUP_FILE}
 
 elasticsearch-s3-pull: backup-dir
-	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no archive to push: "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
+	@echo pulling s3://${S3_BUCKET}/${ES_BACKUP_FILE}
 	@aws s3 cp s3://${S3_BUCKET}/${ES_BACKUP_FILE} ${BACKUP_DIR}/${ES_BACKUP_FILE}
 
 backup-dir:
