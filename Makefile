@@ -37,6 +37,14 @@ export CRED_FILE=conf/security/creds.yml
 # backup dir
 export BACKUP_DIR=${BACKEND}/backup
 
+# s3 conf
+# s3 conf has to be stored in two ways :
+# classic way (.aws/config and .aws/credentials) for s3 backups
+# to use within matchid backend, you have to add credential as env variables and declare configuration in a s3 connector
+# 	export aws_access_key_id=XXXXXXXXXXXXXXXXX
+# 	export aws_secret_access_key=XXXXXXXXXXXXXXXXXXXXXXXXXXX
+export S3_BUCKET=matchid
+
 # elasticsearch defaut configuration
 export ES_NODES = 3		# elasticsearch number of nodes
 export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
@@ -139,11 +147,18 @@ elasticsearch-backup: elasticsearch-stop backup-dir
 
 elasticsearch-restore: elasticsearch-stop backup-dir
 	@if [ -d "$(ES_DATA)" ] ; then (echo purgin ${ES_DATA} && sudo rm -rf ${ES_DATA} && echo purge done) ; fi
-	@if [! -d "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (no such archive "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1;fi
+	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no such archive "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1;fi
 	@echo restoring from ${BACKUP_DIR}/${ES_BACKUP_FILE} to ${ES_DATA} && \
 	 sudo tar xf ${BACKUP_DIR}/${ES_BACKUP_FILE} -C $$(dirname ${ES_DATA}) && \
 	 echo backup restored
 
+elasticsearch-s3-push:
+	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no archive to push: "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
+	aws s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE} s3://${S3_BUCKET}/${ES_BACKUP_FILE}
+
+elasticsearch-s3-pull: backup-dir
+	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no archive to push: "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
+	@aws s3 cp s3://${S3_BUCKET}/${ES_BACKUP_FILE} ${BACKUP_DIR}/${ES_BACKUP_FILE}
 
 backup-dir:
 	@if [ ! -d "$(BACKUP_DIR)" ] ; then mkdir -p $(BACKUP_DIR) ; fi
