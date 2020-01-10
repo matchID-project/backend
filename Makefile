@@ -91,8 +91,8 @@ ifeq ("$(wildcard /usr/bin/envsubst)","")
 endif
 ifeq ("$(wildcard /usr/bin/docker /usr/local/bin/docker)","")
 	echo install docker-ce, still to be tested
-	sudo apt-get update
-	sudo apt-get install \
+	sudo apt-get update -y
+	sudo apt-get install -y \
         apt-transport-https \
         ca-certificates \
         curl \
@@ -103,7 +103,7 @@ ifeq ("$(wildcard /usr/bin/docker /usr/local/bin/docker)","")
                 "deb https://download.docker.com/linux/ubuntu \
                 `lsb_release -cs` \
                 stable"
-	sudo apt-get update
+	sudo apt-get update -y
 	sudo apt-get install -y docker-ce
 	@(if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER} ;fi) > /dev/null
 endif
