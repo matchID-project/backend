@@ -147,7 +147,7 @@ elasticsearch-backup: elasticsearch-stop backup-dir
 
 elasticsearch-restore: elasticsearch-stop backup-dir
 	@if [ -d "$(ES_DATA)" ] ; then (echo purgin ${ES_DATA} && sudo rm -rf ${ES_DATA} && echo purge done) ; fi
-	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no such archive "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1;fi
+	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no such archive "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
 	@echo restoring from ${BACKUP_DIR}/${ES_BACKUP_FILE} to ${ES_DATA} && \
 	 sudo tar xf ${BACKUP_DIR}/${ES_BACKUP_FILE} -C $$(dirname ${ES_DATA}) && \
 	 echo backup restored
