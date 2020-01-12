@@ -4,7 +4,7 @@ global:
   api:
     no_auth: True
     prefix: /matchID/api/v0
-    port: 8081
+    port: !ENV ${BACKEND_PORT}
     es_proxy_path: '/matchID/api/v0/datasets' 
     domain: '' 
     host: 0.0.0.0

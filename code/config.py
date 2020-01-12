@@ -8,6 +8,7 @@ import os
 import fnmatch
 import sys
 import datetime
+import re
 
 # matchID imports
 from log import err
@@ -24,16 +25,44 @@ def init():
     conf_update = None
 
 
-def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict):
+def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict, tag='!ENV'):
     class OrderedLoader(Loader):
         pass
+
+    def constructor_env_variables(loader, node):
+        """
+        Extracts the environment variable from the node's value
+        :param yaml.Loader loader: the yaml loader
+        :param node: the current node in the yaml
+        :return: the parsed string that contains the value of the environment
+        variable
+        """
+        value = loader.construct_scalar(node)
+        match = pattern.findall(value)  # to find all env variables in line
+        if match:
+            full_value = value
+            for g in match:
+                full_value = full_value.replace(
+                    '${{{}}}'.format(g), os.environ.get(g, g)
+                )
+            return full_value
+        return value
 
     def construct_mapping(loader, node):
         loader.flatten_mapping(node)
         return object_pairs_hook(loader.construct_pairs(node))
+
+    # pattern for global vars: look for ${word}
+    pattern = re.compile('.*?\${(\w+)}.*?')
+
+    OrderedLoader.add_implicit_resolver(tag, pattern, None)
+    OrderedLoader.add_constructor(tag,constructor_env_variables)
+
     OrderedLoader.add_constructor(
         y .resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-        construct_mapping)
+        construct_mapping
+        )
+
     return y.load(stream, OrderedLoader)
 
 

@@ -1090,7 +1090,7 @@ if __name__ == '__main__':
         app.config['APPLICATION_ROOT']: app,
     })
     run_simple(config.conf["global"]["api"]["host"],
-               config.conf["global"]["api"]["port"],
+               int(config.conf["global"]["api"]["port"]),
                application,
                threaded = config.conf["global"]["api"]["threaded"],
                processes = config.conf["global"]["api"]["processes"],

@@ -13,6 +13,7 @@ services:
       - https_proxy
       - aws_access_key_id
       - aws_secret_access_key
+      - BACKEND_PORT
     volumes:
       - ${BACKEND}/code/:/matchid/code/
       - ${BACKEND}/conf/:/matchid/conf/
