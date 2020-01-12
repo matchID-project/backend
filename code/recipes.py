@@ -193,8 +193,12 @@ class Connector(Configured):
                 self.port = self.conf["port"]
             except:
                 self.port = 9200
+            try:
+                self.scheme = self.conf["scheme"]
+            except:
+                self.scheme = "http"
             self.es = Elasticsearch(
-                self.host, port=self.port, timeout=self.timeout)
+                self.host, port=self.port, scheme=self.scheme, timeout=self.timeout)
             try:
                 self.chunk_search = self.conf["chunk_search"]
             except:
