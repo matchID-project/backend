@@ -6,6 +6,7 @@
 ##############################################
 
 SHELL=/bin/bash
+export DEBIAN_FRONTEND=noninteractive
 export USE_TTY := $(shell test -t 1 && USE_TTY="-t")
 #matchID default exposition port
 export PORT=8081
