@@ -94,6 +94,7 @@ endif
 ifeq ("$(wildcard /usr/bin/docker /usr/local/bin/docker)","")
 	echo install docker-ce, still to be tested
 	sudo apt-get update  -y -q -q
+	sudo echo '* libraries/restart-without-asking boolean true' | sudo debconf-set-selections
 	sudo apt-get install -yq \
         apt-transport-https \
         ca-certificates \
