@@ -22,6 +22,7 @@ export EXAMPLES=${BACKEND}/../examples
 export TUTORIAL=${BACKEND}/../tutorial
 export MODELS=${BACKEND}/models
 export LOG=${BACKEND}/log
+export COMPOSE_HTTP_TIMEOUT=120
 export DC_DIR=${BACKEND}/docker-components
 export DC_FILE=${DC_DIR}/docker-compose
 export DC_PREFIX=matchid
