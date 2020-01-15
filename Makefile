@@ -9,6 +9,7 @@ SHELL=/bin/bash
 export DEBIAN_FRONTEND=noninteractive
 export USE_TTY := $(shell test -t 1 && USE_TTY="-t")
 #matchID default exposition port
+export APP=matchID
 export PORT=8081
 export BACKEND_PORT=8081
 export TIMEOUT=30
@@ -23,10 +24,11 @@ export TUTORIAL=${BACKEND}/../tutorial
 export MODELS=${BACKEND}/models
 export LOG=${BACKEND}/log
 export COMPOSE_HTTP_TIMEOUT=120
+export DOCKER_USERNAME=matchid
 export DC_DIR=${BACKEND}/docker-components
 export DC_FILE=${DC_DIR}/docker-compose
-export DC_PREFIX=matchid
-export DC_NETWORK=matchid
+export DC_PREFIX := $(shell echo ${APP} | tr '[:upper:]' '[:lower:]')
+export DC_NETWORK=${DC_PREFIX}
 export DC_NETWORK_OPT=
 export GIT_ORIGIN=origin
 export GIT_BRANCH=dev
@@ -62,7 +64,7 @@ export ES_BACKUP_FILE := $(shell echo esdata_`date +"%Y%m%d"`.tar)
 dummy		    := $(shell touch artifacts)
 include ./artifacts
 
-commit              := $(shell git rev-parse HEAD | cut -c1-8)
+commit              := $(shell git describe --tags || cat VERSION)
 lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
 commit-frontend     := $(shell (cd ${FRONTEND} 2> /dev/null) && git rev-parse HEAD | cut -c1-8)
 lastcommit-frontend := $(shell (cat ${FRONTEND}/.lastcommit 2>&1) )
@@ -71,6 +73,7 @@ id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8
 
 vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262144 && echo true)
 
+export APP_VERSION	= ${commit}
 
 PG := 'postgres'
 DC := 'docker-compose'
@@ -90,7 +93,7 @@ endif
 install-prerequisites:
 ifeq ("$(wildcard /usr/bin/envsubst)","")
 	sudo apt-get update -q -q; true
-	sudo apt install -y -q gettext; true
+	sudo apt-get install -y -q gettext; true
 endif
 ifeq ("$(wildcard /usr/bin/docker /usr/local/bin/docker)","")
 	echo install docker-ce, still to be tested
@@ -122,7 +125,7 @@ endif
 install-aws-cli:
 ifeq ("$(wildcard ${AWS})","")
 	sudo apt-get update -q -q; true
-	sudo apt install -yq python-pip; true
+	sudo apt-get install -yq python-pip; true
 	pip install aws awscli_plugin_endpoint ; true
 endif
 
@@ -218,7 +221,8 @@ postgres: network
 
 backend-stop:
 	${DC} down
-backend: network register-secrets
+
+backend-prep:
 ifeq ("$(wildcard ${UPLOAD})","")
 	@sudo mkdir -p ${UPLOAD}
 endif
@@ -228,16 +232,32 @@ endif
 ifeq ("$(wildcard ${MODELS})","")
 	@sudo mkdir -p ${PROJECTS}
 endif
-ifneq "$(commit)" "$(lastcommit)"
-	@echo building matchID backend after new commit
-	${DC} build
-	@echo "${commit}" > ${BACKEND}/.lastcommit
-endif
-ifeq ("$(wildcard docker-compose-local.yml)","")
-	${DC} up -d
-else
-	${DC} -f docker-compose.yml -f docker-compose-local.yml up -d
-endif
+
+backend-dev: network register-secrets backend-prep
+	if [ -f docker-compose-local.yml ];then\
+		DC_LOCAL="-f docker-compose-local.yml";\
+	fi;\
+	export BACKEND_ENV=development;\
+	export DC_POSTFIX="-dev";\
+	if [ "${commit}" != "${lastcommit}" ];then\
+		echo building matchID backend after new commit;\
+		${DC} build;\
+		echo "${commit}" > ${BACKEND}/.lastcommit;\
+	fi;\
+	${DC} -f docker-compose.yml -f docker-compose-dev.yml $$DC_LOCAL up -d
+
+backend: network register-secrets backend-prep
+	if [ -f docker-compose-local.yml ];then\
+		DC_LOCAL="-f docker-compose-local.yml";\
+	fi;\
+	export BACKEND_ENV=production;\
+	if [ "${commit}" != "${lastcommit}" ];then\
+		echo building matchID backend after new commit;\
+		${DC} build;\
+		echo "${commit}" > ${BACKEND}/.lastcommit;\
+	fi;\
+	${DC} -f docker-compose.yml $$DC_LOCAL up -d
+
 
 frontend-download:
 ifeq ("$(wildcard ${FRONTEND})","")

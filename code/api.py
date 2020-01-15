@@ -1072,7 +1072,7 @@ class jobsList(Resource):
 if __name__ == '__main__':
     config.read_conf()
     try:
-        app.config['DEBUG'] = config.conf["global"]["api"]["debug"]
+        app.config['DEBUG'] = (str(config.conf["global"]["api"]["debug"]) == "True")
     except:
         pass
 
@@ -1094,4 +1094,4 @@ if __name__ == '__main__':
                application,
                threaded = config.conf["global"]["api"]["threaded"],
                processes = config.conf["global"]["api"]["processes"],
-               use_reloader = config.conf["global"]["api"]["use_reloader"])
+               use_reloader = (str(config.conf["global"]["api"]["use_reloader"])=="True"))

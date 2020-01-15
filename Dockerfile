@@ -1,27 +1,79 @@
-FROM python:2-slim
-ARG proxy
-ENV http_proxy $proxy
-ENV https_proxy $proxy
+#######################
+# Step 1: Base target #
+#######################
+FROM python:2-slim as base
+ARG http_proxy
+ARG https_proxy
+ARG no_proxy
+ARG APP
 
 RUN apt-get update -y
 RUN apt-get install curl -y
 
 RUN pip install --upgrade pip
-RUN pip install `echo $proxy | sed 's/\(\S\S*\)/--proxy \1/'` simplejson tslib Flask Flask-OAuth flask-login enum34 flask_restplus rauth PyYAML nltk elasticsearch pandas Werkzeug scikit-learn[alldeps] geopy jellyfish networkx sqlalchemy psycopg2-binary redisearch boto3 smart-open typing
 
-RUN mkdir -p /matchid/code /matchid/conf/run /matchid/log /matchid/referential_data /data/matchID_test/ /matchid/upload
+WORKDIR /${APP}
 
-WORKDIR /matchid
+RUN ls
 
-VOLUME /matchid/code
-VOLUME /matchid/conf
-VOLUME /matchid/projects
-VOLUME /matchid/referential_data
-VOLUME /matchid/log
-VOLUME /matchid/models
-VOLUME /matchid/upload
+COPY requirements.txt .
+RUN pip install `echo $http_proxy | sed 's/\(\S\S*\)/--proxy \1/'` -r requirements.txt
 
-EXPOSE 8081
+RUN mkdir -p code\
+             conf/run\
+             log\
+             referential_data\
+             matchID_test/\
+             upload
+
+################################
+# Step 2: "production" target #
+################################
+FROM base as production
+ARG APP
+ENV BACKEND_PORT ${BACKEND_PORT}
+ENV BACKEND_DEBUG False
+ENV BACKEND_RELOAD False
+ENV APP ${APP}
+
+RUN echo ${APP}
+
+WORKDIR /${APP}
+
+COPY code/ code/
+COPY conf/ conf/
+COPY referential_data/ referential_data/
+
+RUN ls
+
+VOLUME /${app_path}/projects
+VOLUME /${app_path}/log
+VOLUME /${app_path}/models
+VOLUME /${app_path}/upload
+
+EXPOSE ${BACKEND_PORT}
+
+CMD ["./code/api.py"]
+
+################################
+# Step 3: "development" target #
+################################
+FROM production as development
+ARG APP
+ENV BACKEND_PORT ${BACKEND_PORT}
+ENV APP ${APP}
+ENV BACKEND_DEBUG True
+ENV BACKEND_RELOAD True
+
+VOLUME /${APP}/code
+VOLUME /${APP}/conf
+VOLUME /${APP}/projects
+VOLUME /${APP}/referential_data
+VOLUME /${APP}/log
+VOLUME /${APP}/models
+VOLUME /${APP}/upload
+
+EXPOSE ${BACKEND_PORT}
 
 CMD ["./code/api.py"]
 
