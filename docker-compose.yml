@@ -1,13 +1,17 @@
-version: '2'
+version: '3.4'
 
 services:
   backend:
     build:
       context: .
+      target: ${BACKEND_ENV}
       args:
-        proxy: ${http_proxy}
-    image: matchid-backend:latest
-    container_name: ${DC_PREFIX}-backend
+        - http_proxy
+        - https_proxy
+        - no_proxy
+        - APP
+    image: ${DOCKER_USERNAME}/${DC_PREFIX}-backend${DC_POSTFIX}:${APP_VERSION}
+    container_name: ${DC_PREFIX}-backend${DC_POSTFIX}
     environment:
       - http_proxy
       - https_proxy
@@ -15,14 +19,11 @@ services:
       - aws_secret_access_key
       - BACKEND_PORT
     volumes:
-      - ${BACKEND}/code/:/matchid/code/
-      - ${BACKEND}/conf/:/matchid/conf/
-      - ${PROJECTS}:/matchid/projects/
-      - ${BACKEND}/log:/matchid/log/
-      - ${UPLOAD}:/matchid/upload/
-      - ${MODELS}:/matchid/models/
-      - ${BACKEND}/referential_data/:/matchid/referential_data/
-      - ${FRONTEND}/matchIdConfig:/matchid/matchIdConfig/
+      - ${PROJECTS}:/${APP}/projects/
+      - ${BACKEND}/log:/${APP}/log/
+      - ${UPLOAD}:/${APP}/upload/
+      - ${MODELS}:/${APP}/models/
+      - ${FRONTEND}/matchIdConfig:/${APP}/matchIdConfig/
     restart: always
 
 networks:
