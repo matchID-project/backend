@@ -7,5 +7,7 @@ if [ "$started" == "false" ];then \
 		-v "$(pwd):/tools/data" \
 		-v "$HOME/.aws/:/root/.aws"\
 		matchid/tools;\
+	docker exec -it matchid-tools mkdir -p $(dirname $(pwd));\
+	docker exec -it matchid-tools ln -s /tools/data $(pwd);\
 fi
 docker exec -i matchid-tools aws "$@";
