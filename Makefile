@@ -52,7 +52,7 @@ export BACKUP_DIR=${BACKEND}/backup
 # 	export aws_access_key_id=XXXXXXXXXXXXXXXXX
 # 	export aws_secret_access_key=XXXXXXXXXXXXXXXXXXXXXXXXXXX
 export S3_BUCKET=matchid
-export AWS=~/.local/bin/aws
+export AWS=${BACKEND}/aws
 
 # elasticsearch defaut configuration
 export ES_NODES = 3		# elasticsearch number of nodes
