@@ -35,4 +35,8 @@ after_success:
   - if [[ "$TRAVIS_BRANCH" == "master" ]]; then
       make backend-docker-push ;
     fi
+  - if [[ "$TRAVIS_BRANCH" == "dev" ]]; then
+      make backend-docker-push ;
+    fi
+
 
