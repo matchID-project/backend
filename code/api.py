@@ -1089,8 +1089,14 @@ if __name__ == '__main__':
     application = DispatcherMiddleware(Flask('dummy_app'), {
         app.config['APPLICATION_ROOT']: app,
     })
+
+    try:
+        BACKEND_PORT = int(config.conf["global"]["api"]["port"])
+    except:
+        BACKEND_PORT = 8081
+
     run_simple(config.conf["global"]["api"]["host"],
-               int(config.conf["global"]["api"]["port"]),
+               BACKEND_PORT,
                application,
                threaded = config.conf["global"]["api"]["threaded"],
                processes = config.conf["global"]["api"]["processes"],

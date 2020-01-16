@@ -36,15 +36,11 @@ ENV BACKEND_DEBUG False
 ENV BACKEND_RELOAD False
 ENV APP ${APP}
 
-RUN echo ${APP}
-
 WORKDIR /${APP}
 
 COPY code/ code/
 COPY conf/ conf/
 COPY referential_data/ referential_data/
-
-RUN ls
 
 VOLUME /${app_path}/projects
 VOLUME /${app_path}/log

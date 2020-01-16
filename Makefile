@@ -30,6 +30,7 @@ export DC_FILE=${DC_DIR}/docker-compose
 export DC_PREFIX := $(shell echo ${APP} | tr '[:upper:]' '[:lower:]')
 export DC_NETWORK=${DC_PREFIX}
 export DC_NETWORK_OPT=
+export DC_BUILD_ARGS = --pull --no-cache
 export GIT_ORIGIN=origin
 export GIT_BRANCH=dev
 
@@ -246,18 +247,50 @@ backend-dev: network register-secrets backend-prep
 	fi;\
 	${DC} -f docker-compose.yml -f docker-compose-dev.yml $$DC_LOCAL up -d
 
-backend: network register-secrets backend-prep
-	if [ -f docker-compose-local.yml ];then\
+backend-check-build:
+	@if [ -f docker-compose-local.yml ];then\
 		DC_LOCAL="-f docker-compose-local.yml";\
 	fi;\
 	export BACKEND_ENV=production;\
 	if [ "${commit}" != "${lastcommit}" ];then\
-		echo building matchID backend after new commit;\
-		${DC} build;\
+		echo building ${APP} backend for dev after new commit;\
+		${DC} build $$DC_LOCAL;\
 		echo "${commit}" > ${BACKEND}/.lastcommit;\
 	fi;\
+	${DC} -f docker-compose.yml $$DC_LOCAL config -q
+
+backend-docker-pull:
+	@(\
+		(docker pull ${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} > /dev/null 2&>1)\
+		&& echo docker successfully pulled && (echo "${commit}" > ${BACKEND}/.lastcommit) \
+	) || echo "${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} not found on Docker Hub build, using local"
+
+backend-build: backend-prep register-secrets backend-check-build backend-docker-pull
+	@if [ -f docker-compose-local.yml ];then\
+		DC_LOCAL="-f docker-compose-local.yml";\
+	fi;\
+	export BACKEND_ENV=production;\
+	if [ "${commit}" != "${lastcommit}" ];then\
+		echo building ${APP} backend after new commit;\
+		${DC} build ${DC_BUILD_ARGS};\
+		echo "${commit}" > ${BACKEND}/.lastcommit;\
+	fi;
+	@docker tag ${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} ${DOCKER_USERNAME}/${DC_PREFIX}-backend:latest
+
+backend: network
+	@if [ -f docker-compose-local.yml ];then\
+		DC_LOCAL="-f docker-compose-local.yml";\
+	fi;\
+	export BACKEND_ENV=production;\
 	${DC} -f docker-compose.yml $$DC_LOCAL up -d
 
+docker-login:
+	@echo docker login for ${DOCKER_USERNAME}
+	@echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+
+backend-docker-push: docker-login
+	@docker push ${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION}
+	@docker push ${DOCKER_USERNAME}/${DC_PREFIX}-backend:latest
 
 frontend-download:
 ifeq ("$(wildcard ${FRONTEND})","")
