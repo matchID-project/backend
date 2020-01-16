@@ -124,11 +124,7 @@ endif
 
 
 install-aws-cli:
-ifeq ("$(wildcard ${AWS})","")
-	sudo apt-get update -q -q; true
-	sudo apt-get install -yq python-pip; true
-	pip install aws awscli_plugin_endpoint ; true
-endif
+	@docker pull matchid/tools
 
 docker-clean: stop
 	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana
