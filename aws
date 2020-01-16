@@ -2,11 +2,12 @@
 tty=$(tty &>/dev/null && echo "-t")
 started=$((docker inspect -f '{{.State.Running}}' matchid-tools > /dev/null 2>&1) || echo false)
 if [ "$started" == "false" ];then \
-	docker run --rm $tty -d\
+	(docker run --rm $tty -d\
 		--name matchid-tools\
 		-v "$(pwd):/tools/data" \
 		-v "$HOME/.aws/:/root/.aws"\
-		matchid/tools;\
+		matchid/tools > /dev/null 2>&1) ;\
+
 fi
 
 docker exec $tty matchid-tools bash -c "mkdir -p $(dirname $(pwd));\
