@@ -261,7 +261,7 @@ backend-check-build:
 
 backend-docker-pull:
 	@(\
-		(docker pull ${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} > /dev/null 2&>1)\
+		(docker pull ${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} > /dev/null 2>&1)\
 		&& echo docker successfully pulled && (echo "${commit}" > ${BACKEND}/.lastcommit) \
 	) || echo "${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} not found on Docker Hub build, using local"
 
