@@ -20,4 +20,4 @@ smart-open
 sqlalchemy
 tslib
 typing
-Werkzeug
+Werkzeug==0.16.1
