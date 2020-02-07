@@ -30,12 +30,13 @@ before_script:
 script:
   - git fetch --unshallow && git tag -l
   - make backend-build
+  - make wait-backend backend-stop
 
 after_success:
-  - if [[ "$TRAVIS_BRANCH" == "master" ]]; then
+  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "master" ) ]]; then
       make backend-docker-push ;
     fi
-  - if [[ "$TRAVIS_BRANCH" == "dev" ]]; then
+  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "dev" ) ]]; then
       make backend-docker-push ;
     fi
 
