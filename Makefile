@@ -165,6 +165,7 @@ elasticsearch-restore: elasticsearch-stop backup-dir
 elasticsearch-s3-push:
 	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no archive to push: "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
 	@${AWS} s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE} s3://${S3_BUCKET}/${ES_BACKUP_FILE}
+	@${AWS} s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE_SNAR} s3://${S3_BUCKET}/${ES_BACKUP_FILE_SNAR}
 
 elasticsearch-s3-pull: backup-dir
 	@echo pulling s3://${S3_BUCKET}/${ES_BACKUP_FILE}
