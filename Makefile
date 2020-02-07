@@ -61,6 +61,7 @@ export ES_MEM = 1024m		# elasticsearch : memory of each node
 export ES_VERSION = 7.5.0
 export ES_DATA = ${BACKEND}/esdata
 export ES_BACKUP_FILE := $(shell echo esdata_`date +"%Y%m%d"`.tar)
+export ES_BACKUP_FILE_SNAR = esdata.snar
 
 dummy		    := $(shell touch artifacts)
 include ./artifacts
@@ -151,13 +152,14 @@ elasticsearch2-stop:
 
 elasticsearch-backup: elasticsearch-stop backup-dir
 	@echo taring ${ES_DATA} to ${BACKUP_DIR}/${ES_BACKUP_FILE}
-	@sudo tar cf ${BACKUP_DIR}/${ES_BACKUP_FILE} $$(basename ${ES_DATA}) -C $$(dirname ${ES_DATA})
+	@cd $$(dirname ${ES_DATA}) && sudo tar --create --file=${BACKUP_DIR}/${ES_BACKUP_FILE} --listed-incremental=${BACKUP_DIR}/${ES_BACKUP_FILE_SNAR} $$(basename ${ES_DATA})
 
 elasticsearch-restore: elasticsearch-stop backup-dir
 	@if [ -d "$(ES_DATA)" ] ; then (echo purgin ${ES_DATA} && sudo rm -rf ${ES_DATA} && echo purge done) ; fi
 	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no such archive "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
 	@echo restoring from ${BACKUP_DIR}/${ES_BACKUP_FILE} to ${ES_DATA} && \
-	 sudo tar xf ${BACKUP_DIR}/${ES_BACKUP_FILE} -C $$(dirname ${ES_DATA}) && \
+	 cd $$(dirname ${ES_DATA}) && \
+	 sudo tar --extract --listed-incremental=/dev/null --file ${BACKUP_DIR}/${ES_BACKUP_FILE} && \
 	 echo backup restored
 
 elasticsearch-s3-push:
