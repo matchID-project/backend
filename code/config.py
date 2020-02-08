@@ -45,6 +45,15 @@ def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict, tag='!E
                 full_value = full_value.replace(
                     '${{{}}}'.format(g), os.environ.get(g, g)
                 )
+                try:
+                    int(full_value)
+                    full_value = int(full_value)
+                except:
+                    try:
+                        float(full_value)
+                        full_value = float(full_value)
+                    except:
+                        pass
             return full_value
         return value
 
