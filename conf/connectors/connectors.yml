@@ -14,7 +14,7 @@ connectors:
     type: elasticsearch
     host: elasticsearch
     thread_count: !ENV ${ES_THREADS}
-    chunk: 500
+    chunk: !ENV ${ES_CHUNK}
     chunk_search: 20
     max_tries: !ENV ${ES_MAX_TRIES}
     port: 9200

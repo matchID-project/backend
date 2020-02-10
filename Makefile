@@ -62,6 +62,7 @@ export ES_VERSION = 7.5.0
 export ES_DATA = ${BACKEND}/esdata
 export ES_THREADS = 2
 export ES_MAX_TRIES = 3
+export ES_CHUNK = 500
 export ES_BACKUP_FILE := $(shell echo esdata_`date +"%Y%m%d"`.tar)
 export ES_BACKUP_FILE_SNAR = esdata.snar
 
