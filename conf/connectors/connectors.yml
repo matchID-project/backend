@@ -16,6 +16,7 @@ connectors:
     thread_count: !ENV ${ES_THREADS}
     chunk: 500
     chunk_search: 20
+    max_tries: !ENV ${ES_MAX_TRIES}
     port: 9200
   postgres:
     type: sql 
