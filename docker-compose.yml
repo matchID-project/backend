@@ -18,6 +18,7 @@ services:
       - aws_access_key_id
       - aws_secret_access_key
       - BACKEND_PORT
+      - ES_THREADS
     volumes:
       - ${PROJECTS}:/${APP}/projects/
       - ${BACKEND}/log:/${APP}/log/
