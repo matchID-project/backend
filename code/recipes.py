@@ -1233,7 +1233,7 @@ class Recipe(Configured):
                 self.log.write("proceed {} rows from {} with recipe {}".format(
                     df.shape[0], self.input.name, self.name))
         if (self.type == "internal"):
-            df = getattr(self.__class__, "internal_" + self.name)(self, df=df)
+            df = getattr(self.__class__, "internal_" + self.name)(self, df=df, desc=desc)
         elif((len(self.steps) > 0) | ("steps" in self.conf.keys())):
             for recipe in self.steps:
                 try:
@@ -1241,7 +1241,7 @@ class Recipe(Configured):
                         self.name, recipe.name), level=2)
                     recipe.init(df=df, parent=self, test=self.test)
                     # recipe.run()
-                    df = recipe.run_chunk(i, df)
+                    df = recipe.run_chunk(i, df, desc)
                     if (recipe.name == "pause"):
                         return df
                 except:
@@ -1367,7 +1367,8 @@ class Recipe(Configured):
             # runs the recipe
             if (self.test == True):  # test mode
                 # end of work if in test mode
-                self.df = self.run_chunk(0, self.df)
+                print('run : desc',desc)
+                self.df = self.run_chunk(0, self.df, desc)
                 return self.df
             elif (not sql_direct):
                 if (supervisor == None):
@@ -1569,7 +1570,7 @@ class Recipe(Configured):
         # df=imp.fit_transform(df)
         return df
 
-    def internal_fillna(self, df=None):
+    def internal_fillna(self, df=None, desc=None):
         # try:
         for step in self.args:
             for col in step.keys():
@@ -1583,7 +1584,7 @@ class Recipe(Configured):
         # 	self.log.write("Ooops: problem in {} - {}: {} - {}".format(self.name,col,step[col],err()),exit=False)
         # 	return df
 
-    def internal_exec(self,df=None):
+    def internal_exec(self,df=None, desc=None):
         if ((type(self.args) == str) | (type(self.args) == unicode)):
             exec self.args
         elif (type(self.args) == list):
@@ -1591,7 +1592,7 @@ class Recipe(Configured):
                 exec expression
         return df
 
-    def internal_eval(self, df=None):
+    def internal_eval(self, df=None, desc=None):
         try:
             cols = []
             for step in self.args:
@@ -1644,12 +1645,12 @@ class Recipe(Configured):
                                                                 col, step[col]), error=err(), exit=False)
             return df
 
-    def internal_rename(self, df=None):
+    def internal_rename(self, df=None, desc=None):
         dic = {v: k for k, v in self.args.iteritems()}
         df.rename(columns=dic, inplace=True)
         return df
 
-    def internal_map(self, df=None):
+    def internal_map(self, df=None, desc=None):
         for col in list(self.args.keys()):
             if True:
                 if type(self.args[col]) == str:
@@ -1664,7 +1665,7 @@ class Recipe(Configured):
                 pass
         return df
 
-    def internal_shuffle(self, df=None):
+    def internal_shuffle(self, df=None, desc=None):
         # fully shuffles columnes and lines
         try:
             return df.apply(np.random.permutation)
@@ -1675,7 +1676,7 @@ class Recipe(Configured):
                 msg="problem in {} - {}".format(self.name), error=err(), exit=False)
             return df
 
-    def internal_build_model(self, df=None):
+    def internal_build_model(self, df=None, desc=None):
         # callable recipe for building method
         # tested only with regression tree
         try:
@@ -1780,7 +1781,7 @@ class Recipe(Configured):
             return df
         return df
 
-    def internal_apply_model(self, df=None):
+    def internal_apply_model(self, df=None, desc=None):
         # callable recipe for building method
         # tested only with regression tree
         try:
@@ -1847,7 +1848,7 @@ class Recipe(Configured):
 
         return df
 
-    def internal_keep(self, df=None):
+    def internal_keep(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1863,7 +1864,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_to_integer(self, df=None):
+    def internal_to_integer(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1876,7 +1877,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_list_to_tuple(self, df=None):
+    def internal_list_to_tuple(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1889,7 +1890,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_tuple_to_list(self, df=None):
+    def internal_tuple_to_list(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1902,7 +1903,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_to_float(self, df=None):
+    def internal_to_float(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1919,7 +1920,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_ngram(self, df=None):
+    def internal_ngram(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         if ("n" in self.args.keys()):
@@ -1936,8 +1937,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_clique(self, df=None):
-
+    def internal_clique(self, df=None, desc=None):
         try:
             self.select_columns(df=df)
             nodes = self.cols
@@ -2012,7 +2012,7 @@ class Recipe(Configured):
             self.log.write(msg="", error=err())
         return df
 
-    def internal_sql(self,df=None):
+    def internal_sql(self, df=None, desc=None):
         if ((type(self.args) == str) | (type(self.args) == unicode)):
             self.input.connector.sql.execute(self.args)
         elif (type(self.args) == list):
@@ -2020,7 +2020,7 @@ class Recipe(Configured):
                 self.input.connector.sql.execute(expression)
         return df
 
-    def internal_delete(self, df=None):
+    def internal_delete(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         #log("selecting {}".format(self.cols),level=3)
@@ -2035,7 +2035,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_groupby(self, df=None):
+    def internal_groupby(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
             if ("agg" in self.args.keys()):
@@ -2068,7 +2068,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err())
         return df
 
-    def internal_join(self, df=None):
+    def internal_join(self, df=None, desc=None):
         try:
             join_type = "in_memory"
             if (self.args == None):
@@ -2326,7 +2326,7 @@ class Recipe(Configured):
                 self.name, self.args["dataset"], err()))
         return df.fillna('')
 
-    def internal_unnest(self, df=None):
+    def internal_unnest(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
             prefix = self.args["prefix"]
@@ -2344,7 +2344,7 @@ class Recipe(Configured):
             self.log.write(error=err())
             return df
 
-    def internal_nest(self, df=None):
+    def internal_nest(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
             target = self.args["target"]
@@ -2359,7 +2359,7 @@ class Recipe(Configured):
             self.log.write(error=err())
         return df
 
-    def internal_unfold(self, df=None):
+    def internal_unfold(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
             fill_na = self.args["fill_na"]
@@ -2396,7 +2396,7 @@ class Recipe(Configured):
             self.log.write(error=err())
             return df
 
-    def internal_parsedate(self, df=None):
+    def internal_parsedate(self, df=None, desc=None):
         self.select_columns(df=df)
         if ("format" in self.args.keys()):
             # parse string do datetime i.e. 20001020 + %Y%m%d =>
@@ -2409,7 +2409,7 @@ class Recipe(Configured):
 
         return df
 
-    def internal_replace(self, df=None):
+    def internal_replace(self, df=None, desc=None):
         if True:
             self.select_columns(df=df)
             if ("regex" in self.args.keys()):
@@ -2424,7 +2424,7 @@ class Recipe(Configured):
         else:
             return df
 
-    def internal_normalize(self, df=None):
+    def internal_normalize(self, df=None, desc=None):
         if True:
             self.select_columns(df=df)
             df[self.cols] = df[self.cols].applymap(normalize)
@@ -2432,7 +2432,7 @@ class Recipe(Configured):
         else:
             return df
 
-    def internal_pause(self, df=None):
+    def internal_pause(self, df=None, desc=None):
         return df
 
 
