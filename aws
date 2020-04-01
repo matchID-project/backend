@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-tty="-t $(tty &>/dev/null && echo "-i")"
-
-docker run --rm $tty \
-		-v "$HOME:$HOME" \
-		-v "$HOME/.aws/:/root/.aws"\
-		--env HTTP_PROXY=${http_proxy}\
-		--env HTTPS_PROXY=${https_proxy}\
-		matchid/tools "$@"

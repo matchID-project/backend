@@ -7,4 +7,5 @@ log
 projects
 artifacts
 backup
-
+config
+aws

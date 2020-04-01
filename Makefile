@@ -9,7 +9,9 @@ SHELL=/bin/bash
 export DEBIAN_FRONTEND=noninteractive
 export USE_TTY := $(shell test -t 1 && USE_TTY="-t")
 #matchID default exposition port
-export APP=matchID
+export APP_GROUP=matchID
+export APP=backend
+export APP_PATH=$(shell pwd)
 export PORT=8081
 export BACKEND_PORT=8081
 export TIMEOUT=30
@@ -24,15 +26,18 @@ export TUTORIAL=${BACKEND}/../tutorial
 export MODELS=${BACKEND}/models
 export LOG=${BACKEND}/log
 export COMPOSE_HTTP_TIMEOUT=120
-export DOCKER_USERNAME=matchid
+export DOCKER_USERNAME=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
 export DC_DIR=${BACKEND}/docker-components
 export DC_FILE=${DC_DIR}/docker-compose
-export DC_PREFIX := $(shell echo ${APP} | tr '[:upper:]' '[:lower:]')
+export DC_PREFIX := $(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
+export DC_IMAGE_NAME=${DC_PREFIX}-${APP}
 export DC_NETWORK=${DC_PREFIX}
 export DC_NETWORK_OPT=
 export DC_BUILD_ARGS = --pull --no-cache
+export GIT_ROOT=https://github.com/matchid-project
 export GIT_ORIGIN=origin
 export GIT_BRANCH=dev
+export GIT_TOOLS=tools
 
 export API_SECRET_KEY:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//')
 export ADMIN_PASSWORD:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//' )
@@ -51,7 +56,7 @@ export BACKUP_DIR=${BACKEND}/backup
 # to use within matchid backend, you have to add credential as env variables and declare configuration in a s3 connector
 # 	export aws_access_key_id=XXXXXXXXXXXXXXXXX
 # 	export aws_secret_access_key=XXXXXXXXXXXXXXXXXXXXXXXXXXX
-export S3_BUCKET=matchid
+export S3_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
 export AWS=${BACKEND}/aws
 
 # elasticsearch defaut configuration
@@ -89,57 +94,37 @@ include /etc/os-release
 clean-secrets:
 	rm ${CRED_FILE}
 
-register-secrets: install-prerequisites
+register-secrets: config
 ifeq ("$(wildcard ${CRED_FILE})","")
 	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
 	@envsubst < ${CRED_TEMPLATE} > ${CRED_FILE}
 endif
 
-install-prerequisites:
-ifeq ("$(wildcard /usr/bin/envsubst)","")
-	sudo apt-get update -q -q; true
-	sudo apt-get install -y -q gettext; true
-endif
-ifeq ("$(wildcard /usr/bin/docker /usr/local/bin/docker)","")
-	echo install docker-ce, still to be tested
-	sudo apt-get update  -y -q -q
-	sudo echo '* libraries/restart-without-asking boolean true' | sudo debconf-set-selections
-	sudo apt-get install -yq \
-        apt-transport-https \
-        ca-certificates \
-        curl \
-        software-properties-common
+config:
+	# this proc relies on matchid/tools and works both local and remote
+	@sudo apt-get install make -yq
+	@if [ -z "${TOOLS_PATH}" ];then\
+		git clone ${GIT_ROOT}/${GIT_TOOLS};\
+		make -C ${APP_PATH}/${GIT_TOOLS} config ${MAKEOVERRIDES};\
+	else\
+		ln -s ${TOOLS_PATH} ${APP_PATH}/${GIT_TOOLS};\
+	fi
+	cp artifacts ${APP_PATH}/${GIT_TOOLS}/
+	@ln -s ${APP_PATH}/${GIT_TOOLS}/aws ${APP_PATH}/aws
+	@touch config
 
-	curl -fsSL https://download.docker.com/linux/${ID}/gpg | sudo apt-key add -
-	sudo add-apt-repository \
-                "deb https://download.docker.com/linux/ubuntu \
-                `lsb_release -cs` \
-                stable"
-	sudo apt-get update -yq
-	sudo apt-get install -yq docker-ce
-endif
-	@(if (id -Gn ${USER} | grep -vc docker); then sudo usermod -aG docker ${USER} ;fi) > /dev/null
-ifeq ("$(wildcard /usr/bin/docker-compose /usr/local/bin/docker-compose)","")
-	@echo installing docker-compose
-	@sudo curl -s -L https://github.com/docker/compose/releases/download/1.19.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose
-	@sudo chmod +x /usr/local/bin/docker-compose
-endif
-
-
-
-install-aws-cli:
-	@docker pull matchid/tools
+config-clean:
+	@rm -rf tools aws config
 
 docker-clean: stop
 	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana
 
-clean:
-	sudo rm -rf ${FRONTEND}/dist
+clean: frontend-clean config-clean
 
 network-stop:
 	docker network rm ${DC_NETWORK}
 
-network: install-prerequisites
+network: config
 	@docker network create ${DC_NETWORK_OPT} ${DC_NETWORK} 2> /dev/null; true
 
 elasticsearch-stop:
@@ -255,7 +240,7 @@ backend-check-build:
 	fi;\
 	export BACKEND_ENV=production;\
 	if [ "${commit}" != "${lastcommit}" ];then\
-		echo building ${APP} backend for dev after new commit;\
+		echo building ${APP_GROUP} ${APP} for dev after new commit;\
 		${DC} build $$DC_LOCAL;\
 		echo "${commit}" > ${BACKEND}/.lastcommit;\
 	fi;\
@@ -263,9 +248,9 @@ backend-check-build:
 
 backend-docker-pull:
 	@(\
-		(docker pull ${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} > /dev/null 2>&1)\
+		(docker pull ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} > /dev/null 2>&1)\
 		&& echo docker successfully pulled && (echo "${commit}" > ${BACKEND}/.lastcommit) \
-	) || echo "${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} not found on Docker Hub build, using local"
+	) || echo "${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} not found on Docker Hub build, using local"
 
 backend-build: backend-prep register-secrets backend-check-build backend-docker-pull
 	@if [ -f docker-compose-local.yml ];then\
@@ -273,11 +258,11 @@ backend-build: backend-prep register-secrets backend-check-build backend-docker-
 	fi;\
 	export BACKEND_ENV=production;\
 	if [ "${commit}" != "${lastcommit}" ];then\
-		echo building ${APP} backend after new commit;\
+		echo building ${APP_GROUP} ${APP} after new commit;\
 		${DC} build ${DC_BUILD_ARGS};\
 		echo "${commit}" > ${BACKEND}/.lastcommit;\
 	fi;
-	@docker tag ${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION} ${DOCKER_USERNAME}/${DC_PREFIX}-backend:latest
+	@docker tag ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:latest
 
 backend: network
 	@if [ -f docker-compose-local.yml ];then\
@@ -286,13 +271,11 @@ backend: network
 	export BACKEND_ENV=production;\
 	${DC} -f docker-compose.yml $$DC_LOCAL up -d
 
-docker-login:
-	@echo docker login for ${DOCKER_USERNAME}
-	@echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USERNAME}" --password-stdin
+backend-docker-push:
+	@make -C ${APP_PATH}/${GIT_TOOLS} docker-push DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} ${MAKEOVERRIDES}
 
-backend-docker-push: docker-login
-	@docker push ${DOCKER_USERNAME}/${DC_PREFIX}-backend:${APP_VERSION}
-	@docker push ${DOCKER_USERNAME}/${DC_PREFIX}-backend:latest
+frontend-clean:
+	@sudo rm -rf ${FRONTEND}/dist
 
 frontend-download:
 ifeq ("$(wildcard ${FRONTEND})","")
@@ -359,7 +342,7 @@ down: stop
 restart: down up
 
 logs: backend
-	@docker logs ${DC_PREFIX}-backend
+	@docker logs ${DC_PREFIX}-${APP}
 
 example-download:
 	@echo downloading example code
