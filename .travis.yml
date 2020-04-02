@@ -34,10 +34,10 @@ script:
 
 after_success:
   - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "master" ) ]]; then
-      make backend-docker-push ;
+      make backend-docker-push GIT_BRANCH="$TRAVIS_BRANCH";
     fi
   - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "dev" ) ]]; then
-      make backend-docker-push ;
+      make backend-docker-push GIT_BRANCH="$TRAVIS_BRANCH";
     fi
 
 

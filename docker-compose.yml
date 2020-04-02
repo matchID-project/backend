@@ -6,12 +6,12 @@ services:
       context: .
       target: ${BACKEND_ENV}
       args:
-        - http_proxy
-        - https_proxy
-        - no_proxy
-        - APP
-    image: ${DOCKER_USERNAME}/${DC_PREFIX}-backend${DC_POSTFIX}:${APP_VERSION}
-    container_name: ${DC_PREFIX}-backend${DC_POSTFIX}
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+        no_proxy: ${no_proxy}
+        APP: ${APP_GROUP}
+    image: ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}${DC_POSTFIX}:${APP_VERSION}
+    container_name: ${DC_PREFIX}-${APP}${DC_POSTFIX}
     environment:
       - http_proxy
       - https_proxy
@@ -23,11 +23,11 @@ services:
       - ES_MAX_TRIES
       - ES_CHUNK
     volumes:
-      - ${PROJECTS}:/${APP}/projects/
-      - ${BACKEND}/log:/${APP}/log/
-      - ${UPLOAD}:/${APP}/upload/
-      - ${MODELS}:/${APP}/models/
-      - ${FRONTEND}/matchIdConfig:/${APP}/matchIdConfig/
+      - ${PROJECTS}:/${APP_GROUP}/projects/
+      - ${BACKEND}/log:/${APP_GROUP}/log/
+      - ${UPLOAD}:/${APP_GROUP}/upload/
+      - ${MODELS}:/${APP_GROUP}/models/
+      - ${FRONTEND}/matchIdConfig:/${APP_GROUP}/matchIdConfig/
     restart: always
 
 networks:
