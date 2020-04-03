@@ -74,7 +74,11 @@ export ES_BACKUP_FILE_SNAR = esdata.snar
 dummy		    := $(shell touch artifacts)
 include ./artifacts
 
-commit              := $(shell git describe --tags || cat VERSION)
+tag                 := $(shell git describe --tags | sed 's/-.*//')
+VERSION 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f -not -name '*.tar.gz'  | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
+export APP_VERSION =  ${tag}-${VERSION}
+
+commit 				= ${APP_VERSION}
 lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
 commit-frontend     := $(shell (cd ${FRONTEND} 2> /dev/null) && git rev-parse HEAD | cut -c1-8)
 lastcommit-frontend := $(shell (cat ${FRONTEND}/.lastcommit 2>&1) )
@@ -83,13 +87,13 @@ id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8
 
 vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262144 && echo true)
 
-export APP_VERSION	= ${commit}
-
 PG := 'postgres'
 DC := 'docker-compose'
 include /etc/os-release
 
 
+version:
+	@echo ${APP_GROUP} ${APP} ${APP_VERSION}
 
 clean-secrets:
 	rm ${CRED_FILE}
