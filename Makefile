@@ -18,7 +18,6 @@ export TIMEOUT=30
 
 #matchID default paths
 export BACKEND := $(shell pwd)
-export FRONTEND=${BACKEND}/../frontend
 export UPLOAD=${BACKEND}/upload
 export PROJECTS=${BACKEND}/projects
 export EXAMPLES=${BACKEND}/../examples
@@ -38,6 +37,11 @@ export GIT_ROOT=https://github.com/matchid-project
 export GIT_ORIGIN=origin
 export GIT_BRANCH=dev
 export GIT_TOOLS=tools
+export GIT_BACKEND=backend
+export GIT_FRONTEND_BRANCH=dev
+
+export FRONTEND=${BACKEND}/../${GIT_FRONTEND}
+export FRONTEND_DC_IMAGE_NAME=${DC_PREFIX}-${FRONTEND}
 
 export API_SECRET_KEY:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//')
 export ADMIN_PASSWORD:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//' )
@@ -75,7 +79,7 @@ dummy		    := $(shell touch artifacts)
 include ./artifacts
 
 tag                 := $(shell git describe --tags | sed 's/-.*//')
-version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f -not -name '*.tar.gz'  | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
+version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f -not -name '*.tar.gz' | grep -v 'conf/security/creds.yml' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
 export APP_VERSION =  ${tag}-${version}
 
 commit 				= ${APP_VERSION}
@@ -284,15 +288,19 @@ backend-docker-push:
 frontend-clean:
 	@sudo rm -rf ${FRONTEND}/dist
 
-frontend-download:
+frontend-config:
 ifeq ("$(wildcard ${FRONTEND})","")
 	@echo downloading frontend code
-	@mkdir -p ${FRONTEND}
-	@cd ${FRONTEND}; git clone https://github.com/matchID-project/frontend . #2> /dev/null; true
+	@git clone ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
+	@cd ${FRONTEND};git checkout ${GIT_FRONTEND_BRANCH}
 endif
 
+frontend-docker-check:
+	@FRONTEND_APP_VERSION=$(make -C ${FRONTEND} version | awk '{print $$NF}');\
+	make -C ${APP_PATH}/${GIT_TOOLS} docker-check DC_IMAGE_NAME=${FRONTEND_DC_IMAGE_NAME} APP_VERSION=${FRONTEND_APP_VERSION} GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
+
 frontend-update:
-	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} ${GIT_BRANCH}
+	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} ${GIT_FRONTEND_BRANCH}
 
 backend-update:
 	@cd ${BACKEND}; git pull ${GIT_ORIGIN} ${GIT_BRANCH}
@@ -316,7 +324,7 @@ dev: network frontend-stop backend elasticsearch postgres frontend-dev
 
 dev-stop: backend-stop kibana-stop elasticsearch-stop postgres-stop frontend-dev-stop newtork-stop
 
-frontend-build: network frontend-download
+frontend-build: network frontend-config
 ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
 	@echo building matchID frontend after new commit
 	@make clean
