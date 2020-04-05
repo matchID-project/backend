@@ -27,7 +27,6 @@ services:
       - ${BACKEND}/log:/${APP_GROUP}/log/
       - ${UPLOAD}:/${APP_GROUP}/upload/
       - ${MODELS}:/${APP_GROUP}/models/
-      - ${FRONTEND}/matchIdConfig:/${APP_GROUP}/matchIdConfig/
     restart: always
 
 networks:
