@@ -312,7 +312,7 @@ ifeq ("$(wildcard ${FRONTEND})","")
 	@cd ${FRONTEND};git checkout ${GIT_FRONTEND_BRANCH}
 endif
 
-frontend-docker-check:
+frontend-docker-check: frontend-config
 	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
 frontend-clean:
