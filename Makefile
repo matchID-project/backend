@@ -44,7 +44,7 @@ export GIT_FRONTEND=frontend
 export GIT_FRONTEND_BRANCH=dev
 
 export FRONTEND=${BACKEND}/../${GIT_FRONTEND}
-export FRONTEND_DC_IMAGE_NAME=${DC_PREFIX}-${FRONTEND}
+export FRONTEND_DC_IMAGE_NAME=${DC_PREFIX}-${GIT_FRONTEND}
 
 export API_SECRET_KEY:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//')
 export ADMIN_PASSWORD:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1 | sed 's/^/\*/;s/\(....\)/\1:/;s/$$/!/;s/\n//' )
@@ -413,7 +413,14 @@ deploy-remote-instance: config frontend-config
 deploy-remote-services:
 	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
 		APP=${APP} APP_VERSION=${APP_VERSION}\
-		ACTIONS=deploy-local GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+		ACTIONS="config up" SERVICES="elasticsearch postgres backend" GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
+		make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
+		APP=${GIT_FRONTEND} APP_VERSION=$$FRONTEND_APP_VERSION DC_IMAGE_NAME=${FRONTEND_DC_IMAGE_NAME}\
+		ACTIONS=${GIT_FRONTEND} GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
+	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
+		APP=${APP} APP_VERSION=${APP_VERSION}\
+		ACTIONS="local-test-api" GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
 
 deploy-remote-publish:
 	@if [ -z "${NGINX_HOST}" -o -z "${NGINX_USER}" ];then\
