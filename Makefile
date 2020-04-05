@@ -64,7 +64,7 @@ export S3_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
 export AWS=${BACKEND}/aws
 
 # elasticsearch defaut configuration
-export ES_NODES = 3		# elasticsearch number of nodes
+export ES_NODES = 1		# elasticsearch number of nodes
 export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
 export ES_MEM = 1024m		# elasticsearch : memory of each node
 export ES_VERSION = 7.6.1
