@@ -12,6 +12,9 @@ export USE_TTY := $(shell test -t 1 && USE_TTY="-t")
 export APP_GROUP=matchID
 export APP=backend
 export APP_PATH=$(shell pwd)
+export API_PATH=${APP_GROUP}/api/v0
+export API_TEST_PATH=${API_PATH}/conf/conf/
+export API_TEST_JSON_PATH=files
 export PORT=8081
 export BACKEND_PORT=8081
 export TIMEOUT=30
@@ -389,11 +392,51 @@ example-download:
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
 	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
 
-wait-elasticsearch: elasticsearch
-	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
-
-wait-backend: backend
-	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s --fail -XGET localhost:${BACKEND_PORT}/matchID/api/v0/ > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for backend to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
-
-recipe-run: wait-backend
+recipe-run: backend
 	docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s -XPUT http://localhost:${PORT}/matchID/api/v0/recipes/${RECIPE}/run && echo ${RECIPE} run
+
+deploy-local: config up
+
+local-test-api:
+	@make -C ${APP_PATH}/${GIT_TOOLS} local-test-api \
+		PORT=${PORT} \
+		API_TEST_PATH=${API_TEST_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
+		${MAKEOVERRIDES}
+
+deploy-remote-instance: config frontend-config
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
+	make -C ${APP_PATH}/${GIT_TOOLS} remote-config\
+			APP=${APP} APP_VERSION=${APP_VERSION} CLOUD_TAG=front:$$FRONTEND_APP_VERSION-back:${APP_VERSION}\
+			DC_IMAGE_NAME=${DC_IMAGE_NAME}\
+			GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+
+deploy-remote-services:
+	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
+		APP=${APP} APP_VERSION=${APP_VERSION} DC_IMAGE_NAME=${DC_IMAGE_NAME}\
+		ACTIONS=deploy-local GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+
+deploy-remote-publish:
+	@if [ -z "${NGINX_HOST}" -o -z "${NGINX_USER}" ];then\
+		(echo "can't deploy without NGINX_HOST and NGINX_USER" && exit 1);\
+	fi;
+	@if [ "${GIT_BRANCH}" == "${GIT_BRANCH_MASTER}" ];then\
+		APP_DNS=${APP_DNS};\
+	else\
+		APP_DNS="${GIT_BRANCH}-${APP_DNS}";\
+	fi;\
+	make -C ${APP_PATH}/${GIT_TOOLS} remote-test-api-in-vpc nginx-conf-apply remote-test-api\
+		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} PORT=${PORT}\
+		APP_DNS=$$APP_DNS API_TEST_PATH=${ES_PROXY_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
+		${MAKEOVERRIDES}
+
+deploy-delete-old:
+	@make -C ${APP_PATH}/${GIT_TOOLS} cloud-instance-down-invalid\
+		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+
+deploy-monitor:
+	@make -C ${APP_PATH}/${GIT_TOOLS} remote-install-monitor-nq NQ_TOKEN=${NQ_TOKEN} ${MAKEOVERRIDES}
+
+deploy-remote: config deploy-remote-instance deploy-remote-services deploy-remote-publish deploy-delete-old deploy-monitor
+
+clean-remote:
+	@make -C ${APP_PATH}/${GIT_TOOLS} remote-clean ${MAKEOVERRIDES} > /dev/null 2>&1 || true
