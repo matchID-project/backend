@@ -75,6 +75,10 @@ export ES_CHUNK = 500
 export ES_BACKUP_FILE := $(shell echo esdata_`date +"%Y%m%d"`.tar)
 export ES_BACKUP_FILE_SNAR = esdata.snar
 
+export DB_SERVICES=elasticsearch postgres
+
+export SERVICES=${DB_SERVICES} backend frontend
+
 dummy		    := $(shell touch artifacts)
 include ./artifacts
 
@@ -133,6 +137,8 @@ network-stop:
 network: config
 	@docker network create ${DC_NETWORK_OPT} ${DC_NETWORK} 2> /dev/null; true
 
+elasticsearch-dev-stop: elasticsearch-stop
+
 elasticsearch-stop:
 	@echo docker-compose down matchID elasticsearch
 ifeq "$(ES_NODES)" "1"
@@ -174,6 +180,8 @@ ifeq ("$(vm_max_count)", "")
 	sudo sysctl -w vm.max_map_count=262144
 endif
 
+elasticsearch-dev: elasticsearch
+
 elasticsearch: network vm_max
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
@@ -199,6 +207,10 @@ elasticsearch2:
 	true)
 	${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml up -d
 
+kibana-dev-stop: kibana-stop
+
+kibana-dev: kibana
+
 kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
 kibana: network
@@ -207,8 +219,13 @@ ifeq ("$(wildcard ${BACKEND}/kibana)","")
 endif
 	${DC} -f ${DC_FILE}-kibana.yml up -d
 
+postgres-dev-stop: postgres-stop
+
 postgres-stop:
 	${DC} -f ${DC_FILE}-${PG}.yml down
+
+postgres-dev: postgres
+
 postgres: network
 	${DC} -f ${DC_FILE}-${PG}.yml up -d
 	@sleep 2 && docker exec ${DC_PREFIX}-postgres psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch"
@@ -239,6 +256,9 @@ backend-dev: network register-secrets backend-prep
 		echo "${commit}" > ${BACKEND}/.lastcommit;\
 	fi;\
 	${DC} -f docker-compose.yml -f docker-compose-dev.yml $$DC_LOCAL up -d
+
+backend-dev-stop:
+	${DC} -f docker-compose.yml down
 
 backend-check-build:
 	@if [ -f docker-compose-local.yml ];then\
@@ -310,9 +330,29 @@ frontend-dev: frontend-config
 frontend-dev-stop:
 	@make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
-dev: network frontend-stop backend elasticsearch postgres frontend-dev
+services-dev:
+	for service in ${SERVICES}; do\
+		(make $$service-dev ${MAKEOVERRIDES} || echo starting $$service failed);\
+	done
 
-dev-stop: backend-stop kibana-stop elasticsearch-stop postgres-stop frontend-dev-stop network-stop
+services-dev-stop:
+	for service in ${SERVICES}; do\
+		(make $$service-dev-stop ${MAKEOVERRIDES} || echo stopping $$service failed);\
+	done
+
+services:
+	for service in ${SERVICES}; do\
+		(make $$service ${MAKEOVERRIDES} || echo starting $$service failed);\
+	done
+
+services-stop:
+	for service in ${SERVICES}; do\
+		(make $$service-stop ${MAKEOVERRIDES} || echo stopping $$service failed);\
+	done
+
+dev: network services-dev
+
+dev-stop: services-dev-stop network-stop
 
 frontend-build: network frontend-config
 	@make -C ${FRONTEND} frontend-build GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
@@ -323,14 +363,10 @@ frontend-stop:
 frontend: frontend-docker-check
 	@make -C ${FRONTEND} frontend GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
-stop: backend-stop elasticsearch-stop kibana-stop postgres-stop
+stop: services-stop network-stop
 	@echo all components stopped
 
-start-all: start postgres
-	@sleep 2 && echo all components started, please enter following command to supervise:
-	@echo tail log/docker-*.log
-
-start: elasticsearch postgres backend frontend
+start: network services
 	@sleep 2 && docker-compose logs
 
 up: start
