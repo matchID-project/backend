@@ -12,6 +12,9 @@ export USE_TTY := $(shell test -t 1 && USE_TTY="-t")
 export APP_GROUP=matchID
 export APP=backend
 export APP_PATH=$(shell pwd)
+export API_PATH=${APP_GROUP}/api/v0
+export API_TEST_PATH=${API_PATH}/conf/conf/
+export API_TEST_JSON_PATH=files
 export PORT=8081
 export BACKEND_PORT=8081
 export TIMEOUT=30
@@ -64,7 +67,7 @@ export S3_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
 export AWS=${BACKEND}/aws
 
 # elasticsearch defaut configuration
-export ES_NODES = 3		# elasticsearch number of nodes
+export ES_NODES = 1		# elasticsearch number of nodes
 export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
 export ES_MEM = 1024m		# elasticsearch : memory of each node
 export ES_VERSION = 7.6.1
@@ -74,6 +77,10 @@ export ES_MAX_TRIES = 3
 export ES_CHUNK = 500
 export ES_BACKUP_FILE := $(shell echo esdata_`date +"%Y%m%d"`.tar)
 export ES_BACKUP_FILE_SNAR = esdata.snar
+
+export DB_SERVICES=elasticsearch postgres
+
+export SERVICES=${DB_SERVICES} backend frontend
 
 dummy		    := $(shell touch artifacts)
 include ./artifacts
@@ -133,6 +140,8 @@ network-stop:
 network: config
 	@docker network create ${DC_NETWORK_OPT} ${DC_NETWORK} 2> /dev/null; true
 
+elasticsearch-dev-stop: elasticsearch-stop
+
 elasticsearch-stop:
 	@echo docker-compose down matchID elasticsearch
 ifeq "$(ES_NODES)" "1"
@@ -174,6 +183,8 @@ ifeq ("$(vm_max_count)", "")
 	sudo sysctl -w vm.max_map_count=262144
 endif
 
+elasticsearch-dev: elasticsearch
+
 elasticsearch: network vm_max
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
@@ -186,6 +197,7 @@ elasticsearch: network vm_max
 	done;\
 	true)
 	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
 
 elasticsearch2:
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
@@ -199,6 +211,10 @@ elasticsearch2:
 	true)
 	${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml up -d
 
+kibana-dev-stop: kibana-stop
+
+kibana-dev: kibana
+
 kibana-stop:
 	${DC} -f ${DC_FILE}-kibana.yml down
 kibana: network
@@ -207,8 +223,13 @@ ifeq ("$(wildcard ${BACKEND}/kibana)","")
 endif
 	${DC} -f ${DC_FILE}-kibana.yml up -d
 
+postgres-dev-stop: postgres-stop
+
 postgres-stop:
 	${DC} -f ${DC_FILE}-${PG}.yml down
+
+postgres-dev: postgres
+
 postgres: network
 	${DC} -f ${DC_FILE}-${PG}.yml up -d
 	@sleep 2 && docker exec ${DC_PREFIX}-postgres psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch"
@@ -239,6 +260,9 @@ backend-dev: network register-secrets backend-prep
 		echo "${commit}" > ${BACKEND}/.lastcommit;\
 	fi;\
 	${DC} -f docker-compose.yml -f docker-compose-dev.yml $$DC_LOCAL up -d
+
+backend-dev-stop:
+	${DC} -f docker-compose.yml down
 
 backend-check-build:
 	@if [ -f docker-compose-local.yml ];then\
@@ -276,6 +300,7 @@ backend: network backend-docker-check
 	fi;\
 	export BACKEND_ENV=production;\
 	${DC} -f docker-compose.yml $$DC_LOCAL up -d
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s --fail -XGET localhost:${BACKEND_PORT}/matchID/api/v0/ > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for backend to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
 
 backend-docker-check: config
 	@make -C ${APP_PATH}/${GIT_TOOLS} docker-check DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
@@ -290,7 +315,7 @@ ifeq ("$(wildcard ${FRONTEND})","")
 	@cd ${FRONTEND};git checkout ${GIT_FRONTEND_BRANCH}
 endif
 
-frontend-docker-check:
+frontend-docker-check: frontend-config
 	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
 frontend-clean:
@@ -310,9 +335,29 @@ frontend-dev: frontend-config
 frontend-dev-stop:
 	@make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
-dev: network frontend-stop backend elasticsearch postgres frontend-dev
+services-dev:
+	for service in ${SERVICES}; do\
+		(make $$service-dev ${MAKEOVERRIDES} || echo starting $$service failed);\
+	done
 
-dev-stop: backend-stop kibana-stop elasticsearch-stop postgres-stop frontend-dev-stop network-stop
+services-dev-stop:
+	for service in ${SERVICES}; do\
+		(make $$service-dev-stop ${MAKEOVERRIDES} || echo stopping $$service failed);\
+	done
+
+services:
+	for service in ${SERVICES}; do\
+		(make $$service ${MAKEOVERRIDES} || echo starting $$service failed);\
+	done
+
+services-stop:
+	for service in ${SERVICES}; do\
+		(make $$service-stop ${MAKEOVERRIDES} || echo stopping $$service failed);\
+	done
+
+dev: network services-dev
+
+dev-stop: services-dev-stop network-stop
 
 frontend-build: network frontend-config
 	@make -C ${FRONTEND} frontend-build GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
@@ -323,14 +368,10 @@ frontend-stop:
 frontend: frontend-docker-check
 	@make -C ${FRONTEND} frontend GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
-stop: backend-stop elasticsearch-stop kibana-stop postgres-stop
+stop: services-stop network-stop
 	@echo all components stopped
 
-start-all: start postgres
-	@sleep 2 && echo all components started, please enter following command to supervise:
-	@echo tail log/docker-*.log
-
-start: elasticsearch postgres backend frontend
+start: network services
 	@sleep 2 && docker-compose logs
 
 up: start
@@ -351,11 +392,51 @@ example-download:
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
 	@ln -s ${EXAMPLES}/data ${BACKEND}/upload
 
-wait-elasticsearch: elasticsearch
-	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
-
-wait-backend: backend
-	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s --fail -XGET localhost:${BACKEND_PORT}/matchID/api/v0/ > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for backend to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
-
-recipe-run: wait-backend
+recipe-run: backend
 	docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s -XPUT http://localhost:${PORT}/matchID/api/v0/recipes/${RECIPE}/run && echo ${RECIPE} run
+
+deploy-local: config up
+
+local-test-api:
+	@make -C ${APP_PATH}/${GIT_TOOLS} local-test-api \
+		PORT=${PORT} \
+		API_TEST_PATH=${API_TEST_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
+		${MAKEOVERRIDES}
+
+deploy-remote-instance: config frontend-config
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
+	make -C ${APP_PATH}/${GIT_TOOLS} remote-config\
+			APP=${APP} APP_VERSION=${APP_VERSION} CLOUD_TAG=front:$$FRONTEND_APP_VERSION-back:${APP_VERSION}\
+			DC_IMAGE_NAME=${DC_IMAGE_NAME}\
+			GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+
+deploy-remote-services:
+	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
+		APP=${APP} APP_VERSION=${APP_VERSION} DC_IMAGE_NAME=${DC_IMAGE_NAME}\
+		ACTIONS=deploy-local GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+
+deploy-remote-publish:
+	@if [ -z "${NGINX_HOST}" -o -z "${NGINX_USER}" ];then\
+		(echo "can't deploy without NGINX_HOST and NGINX_USER" && exit 1);\
+	fi;
+	@if [ "${GIT_BRANCH}" == "${GIT_BRANCH_MASTER}" ];then\
+		APP_DNS=${APP_DNS};\
+	else\
+		APP_DNS="${GIT_BRANCH}-${APP_DNS}";\
+	fi;\
+	make -C ${APP_PATH}/${GIT_TOOLS} remote-test-api-in-vpc nginx-conf-apply remote-test-api\
+		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} PORT=${PORT}\
+		APP_DNS=$$APP_DNS API_TEST_PATH=${ES_PROXY_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
+		${MAKEOVERRIDES}
+
+deploy-delete-old:
+	@make -C ${APP_PATH}/${GIT_TOOLS} cloud-instance-down-invalid\
+		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+
+deploy-monitor:
+	@make -C ${APP_PATH}/${GIT_TOOLS} remote-install-monitor-nq NQ_TOKEN=${NQ_TOKEN} ${MAKEOVERRIDES}
+
+deploy-remote: config deploy-remote-instance deploy-remote-services deploy-remote-publish deploy-delete-old deploy-monitor
+
+clean-remote:
+	@make -C ${APP_PATH}/${GIT_TOOLS} remote-clean ${MAKEOVERRIDES} > /dev/null 2>&1 || true
