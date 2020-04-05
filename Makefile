@@ -308,32 +308,10 @@ backend-docker-check: config
 backend-docker-push:
 	@make -C ${APP_PATH}/${GIT_TOOLS} docker-push DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} ${MAKEOVERRIDES}
 
-frontend-config:
-ifeq ("$(wildcard ${FRONTEND})","")
-	@echo downloading frontend code
-	@git clone ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
-	@cd ${FRONTEND};git checkout ${GIT_FRONTEND_BRANCH}
-endif
-
-frontend-docker-check: frontend-config
-	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
-
-frontend-clean:
-	@make -C ${FRONTEND} frontend-clean GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
-
-frontend-update:
-	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} ${GIT_FRONTEND_BRANCH}
-
 backend-update:
 	@cd ${BACKEND}; git pull ${GIT_ORIGIN} ${GIT_BRANCH}
 
 update: frontend-update backend-update
-
-frontend-dev: frontend-config
-	@make -C ${FRONTEND} frontend-dev GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
-
-frontend-dev-stop:
-	@make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
 services-dev:
 	for service in ${SERVICES}; do\
@@ -359,14 +337,36 @@ dev: network services-dev
 
 dev-stop: services-dev-stop network-stop
 
+frontend-config:
+ifeq ("$(wildcard ${FRONTEND})","")
+	@echo downloading frontend code
+	@git clone ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
+	@cd ${FRONTEND};git checkout ${GIT_FRONTEND_BRANCH}
+endif
+
+frontend-docker-check: frontend-config
+	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+
+frontend-clean:
+	@make -C ${FRONTEND} frontend-clean GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+
+frontend-update:
+	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} ${GIT_FRONTEND_BRANCH}
+
+frontend-dev: frontend-config
+	@make -C ${FRONTEND} frontend-dev GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+
+frontend-dev-stop:
+	@make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+
 frontend-build: network frontend-config
-	@make -C ${FRONTEND} frontend-build GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
+	@make -C ${FRONTEND} frontend-build GIT_BRANCH=${GIT_FRONTEND_BRANCH}
 
 frontend-stop:
-	@make -C ${FRONTEND} frontend-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
+	@make -C ${FRONTEND} frontend-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH}
 
 frontend: frontend-docker-check
-	@make -C ${FRONTEND} frontend GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
+	@make -C ${FRONTEND} frontend GIT_BRANCH=${GIT_FRONTEND_BRANCH}
 
 stop: services-stop network-stop
 	@echo all components stopped
@@ -395,7 +395,7 @@ example-download:
 recipe-run: backend
 	docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s -XPUT http://localhost:${PORT}/matchID/api/v0/recipes/${RECIPE}/run && echo ${RECIPE} run
 
-deploy-local: config up
+deploy-local: config up local-test-api
 
 local-test-api:
 	@make -C ${APP_PATH}/${GIT_TOOLS} local-test-api \
@@ -412,7 +412,7 @@ deploy-remote-instance: config frontend-config
 
 deploy-remote-services:
 	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
-		APP=${APP} APP_VERSION=${APP_VERSION} DC_IMAGE_NAME=${DC_IMAGE_NAME}\
+		APP=${APP} APP_VERSION=${APP_VERSION}\
 		ACTIONS=deploy-local GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
 
 deploy-remote-publish:
