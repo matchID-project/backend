@@ -37,7 +37,7 @@ export GIT_ROOT=https://github.com/matchid-project
 export GIT_ORIGIN=origin
 export GIT_BRANCH=dev
 export GIT_TOOLS=tools
-export GIT_BACKEND=backend
+export GIT_FRONTEND=frontend
 export GIT_FRONTEND_BRANCH=dev
 
 export FRONTEND=${BACKEND}/../${GIT_FRONTEND}
@@ -84,8 +84,6 @@ export APP_VERSION =  ${tag}-${version}
 
 commit 				= ${APP_VERSION}
 lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
-commit-frontend     := $(shell (cd ${FRONTEND} 2> /dev/null) && git rev-parse HEAD | cut -c1-8)
-lastcommit-frontend := $(shell (cat ${FRONTEND}/.lastcommit 2>&1) )
 date                := $(shell date -I)
 id                  := $(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8 | head -n 1)
 
@@ -272,7 +270,7 @@ backend-build: backend-prep register-secrets backend-check-build backend-docker-
 	fi;
 	@docker tag ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:latest
 
-backend: network
+backend: network backend-docker-check
 	@if [ -f docker-compose-local.yml ];then\
 		DC_LOCAL="-f docker-compose-local.yml";\
 	fi;\
@@ -285,9 +283,6 @@ backend-docker-check: config
 backend-docker-push:
 	@make -C ${APP_PATH}/${GIT_TOOLS} docker-push DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} ${MAKEOVERRIDES}
 
-frontend-clean:
-	@sudo rm -rf ${FRONTEND}/dist
-
 frontend-config:
 ifeq ("$(wildcard ${FRONTEND})","")
 	@echo downloading frontend code
@@ -296,8 +291,10 @@ ifeq ("$(wildcard ${FRONTEND})","")
 endif
 
 frontend-docker-check:
-	@FRONTEND_APP_VERSION=$(make -C ${FRONTEND} version | awk '{print $$NF}');\
-	make -C ${APP_PATH}/${GIT_TOOLS} docker-check DC_IMAGE_NAME=${FRONTEND_DC_IMAGE_NAME} APP_VERSION=${FRONTEND_APP_VERSION} GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
+	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
+
+frontend-clean:
+	@make -C ${FRONTEND} frontend-clean GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
 frontend-update:
 	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} ${GIT_FRONTEND_BRANCH}
@@ -307,38 +304,24 @@ backend-update:
 
 update: frontend-update backend-update
 
-frontend-dev:
-ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
-	@echo docker-compose up matchID frontend for dev after new commit
-	${DC} -f ${DC_FILE}-dev-frontend.yml up --build -d
-	@echo "${commit-frontend}" > ${FRONTEND}/.lastcommit
-else
-	@echo docker-compose up matchID frontend for dev
-	${DC} -f  ${DC_FILE}-dev-frontend.yml up -d
-endif
+frontend-dev: frontend-config
+	@make -C ${FRONTEND} frontend-dev GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
 frontend-dev-stop:
-	${DC} -f ${DC_FILE}-dev-frontend.yml down
+	@make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
 dev: network frontend-stop backend elasticsearch postgres frontend-dev
 
-dev-stop: backend-stop kibana-stop elasticsearch-stop postgres-stop frontend-dev-stop newtork-stop
+dev-stop: backend-stop kibana-stop elasticsearch-stop postgres-stop frontend-dev-stop network-stop
 
 frontend-build: network frontend-config
-ifneq "$(commit-frontend)" "$(lastcommit-frontend)"
-	@echo building matchID frontend after new commit
-	@make clean
-	@sudo mkdir -p ${FRONTEND}/dist
-	${DC} -f ${DC_FILE}-build-frontend.yml up --build
-	@echo "${commit-frontend}" > ${FRONTEND}/.lastcommit
-endif
+	@make -C ${FRONTEND} frontend-build GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
 frontend-stop:
-	${DC} -f ${DC_FILE}-run-frontend.yml down
+	@make -C ${FRONTEND} frontend-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
-frontend: frontend-build
-	@echo docker-compose up matchID frontend
-	${DC} -f ${DC_FILE}-run-frontend.yml up -d
+frontend: frontend-docker-check
+	@make -C ${FRONTEND} frontend GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
 
 stop: backend-stop elasticsearch-stop kibana-stop postgres-stop
 	@echo all components stopped
@@ -347,7 +330,7 @@ start-all: start postgres
 	@sleep 2 && echo all components started, please enter following command to supervise:
 	@echo tail log/docker-*.log
 
-start: frontend-build elasticsearch postgres backend frontend-stop frontend
+start: elasticsearch postgres backend frontend
 	@sleep 2 && docker-compose logs
 
 up: start
