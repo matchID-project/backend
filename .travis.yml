@@ -26,7 +26,7 @@ before_script:
   - uname -a
   - type -a docker-compose && docker-compose version
   - docker version
-  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( ( "$TRAVIS_BRANCH" == "dev" ) || ( "$TRAVIS_BRANCH" == "master" ) ) ]]; then
+  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
       echo "$SSHENC" | base64 -d | gpg -d --passphrase $SSHPWD --batch > /tmp/id_rsa_matchID;
       eval "$(ssh-agent -s)";
       chmod 600 /tmp/id_rsa_matchID;
