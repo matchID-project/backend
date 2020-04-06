@@ -26,6 +26,15 @@ before_script:
   - uname -a
   - type -a docker-compose && docker-compose version
   - docker version
+  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
+      echo "$SSHENC" | base64 -d | gpg -d --passphrase $SSHPWD --batch > /tmp/id_rsa_matchID;
+      eval "$(ssh-agent -s)";
+      chmod 600 /tmp/id_rsa_matchID;
+      ssh-add /tmp/id_rsa_matchID;
+      echo "Host * !""$BASTION_HOST" > ~/.ssh/config;
+      echo "   ProxyCommand ssh -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST nc %h %p" >> ~/.ssh/config;
+      cat ~/.ssh/config;
+    fi
 
 script:
   - git fetch --unshallow && git tag -l
@@ -35,5 +44,9 @@ script:
       make backend-docker-push GIT_BRANCH="$TRAVIS_BRANCH";
     fi
 
+after_sucess:
+  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
+      make deploy-remote GIT_BRANCH="$TRAVIS_BRANCH" NGINX_USER=$NGINX_USER NGINX_HOST=$NGINX_HOST remote_http_proxy=$REMOTE_HTTP_PROXY remote_https_proxy=$REMOTE_HTTP_PROXY remote_no_proxy=localhost NQ_TOKEN=$NQ_TOKEN;
+    fi
 
 
