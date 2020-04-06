@@ -418,9 +418,6 @@ deploy-remote-services:
 		make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
 		APP=${GIT_FRONTEND} APP_VERSION=$$FRONTEND_APP_VERSION DC_IMAGE_NAME=${FRONTEND_DC_IMAGE_NAME}\
 		ACTIONS=${GIT_FRONTEND} GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
-	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
-		APP=${APP} APP_VERSION=${APP_VERSION}\
-		ACTIONS="local-test-api" GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
 
 deploy-remote-publish:
 	@if [ -z "${NGINX_HOST}" -o -z "${NGINX_USER}" ];then\
