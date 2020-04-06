@@ -430,7 +430,7 @@ deploy-remote-publish:
 	fi;\
 	make -C ${APP_PATH}/${GIT_TOOLS} remote-test-api-in-vpc nginx-conf-apply remote-test-api\
 		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} PORT=${PORT}\
-		APP_DNS=$$APP_DNS API_TEST_PATH=${ES_PROXY_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
+		APP_DNS=$$APP_DNS API_TEST_PATH=${API_TEST_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
 		${MAKEOVERRIDES}
 
 deploy-delete-old:
