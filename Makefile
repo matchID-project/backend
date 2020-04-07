@@ -423,14 +423,9 @@ deploy-remote-publish:
 	@if [ -z "${NGINX_HOST}" -o -z "${NGINX_USER}" ];then\
 		(echo "can't deploy without NGINX_HOST and NGINX_USER" && exit 1);\
 	fi;
-	@if [ "${GIT_BRANCH}" == "${GIT_BRANCH_MASTER}" ];then\
-		APP_DNS=${APP_DNS};\
-	else\
-		APP_DNS="${GIT_BRANCH}-${APP_DNS}";\
-	fi;\
 	make -C ${APP_PATH}/${GIT_TOOLS} remote-test-api-in-vpc nginx-conf-apply remote-test-api\
 		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} PORT=${PORT}\
-		APP_DNS=$$APP_DNS API_TEST_PATH=${API_TEST_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
+		APP_DNS=${APP_DNS} API_TEST_PATH=${API_TEST_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
 		${MAKEOVERRIDES}
 
 deploy-delete-old:
