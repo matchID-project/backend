@@ -49,4 +49,9 @@ after_sucess:
       make deploy-remote SCW_FLAVOR=$SCW_FLAVOR GIT_BRANCH="$TRAVIS_BRANCH" NGINX_USER=$NGINX_USER NGINX_HOST=$NGINX_HOST remote_http_proxy=$REMOTE_HTTP_PROXY remote_https_proxy=$REMOTE_HTTP_PROXY remote_no_proxy=localhost NQ_TOKEN=$NQ_TOKEN;
     fi
 
+after_failure:
+  - make clean-config
+  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
+      make remote-clean;
+    fi
 
