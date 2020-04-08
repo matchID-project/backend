@@ -26,9 +26,15 @@ before_script:
   - uname -a
   - type -a docker-compose && docker-compose version
   - docker version
-  - if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
+  - if [ ! -z "$DC_LOCAL" ]; then
       echo "$DC_LOCAL" | base64 -d > docker-compose-local.yml;
+      cat docker-compose-local.yml;
+    fi
+  - if [ ! -z "$OAUTH_CREDS_ENC" ]; then
       echo "$OAUTH_CREDS_ENC" | base64 -d | gpg -d --passphrase $SSHPWD --batch > creds-local.yml;
+      cat creds-local.yml;
+    fi
+  - if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
       echo "$SSHENC" | base64 -d | gpg -d --passphrase $SSHPWD --batch > /tmp/id_rsa_matchID;
       eval "$(ssh-agent -s)";
       chmod 600 /tmp/id_rsa_matchID;
