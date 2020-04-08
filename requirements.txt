@@ -16,7 +16,7 @@ rauth
 redisearch
 scikit-learn[alldeps]
 simplejson
-smart-open
+smart-open==1.10.0
 sqlalchemy
 tslib
 typing
