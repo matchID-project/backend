@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import yaml as y
+import json
 from collections import OrderedDict
 from multiprocessing import Manager
 import os
@@ -24,6 +25,26 @@ def init():
     log = None
     conf_update = None
 
+def guess_type(value):
+    if (value == "None"):
+        return None
+    if (value == "False"):
+        return False
+    if (value == "True"):
+        return True
+    try:
+        return int(value)
+    except
+        pass
+    try:
+        return float(value)
+    except
+        pass
+    try
+        return json.loads(value.decode('utf8'))
+    except:
+        pass
+    return value
 
 def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict, tag='!ENV'):
     class OrderedLoader(Loader):
@@ -42,18 +63,9 @@ def ordered_load(stream, Loader=y.Loader, object_pairs_hook=OrderedDict, tag='!E
         if match:
             full_value = value
             for g in match:
-                full_value = full_value.replace(
+                full_value = guess_type(full_value.replace(
                     '${{{}}}'.format(g), os.environ.get(g, g)
-                )
-                try:
-                    int(full_value)
-                    full_value = int(full_value)
-                except:
-                    try:
-                        float(full_value)
-                        full_value = float(full_value)
-                    except:
-                        pass
+                ))
             return full_value
         return value
 
