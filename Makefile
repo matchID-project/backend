@@ -18,6 +18,14 @@ export API_TEST_JSON_PATH=files
 export PORT=8081
 export BACKEND_PORT=8081
 export TIMEOUT=30
+# auth method - do not use auth by default (auth can be both passwords and OAuth)
+export NO_AUTH=True
+export TWITTER_OAUTH_ID=None
+export TWITTER_OAUTH_SECRET=None
+export FACEBOOK_OAUTH_ID=None
+export FACEBOOK_OAUTH_SECRET=None
+export GITHUB_OAUTH_ID=fd8e86cc09d3f9607e16
+export GITHUB_OAUTH_SECRET=203010f81158d3ceab0297a213e80bc0fbfe7f8e
 
 #matchID default paths
 export BACKEND := $(shell pwd)
@@ -101,17 +109,11 @@ DC := 'docker-compose'
 include /etc/os-release
 
 
+test:
+	echo "${DC_LOCAL}" | base64 -d > docker-compose-local.yml;\
+	echo "${OAUTH_CREDS_ENC}" | base64 -d | gpg -d --passphrase ${SSHPWD} --batch > creds-local.yml
 version:
 	@echo ${APP_GROUP} ${APP} ${APP_VERSION}
-
-clean-secrets:
-	rm ${CRED_FILE}
-
-register-secrets: config
-ifeq ("$(wildcard ${CRED_FILE})","")
-	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
-	@envsubst < ${CRED_TEMPLATE} > ${CRED_FILE}
-endif
 
 config:
 	# this proc relies on matchid/tools and works both local and remote
@@ -248,8 +250,9 @@ ifeq ("$(wildcard ${MODELS})","")
 	@sudo mkdir -p ${PROJECTS}
 endif
 
-backend-dev: network register-secrets backend-prep
-	if [ -f docker-compose-local.yml ];then\
+backend-dev: network backend-prep
+	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
+	@if [ -f docker-compose-local.yml ];then\
 		DC_LOCAL="-f docker-compose-local.yml";\
 	fi;\
 	export BACKEND_ENV=development;\
@@ -282,7 +285,7 @@ backend-docker-pull:
 		&& echo docker successfully pulled && (echo "${commit}" > ${BACKEND}/.lastcommit) \
 	) || echo "${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} not found on Docker Hub build, using local"
 
-backend-build: backend-prep register-secrets backend-check-build backend-docker-pull
+backend-build: backend-prep backend-check-build backend-docker-pull
 	@if [ -f docker-compose-local.yml ];then\
 		DC_LOCAL="-f docker-compose-local.yml";\
 	fi;\
@@ -295,6 +298,7 @@ backend-build: backend-prep register-secrets backend-check-build backend-docker-
 	@docker tag ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:latest
 
 backend: network backend-docker-check
+	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
 	@if [ -f docker-compose-local.yml ];then\
 		DC_LOCAL="-f docker-compose-local.yml";\
 	fi;\
