@@ -42,12 +42,12 @@ script:
   - git fetch --unshallow && git tag -l
   - make backend-docker-check || make backend-build &&
     make backend backend-stop &&
-    if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( ( "$TRAVIS_BRANCH" == "master" ) || ( "$TRAVIS_BRANCH" == "dev" ) ) ]]; then
+    if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( ( "$TRAVIS_BRANCH" == "tuto" ) || ( "$TRAVIS_BRANCH" == "master" ) || ( "$TRAVIS_BRANCH" == "dev" ) ) ]]; then
       make backend-docker-push GIT_BRANCH="$TRAVIS_BRANCH";
     fi
 
 after_sucess:
-  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
+  - if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
       make deploy-remote APP_DNS=$APP_DNS SCW_FLAVOR=$SCW_FLAVOR GIT_BRANCH="$TRAVIS_BRANCH" NGINX_USER=$NGINX_USER NGINX_HOST=$NGINX_HOST remote_http_proxy=$REMOTE_HTTP_PROXY remote_https_proxy=$REMOTE_HTTP_PROXY remote_no_proxy=localhost NQ_TOKEN=$NQ_TOKEN;
     fi
 
