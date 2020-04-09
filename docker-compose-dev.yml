@@ -5,6 +5,6 @@ version: '3.4'
 services:
   backend:
     volumes:
-      - ${BACKEND}/code/:/${APP}/code/
-      - ${BACKEND}/referential_data/:/${APP}/referential_data/
-      - ${BACKEND}/conf/:/${APP}/conf/
+      - ${BACKEND}/code/:/${APP_GROUP}/code/
+      - ${BACKEND}/referential_data/:/${APP_GROUP}/referential_data/
+      - ${BACKEND}/conf/:/${APP_GROUP}/conf/
