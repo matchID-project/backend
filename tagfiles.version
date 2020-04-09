@@ -1,9 +1,7 @@
 code
 conf
-creds.yml
 docker-compose.yml
 Dockerfile
-nginx
 referential_data
 requirements.txt
 tagfiles.version
