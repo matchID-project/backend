@@ -233,7 +233,12 @@ class login(Resource):
 @api.route('/authorize/', endpoint='authorize')
 class OAuthList(Resource):
     def get(self):
-        return {'providers': config.conf['global']['api']['oauth'].keys()}
+        return {
+            'providers': list(filter(
+                lambda x: config.conf['global']['api']['oauth'][x]['id'] != None,
+                config.conf['global']['api']['oauth'].keys()
+                ))
+            }
 
 @api.route('/authorize/<provider>', endpoint='authorize/<provider>')
 class OAuthAuthorizeAPI(Resource):

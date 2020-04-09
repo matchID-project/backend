@@ -22,6 +22,14 @@ services:
       - ES_THREADS
       - ES_MAX_TRIES
       - ES_CHUNK
+      - NO_AUTH
+      - TWITTER_OAUTH_ID
+      - TWITTER_OAUTH_SECRET
+      - FACEBOOK_OAUTH_ID
+      - FACEBOOK_OAUTH_SECRET
+      - GITHUB_OAUTH_ID
+      - GITHUB_OAUTH_SECRET
+      - ADMIN_PASSWORD_HASH
     volumes:
       - ${PROJECTS}:/${APP_GROUP}/projects/
       - ${BACKEND}/log:/${APP_GROUP}/log/
