@@ -34,14 +34,18 @@ def guess_type(value):
         return True
     try:
         return int(value)
-    except
+    except:
         pass
     try:
         return float(value)
-    except
+    except:
         pass
-    try
+    try:
         return json.loads(value.decode('utf8'))
+    except:
+        pass
+    try:
+        return str(value)
     except:
         pass
     return value
