@@ -1556,7 +1556,7 @@ class Recipe(Configured):
             self.cols = [x for x in list(df)]
 
     def prepare_categorical(self, df=None):
-        df = df[self.categorical].reset_index(drop=True).T.to_dict().values()
+        df = list(df[self.categorical].reset_index(drop=True).T.to_dict().values())
         prep = DictVectorizer()
         df = prep.fit_transform(df).toarray()
         return df
@@ -1565,14 +1565,12 @@ class Recipe(Configured):
         df = df[self.numerical].fillna("")
         df = df.applymap(lambda x: 0 if (
             (str(x) == "") | (x == None)) else float(x))
-        #imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
-        # df=imp.fit_transform(df)
         return df
 
     def internal_fillna(self, df=None, desc=None):
         # try:
         for step in self.args:
-            for col in step.keys():
+            for col in list(step.keys()):
                 # self.log.write("{}".format(col))
                 if (col not in list(df)):
                     df[col] = step[col]
@@ -1595,7 +1593,7 @@ class Recipe(Configured):
         try:
             cols = []
             for step in self.args:
-                for col in step.keys():
+                for col in list(step.keys()):
                     cols.append(col)
                     if True:
                         if ((type(step[col]) == str) | (type(step[col]) == str)):
@@ -1811,7 +1809,7 @@ class Recipe(Configured):
             else:
                 self.categorical = []
 
-            if ("target" in self.args.keys()):
+            if ("target" in list(self.args.keys())):
                 self.target = self.args["target"]
             else:
                 self.log.write(
@@ -1851,7 +1849,7 @@ class Recipe(Configured):
         # keep only selected columns
         self.select_columns(df=df)
         try:
-            if ("where" in self.args.keys()):
+            if ("where" in list(self.args.keys())):
                 df["matchid_selection_xykfsd"] = df.apply(
                     lambda row: safeeval(self.args["where"], row), axis=1)
                 df = df[df.matchid_selection_xykfsd == True]
@@ -1922,7 +1920,7 @@ class Recipe(Configured):
     def internal_ngram(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
-        if ("n" in self.args.keys()):
+        if ("n" in list(self.args.keys())):
             n = self.args['n']
         else:
             n = list([2, 3])
@@ -1964,7 +1962,7 @@ class Recipe(Configured):
             # create graph from links
             graph = nx.Graph()
             graph.add_edges_from(
-                zip(df[nodes[0]].values.tolist(), df[nodes[1]].values.tolist()))
+                list(zip(df[nodes[0]].values.tolist(), df[nodes[1]].values.tolist())))
 
             # compute every factor to compute
             computed = []
@@ -2037,22 +2035,22 @@ class Recipe(Configured):
     def internal_groupby(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
-            if ("agg" in self.args.keys()):
+            if ("agg" in list(self.args.keys())):
                 self.cols = [
-                    x for x in self.cols if x not in self.args["agg"].keys()]
+                    x for x in self.cols if x not in list(self.args["agg"].keys())]
                 dic = {'list': union}
                 aggs = replace_dict(self.args["agg"], dic)
                 df = df.groupby(self.cols).agg(aggs).reset_index()
-            if ("transform" in self.args.keys()):
+            if ("transform" in list(self.args.keys())):
                 for step in self.args["transform"]:
-                    for col in step.keys():
+                    for col in list(step.keys()):
                         if (step[col] != "rank"):
                             df[col + '_' + step[col]
                                ] = df.groupby(self.cols)[col].transform(step[col])
                         else:
                             df[col + '_' + step[col]] = df.groupby(
                                 self.cols)[col].transform(step[col], method='dense')
-            if ("rank" in self.args.keys()):
+            if ("rank" in list(self.args.keys())):
                 for col in self.args["rank"]:
                     df[col + '_rank'] = df.groupby(self.cols)[col].rank(
                         method='dense', ascending=False)
@@ -2072,7 +2070,7 @@ class Recipe(Configured):
             join_type = "in_memory"
             if (self.args == None):
                 self.log.write(error="no args in join", exit=True)
-            if ("type" in self.args.keys()):
+            if ("type" in list(self.args.keys())):
                 if (self.args["type"] == "elasticsearch"):
                     join_type = "elasticsearch"
             if (join_type == "in_memory"):  # join in memory
@@ -2163,9 +2161,9 @@ class Recipe(Configured):
                     # now prematched fuzzy terms in cols _match are ok for a strict join
                     # list joining columns
                     left_on = [
-                        col + "_match" for col in self.args["fuzzy"].keys()]
+                        col + "_match" for col in list(self.args["fuzzy"].keys())]
                     right_on = [self.args["fuzzy"][x]
-                                for x in self.args["fuzzy"].keys()]
+                                for x in list(self.args["fuzzy"].keys())]
                     if ("strict" in list(self.args.keys())):
                         # complete joining columns list if asked
                         left_on = list(set().union(
@@ -2191,7 +2189,7 @@ class Recipe(Configured):
                     right_on = [x for x in right_on if x not in left_on]
                     df.drop(right_on, axis=1, inplace=True)
 
-                elif ("strict" in self.args.keys()):
+                elif ("strict" in list(self.args.keys())):
                     # simple strict join
                     df = pd.merge(df, join_df,
                                   how='left', left_on=list(self.args["strict"].keys()),
@@ -2200,14 +2198,14 @@ class Recipe(Configured):
                                   left_index=False, right_index=False)
 
                     # map new names of retrieved colums
-                    if ("select" in self.args.keys()):
+                    if ("select" in list(self.args.keys())):
                         reverse = {v: k for k, v in self.args[
-                            "select"].iteritems()}
+                            "select"].items()}
                         # python3 reverse={v: k for k, v in
                         # self.args["select"].items()}
                         df.rename(columns=reverse, inplace=True)
                     # remove unnecessary columns of the right_on
-                    for key in [self.args["strict"][x] for x in self.args["strict"].keys()]:
+                    for key in [self.args["strict"][x] for x in list(self.args["strict"].keys())]:
                         try:
                             del df[key]
                         except:
@@ -2243,7 +2241,7 @@ class Recipe(Configured):
                                 try:
                                     res = es.connector.es.msearch(
                                         bulk, request_timeout=10 + 10 * tries)
-                                    df_res = pd.concat(map(pd.DataFrame.from_dict, res['responses']), axis=1)[
+                                    df_res = pd.concat(list(map(pd.DataFrame.from_dict, res['responses'])), axis=1)[
                                         'hits'].T.reset_index(drop=True)
                                     max_tries = tries
                                     success = True
@@ -2397,7 +2395,7 @@ class Recipe(Configured):
 
     def internal_parsedate(self, df=None, desc=None):
         self.select_columns(df=df)
-        if ("format" in self.args.keys()):
+        if ("format" in list(self.args.keys())):
             # parse string do datetime i.e. 20001020 + %Y%m%d =>
             # 2000-10-20T00:00:00Z
             for col in self.cols:
@@ -2411,11 +2409,11 @@ class Recipe(Configured):
     def internal_replace(self, df=None, desc=None):
         if True:
             self.select_columns(df=df)
-            if ("regex" in self.args.keys()):
+            if ("regex" in list(self.args.keys())):
                 regex = []
                 # warning: replace use a dict which is not ordered
                 for r in self.args["regex"]:
-                    regex.append([re.compile(r.keys()[0]), r[r.keys()[0]]])
+                    regex.append([re.compile(list(r.keys())[0]), r[list(r.keys())[0]]])
                 pd.options.mode.chained_assignment = None
                 df[self.cols] = df[self.cols].applymap(
                     lambda x: replace_regex(x, regex))
