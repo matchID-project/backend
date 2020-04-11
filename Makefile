@@ -59,8 +59,6 @@ export ADMIN_PASSWORD:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8
 export ADMIN_PASSWORD_HASH:=$(shell echo -n ${ADMIN_PASSWORD} | sha384sum | sed 's/\s*\-.*//')
 export POSTGRES_PASSWORD=matchid
 
-export CRED_TEMPLATE=./creds.yml
-export CRED_FILE=conf/security/creds.yml
 
 # backup dir
 export BACKUP_DIR=${BACKEND}/backup
@@ -94,7 +92,7 @@ dummy		    := $(shell touch artifacts)
 include ./artifacts
 
 tag                 := $(shell git describe --tags | sed 's/-.*//')
-version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/creds.yml|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
+version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v '.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
 export APP_VERSION =  ${tag}-${version}
 
 commit 				= ${APP_VERSION}
