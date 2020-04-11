@@ -98,7 +98,7 @@ def replace_dict(x,dic):
     return x
 
 def sha1(row):
-    return hashlib.sha1(str(row)).hexdigest()
+    return hashlib.sha1(str(row).encode('utf-8')).hexdigest()
 
 def ngrams(x,n = [3]):
     if (type(x) == list):
