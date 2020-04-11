@@ -129,11 +129,11 @@ def unicode_safe(x):
         return "Ooops: '{}' return an unicode error: {}".format(str(x, "utf8", errors="ignore"),err())
     except:
         pass
-    return "Ooops: '{}' return an unicode error: {}".format(str.encode(x, "ascii", errors="ignore"),err())
+    return "Ooops: '{}' return an unicode error: {}".format(str.encode(x, "ascii", errors="ignore").decode('ascii'),err())
 
 def normalize(x=None):
     if (type(x)==str):
-        x=unicodedata.normalize('NFKD', x).encode('ascii', 'ignore')
+        x=unicodedata.normalize('NFKD', x).encode('ascii', 'ignore').decode('ascii')
     if (type(x)==str):
         x=re.sub('[^A-Za-z0-9]+', ' ', x.lower())
         x=re.sub('\s+', ' ', x)
