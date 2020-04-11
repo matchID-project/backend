@@ -53,7 +53,7 @@ def jsonDumps(j=None,encoding='utf8'):
 def toJson(x = None):
     if (x == None):
         return ""
-    if ((type(x) != unicode) & (type(x) != str)):
+    if ((type(x) != str) & (type(x) != str)):
         return x
     if (x == ""):
         return x
@@ -78,7 +78,7 @@ def distance(a,b):
         return ""
 
 def replace_regex(x,regex):
-    if (type(x)==str) | (type(x)==unicode):
+    if (type(x)==str) | (type(x)==str):
         for r in regex:
             x=r[0].sub(r[1],x)
     elif (type(x)==list):
@@ -88,7 +88,7 @@ def replace_regex(x,regex):
     return x
 
 def replace_dict(x,dic):
-    if (type(x)==str) | (type(x)==unicode):
+    if (type(x)==str) | (type(x)==str):
         if x in list(dic.keys()):
             return dic[x]
     elif (type(x)==list):
@@ -103,8 +103,8 @@ def sha1(row):
 def ngrams(x,n = [3]):
     if (type(x) == list):
         return flatten([ngrams(z, n) for z in x])
-    elif ((type(x)==unicode)|(type(x)==str)):
-        return flatten([[x[i:i+p] for i in xrange(len(x)-p+1)] for p in n])
+    elif ((type(x)==str)|(type(x)==str)):
+        return flatten([[x[i:i+p] for i in range(len(x)-p+1)] for p in n])
 
 def flatten(x):
     if (type(x) == list):
@@ -115,24 +115,24 @@ def flatten(x):
 def tokenize (x=None):
     if (type(x)==list):
         return flatten([tokenize(z) for z in x])
-    elif ((type(x)==unicode) | (type(x)==str)):
+    elif ((type(x)==str) | (type(x)==str)):
         return re.split('\s\s*',x)
     else:
         return tokenize(str(x))
 
 def unicode_safe(x):
     try:
-        return unicode(x)
+        return str(x)
     except:
         pass
     try:
-        return "Ooops: '{}' return an unicode error: {}".format(unicode(x, "utf8", errors="ignore"),err())
+        return "Ooops: '{}' return an unicode error: {}".format(str(x, "utf8", errors="ignore"),err())
     except:
         pass
     return "Ooops: '{}' return an unicode error: {}".format(str.encode(x, "ascii", errors="ignore"),err())
 
 def normalize(x=None):
-    if (type(x)==unicode):
+    if (type(x)==str):
         x=unicodedata.normalize('NFKD', x).encode('ascii', 'ignore')
     if (type(x)==str):
         x=re.sub('[^A-Za-z0-9]+', ' ', x.lower())
@@ -157,9 +157,9 @@ def jw(s1,s2):
             maxi=max(maxi,jw(s1,s))
         return maxi
     if (type(s1) == str):
-        s1 = unicode(s1)
+        s1 = str(s1)
     if (type(s2) == str):
-        s2 = unicode(s2)
+        s2 = str(s2)
     return round(100*jellyfish.jaro_winkler(s1,s2))/100
 
 def levenshtein(s1, s2):
@@ -174,17 +174,17 @@ def levenshtein(s1, s2):
         return len(s1)
 
     try:
-        return jellyfish.damerau_levenshtein_distance(unicode(s1),unicode(s2))
+        return jellyfish.damerau_levenshtein_distance(str(s1),str(s2))
     except:
         # workaround for unicode : fallback from c to python version
-	return py_jellyfish.damerau_levenshtein_distance(unicode(s1),unicode(s2))
+	    return py_jellyfish.damerau_levenshtein_distance(str(s1),str(s2))
     # cached version
     try:
         return levCache[tuple(s1,s2)]
     except:
         pass
 
-    levCache[tuple([s1,s2])] = jellyfish.levenshtein_distance(unicode(s1),unicode(s2))
+    levCache[tuple([s1,s2])] = jellyfish.levenshtein_distance(str(s1),str(s2))
     return levCache[tuple([s1,s2])]
 
     #original
@@ -258,7 +258,7 @@ def match_jw(x, list_strings):
     best_score = 0
 
     for current_string in list_strings:
-        current_score = jellyfish.jaro_winkler(unicode(x), unicode(current_string))
+        current_score = jellyfish.jaro_winkler(str(x), str(current_string))
         if(current_score > best_score):
             best_score = current_score
             best_match = current_string
