@@ -140,7 +140,7 @@ def read_conf():
             cfg = read_conf_dir(project, cfg)
 
     except:
-        print err()
+        print(err())
 
     conf = cfg
 
