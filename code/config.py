@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import yaml as y
@@ -107,7 +107,7 @@ def deepupdate(original, update):
 
 def check_conf(cfg, project, source):
     for key in list(["recipes", "datasets", "connectors"]):
-        if (key in cfg.keys()):
+        if (key in list(cfg.keys())):
             for obj in cfg[key]:
                 cfg[key][obj]["source"] = source
                 cfg[key][obj]["project"] = project

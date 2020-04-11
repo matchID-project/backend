@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -971,7 +971,7 @@ class Recipe(Configured):
 
         # initiate input connection : creater a reader or use inmemory dataset
         try:
-            if ("input" in self.args.keys()):
+            if ("input" in list(self.args.keys())):
                 self.input = Dataset(self.args.input, parent=self)
             elif ((type(self.conf["input"]) == str) | (type(self.conf["input"]) == unicode)):
                 self.input = Dataset(self.conf["input"], parent=self)
@@ -989,7 +989,7 @@ class Recipe(Configured):
                 self.input.select = None
 
             try:
-                r = self.conf["input"]["filter"].keys()[0]
+                r = list(self.conf["input"]["filter"].keys())[0]
                 self.input.filter = Recipe(name=r, args=self.conf[
                                            "input"]["filter"][r])
             except:
@@ -1029,9 +1029,9 @@ class Recipe(Configured):
                 self.threads = 1
 
         try:
-            if ("before" in self.conf.keys()):
+            if ("before" in list(self.conf.keys())):
                 self.before = self.conf["before"]
-            elif ("run" in self.conf.keys()):
+            elif ("run" in list(self.conf.keys())):
                 self.before = self.conf["run"]
             else:
                 self.before = []
@@ -1045,7 +1045,7 @@ class Recipe(Configured):
 
         # initiate output connection : create a writer or use current dataframe
         try:
-            if ("output" in self.args.keys()):
+            if ("output" in list(self.args.keys())):
                 self.output = Dataset(self.args.output, parent=self)
             elif ((type(self.conf["output"]) == str) | (type(self.conf["output"]) == unicode)):
                 self.output = Dataset(self.conf["output"], parent=self)
@@ -1088,7 +1088,7 @@ class Recipe(Configured):
         try:
             self.steps = []
             for s in self.conf["steps"]:
-                function = s.keys()[0]
+                function = list(s.keys())[0]
                 try:
                     self.steps.append(Recipe(name=function, args=s[function]))
                 except:
@@ -1234,7 +1234,7 @@ class Recipe(Configured):
                     df.shape[0], self.input.name, self.name))
         if (self.type == "internal"):
             df = getattr(self.__class__, "internal_" + self.name)(self, df=df, desc=desc)
-        elif((len(self.steps) > 0) | ("steps" in self.conf.keys())):
+        elif((len(self.steps) > 0) | ("steps" in list(self.conf.keys()))):
             for recipe in self.steps:
                 try:
                     self.log.write("{} > {}".format(
@@ -1306,13 +1306,13 @@ class Recipe(Configured):
         self.log.chunk = "supervisor"
         self.log.write("initiating supervisor")
         supervisor["end"] = False
-        if ("supervisor_interval" in self.conf.keys()):
+        if ("supervisor_interval" in list(self.conf.keys())):
             wait = self.conf["supervisor_interval"]
             while (supervisor["end"] == False):
                 try:
-                    writing = len([x for x in supervisor.keys()
+                    writing = len([x for x in list(supervisor.keys())
                                    if (supervisor[x] == "writing")])
-                    running = len([x for x in supervisor.keys()
+                    running = len([x for x in list(supervisor.keys())
                                    if (supervisor[x] == "run_chunk")])
                     self.log.write("threads - running: {}/{} - writing: {}/{}/{} ".format(
                         running, self.threads, writing, queue.qsize(), self.output.thread_count))
@@ -1476,7 +1476,7 @@ class Recipe(Configured):
                     self.df = df
                 except:
                     self.df = None
-                if ((len(self.steps) > 0) | ("steps" in self.conf.keys())):
+                if ((len(self.steps) > 0) | ("steps" in list(self.conf.keys()))):
                     self.log.write(msg="in main loop of {} {}".format(
                         self.name, str(self.input.select)), error=error)
                 else:

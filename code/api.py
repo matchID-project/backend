@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 # import basics
@@ -162,7 +162,7 @@ class ListUsers(Resource):
         else:
             return {
                 "me": str(current_user.name),
-                "others": config.conf["users"].keys()
+                "others": list(config.conf["users"].keys())
             }
 
 @api.route('/groups/', endpoint='groups')
@@ -234,10 +234,7 @@ class login(Resource):
 class OAuthList(Resource):
     def get(self):
         return {
-            'providers': list(filter(
-                lambda x: config.conf['global']['api']['oauth'][x]['id'] != None,
-                config.conf['global']['api']['oauth'].keys()
-                ))
+            'providers': list([x for x in list(config.conf['global']['api']['oauth'].keys()) if config.conf['global']['api']['oauth'][x]['id'] != None])
             }
 
 @api.route('/authorize/<provider>', endpoint='authorize/<provider>')
@@ -418,7 +415,7 @@ class DirectoryConf(Resource):
         '''create a project'''
         if (project == "conf"):
             api.abort(403)
-        elif project in config.conf["global"]["projects"].keys():
+        elif project in list(config.conf["global"]["projects"].keys()):
             api.abort(400, 'project "{}" already exists'.format(project))
         else:
             try:
@@ -452,7 +449,7 @@ class DirectoryConf(Resource):
         '''delete a project'''
         if (project == "conf"):
             api.abort(403)
-        elif project in config.conf["global"]["projects"].keys():
+        elif project in list(config.conf["global"]["projects"].keys()):
             response = {project: "not deleted"}
             try:
                 dirname = os.path.join(config.conf["global"][
@@ -566,7 +563,7 @@ class DatasetApi(Resource):
     def get(self, dataset):
         '''get json of a configured dataset'''
         config.read_conf()
-        if (dataset in config.conf["datasets"].keys()):
+        if (dataset in list(config.conf["datasets"].keys())):
             try:
                 response = dict(config.conf["datasets"][dataset])
                 try:
@@ -690,9 +687,9 @@ class pushToValidation(Resource):
         config.init()
         config.read_conf()
         if (action == "validation"):
-            if (not(dataset in config.conf["datasets"].keys())):
+            if (not(dataset in list(config.conf["datasets"].keys()))):
                 return api.abort(404, {"dataset": dataset, "status": "dataset not found"})
-            if not("validation" in config.conf["datasets"][dataset].keys()):
+            if not("validation" in list(config.conf["datasets"][dataset].keys())):
                 return api.abort(403, {"dataset": dataset, "status": "validation not allowed"})
             if ((config.conf["datasets"][dataset]["validation"] == True) | (isinstance(config.conf["datasets"][dataset]["validation"], OrderedDict))):
                 try:
@@ -702,7 +699,7 @@ class pushToValidation(Resource):
                             "datasets"][dataset]["validation"])
                     except:
                         cfg = config.conf["global"]["validation"]
-                    for conf in cfg.keys():
+                    for conf in list(cfg.keys()):
                         configfile = os.path.join(config.conf["global"]["paths"][
                             "validation"], secure_filename(conf + ".json"))
                         dic = {
@@ -719,9 +716,9 @@ class pushToValidation(Resource):
             else:
                 return api.abort(403, {"dataset": dataset, "status": "validation not allowed"})
         elif (action == "search"):
-            if (not(dataset in config.conf["datasets"].keys())):
+            if (not(dataset in list(config.conf["datasets"].keys()))):
                 return api.abort(404, {"dataset": dataset, "status": "dataset not found"})
-            if not("search" in config.conf["datasets"][dataset].keys()):
+            if not("search" in list(config.conf["datasets"][dataset].keys())):
                 return api.abort(403, {"dataset": dataset, "status": "search not allowed"})
             if ((config.conf["datasets"][dataset]["search"] == True) | (isinstance(config.conf["datasets"][dataset]["search"], OrderedDict))):
                 try:
@@ -731,7 +728,7 @@ class pushToValidation(Resource):
                             "datasets"][dataset]["search"])
                     except:
                         cfg = config.conf["global"]["search"]
-                    for config in cfg.keys():
+                    for config in list(cfg.keys()):
                         configfile = os.path.join(config.conf["global"]["paths"][
                             "search"], secure_filename(config + ".json"))
                         dic = {
@@ -960,10 +957,10 @@ class RecipeRun(Resource):
             if isinstance(r.df, pd.DataFrame):
                 df = r.df.fillna("")
                 try:
-                    return jsonify({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
+                    return jsonify({"data": list(df.T.to_dict().values()), "log": str(r.log.writer.getvalue())})
                 except:
                     df = df.applymap(lambda x: str(x))
-                    return jsonify({"data": df.T.to_dict().values(), "log": str(r.log.writer.getvalue())})
+                    return jsonify({"data": list(df.T.to_dict().values()), "log": str(r.log.writer.getvalue())})
             else:
                 return {"log": r.log.writer.getvalue()}
 
@@ -996,10 +993,10 @@ class RecipeRun(Resource):
                 if (r.df.shape[0] == 0):
                     return {"data": [{"result": "empty"}], "log": r.callback["log"]}
                 try:
-                    return jsonify({"data": df.T.to_dict().values(), "log": r.callback["log"]})
+                    return jsonify({"data": list(df.T.to_dict().values()), "log": r.callback["log"]})
                 except:
                     df = df.applymap(lambda x: unicode_safe(x))
-                    return jsonify({"data": df.T.to_dict().values(), "log": r.callback["log"]})
+                    return jsonify({"data": list(df.T.to_dict().values()), "log": r.callback["log"]})
             else:
                 return {"data": [{"result": "empty"}], "log": r.callback["log"]}
         elif (action == "run"):
@@ -1063,7 +1060,7 @@ class jobsList(Resource):
 
             date = re.sub(
                 r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", file)
-            if (recipe in config.conf["recipes"].keys()):
+            if (recipe in list(config.conf["recipes"].keys())):
                 if (check_rights(current_user, config.conf["recipes"][recipe]["project"], "read")):
                     if running:
                         response["running"].append(

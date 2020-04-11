@@ -57,7 +57,7 @@ class NFA(object):
     def get_inputs(self, states):
         inputs = set()
         for state in states:
-            inputs.update(self.transitions.get(state, {}).keys())
+            inputs.update(list(self.transitions.get(state, {}).keys()))
         return inputs
 
     def to_dfa(self):
