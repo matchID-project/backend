@@ -78,7 +78,7 @@ def distance(a,b):
         return ""
 
 def replace_regex(x,regex):
-    if (type(x)==str) | (type(x)==str):
+    if (type(x)==str):
         for r in regex:
             x=r[0].sub(r[1],x)
     elif (type(x)==list):
@@ -88,7 +88,7 @@ def replace_regex(x,regex):
     return x
 
 def replace_dict(x,dic):
-    if (type(x)==str) | (type(x)==str):
+    if (type(x)==str):
         if x in list(dic.keys()):
             return dic[x]
     elif (type(x)==list):
@@ -103,7 +103,7 @@ def sha1(row):
 def ngrams(x,n = [3]):
     if (type(x) == list):
         return flatten([ngrams(z, n) for z in x])
-    elif ((type(x)==str)|(type(x)==str)):
+    elif (type(x)==str):
         return flatten([[x[i:i+p] for i in range(len(x)-p+1)] for p in n])
 
 def flatten(x):
@@ -115,7 +115,7 @@ def flatten(x):
 def tokenize (x=None):
     if (type(x)==list):
         return flatten([tokenize(z) for z in x])
-    elif ((type(x)==str) | (type(x)==str)):
+    elif (type(x)==str):
         return re.split('\s\s*',x)
     else:
         return tokenize(str(x))
