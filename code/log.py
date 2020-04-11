@@ -1,11 +1,11 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import sys
 import yaml as y
 from collections import OrderedDict
 import os, fnmatch, sys, datetime
-from cStringIO import StringIO
+from io import StringIO
 
 # matchID imports
 import config

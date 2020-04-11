@@ -20,7 +20,7 @@ import itertools
 import time
 import operator
 import simplejson
-from collections import Iterable
+from collections.abc import Iterable
 from collections import OrderedDict
 from pandas.io.json import json_normalize
 from collections import deque
@@ -47,10 +47,9 @@ from flask_login import LoginManager, login_user, login_required, logout_user, c
 from flask_restplus import Resource, Api, reqparse
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
-from werkzeug.wsgi import DispatcherMiddleware
-from werkzeug.contrib.fixers import ProxyFix
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask import make_response as original_flask_make_response
-from flask_oauth import OAuth
 from functools import wraps
 
 # matchID imports

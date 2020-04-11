@@ -16,7 +16,7 @@ import boto3
 from smart_open import open
 
 from werkzeug.utils import secure_filename
-from cStringIO import StringIO
+from io import StringIO
 
 import traceback
 import yaml as y
@@ -62,10 +62,9 @@ import networkx as nx
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction import DictVectorizer
-from sklearn.preprocessing import Imputer
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import roc_auc_score
-from sklearn.externals import joblib
+import joblib
 from numpy import array
 
 # matchID imports
