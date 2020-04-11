@@ -26,7 +26,7 @@ before_script:
   - uname -a
   - type -a docker-compose && docker-compose version
   - docker version
-  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
+  - if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
       echo "$SSHENC" | base64 -d | gpg -d --passphrase $SSHPWD --batch > /tmp/id_rsa_matchID;
       eval "$(ssh-agent -s)";
       chmod 600 /tmp/id_rsa_matchID;
@@ -38,20 +38,27 @@ before_script:
 
 script:
   - git fetch --unshallow && git tag -l
-  - make backend-docker-check || make backend-build &&
-    make backend backend-stop &&
-    if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( ( "$TRAVIS_BRANCH" == "master" ) || ( "$TRAVIS_BRANCH" == "dev" ) ) ]]; then
+  - make backend-docker-check || ( make backend-build && make backend backend-stop)
+  - if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( ( "$TRAVIS_BRANCH" == "tuto" ) || ( "$TRAVIS_BRANCH" == "master" ) || ( "$TRAVIS_BRANCH" == "dev" ) ) ]]; then
       make backend-docker-push GIT_BRANCH="$TRAVIS_BRANCH";
     fi
 
 after_sucess:
-  - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
-      make deploy-remote SCW_FLAVOR=$SCW_FLAVOR GIT_BRANCH="$TRAVIS_BRANCH" NGINX_USER=$NGINX_USER NGINX_HOST=$NGINX_HOST remote_http_proxy=$REMOTE_HTTP_PROXY remote_https_proxy=$REMOTE_HTTP_PROXY remote_no_proxy=localhost NQ_TOKEN=$NQ_TOKEN;
+  - if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
+      make deploy-remote 
+        NO_AUTH=$NO_AUTH ADMIN_PASSWORD_HASH=$ADMIN_PASSWORD_HASH 
+        FACEBOOK_OAUTH_ID=$FACEBOOK_OAUTH_ID FACEBOOK_OAUTH_SECRET=$FACEBOOK_OAUTH_SECRET 
+        GITHUB_OAUTH_ID=$GITHUB_OAUTH_ID GITHUB_OAUTH_SECRET=$GITHUB_OAUTH_SECRET 
+        GIT_BRANCH="$TRAVIS_BRANCH" 
+        APP_DNS=$APP_DNS NGINX_USER=$NGINX_USER NGINX_HOST=$NGINX_HOST 
+        SCW_FLAVOR=$SCW_FLAVOR 
+        remote_http_proxy=$REMOTE_HTTP_PROXY remote_https_proxy=$REMOTE_HTTP_PROXY remote_no_proxy=localhost 
+        NQ_TOKEN=$NQ_TOKEN;
     fi
 
 after_failure:
-  - make clean-config
   - if [[ ( "$TRAVIS_PULL_REQUEST" = "false" ) && ( "$TRAVIS_BRANCH" == "tuto" ) ]]; then
-      make remote-clean;
+      make clean-remote;
     fi
+  - make clean
 

@@ -1,0 +1,20 @@
+global:
+  api:
+    no_auth: !ENV ${NO_AUTH}
+    secret_key: !ENV ${API_SECRET_KEY}
+    oauth:
+      facebook:
+        id: !ENV ${FACEBOOK_OAUTH_ID}
+        secret: !ENV ${FACEBOOK_OAUTH_SECRET}
+      twitter:
+        id: !ENV ${TWITTER_OAUTH_ID}
+        secret: !ENV ${TWITTER_OAUTH_SECRET}
+      github:
+        # default matchID project OAuth creds for local app (callback to localhost:8081 needed)
+        id: !ENV ${GITHUB_OAUTH_ID}
+        secret: !ENV ${GITHUB_OAUTH_SECRET}
+
+users:
+  admin:
+    password: !ENV ${ADMIN_PASSWORD_HASH}
+

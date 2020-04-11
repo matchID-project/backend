@@ -13,11 +13,19 @@ export APP_GROUP=matchID
 export APP=backend
 export APP_PATH=$(shell pwd)
 export API_PATH=${APP_GROUP}/api/v0
-export API_TEST_PATH=${API_PATH}/conf/conf/
-export API_TEST_JSON_PATH=files
+export API_TEST_PATH=${API_PATH}/swagger.json
+export API_TEST_JSON_PATH=swagger
 export PORT=8081
 export BACKEND_PORT=8081
 export TIMEOUT=30
+# auth method - do not use auth by default (auth can be both passwords and OAuth)
+export NO_AUTH=True
+export TWITTER_OAUTH_ID=None
+export TWITTER_OAUTH_SECRET=None
+export FACEBOOK_OAUTH_ID=None
+export FACEBOOK_OAUTH_SECRET=None
+export GITHUB_OAUTH_ID=fd8e86cc09d3f9607e16
+export GITHUB_OAUTH_SECRET=203010f81158d3ceab0297a213e80bc0fbfe7f8e
 
 #matchID default paths
 export BACKEND := $(shell pwd)
@@ -101,17 +109,11 @@ DC := 'docker-compose'
 include /etc/os-release
 
 
+test:
+	echo "${DC_LOCAL}" | base64 -d > docker-compose-local.yml;\
+	echo "${OAUTH_CREDS_ENC}" | base64 -d | gpg -d --passphrase ${SSHPWD} --batch > creds-local.yml
 version:
 	@echo ${APP_GROUP} ${APP} ${APP_VERSION}
-
-clean-secrets:
-	rm ${CRED_FILE}
-
-register-secrets: config
-ifeq ("$(wildcard ${CRED_FILE})","")
-	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
-	@envsubst < ${CRED_TEMPLATE} > ${CRED_FILE}
-endif
 
 config:
 	# this proc relies on matchid/tools and works both local and remote
@@ -248,8 +250,9 @@ ifeq ("$(wildcard ${MODELS})","")
 	@sudo mkdir -p ${PROJECTS}
 endif
 
-backend-dev: network register-secrets backend-prep
-	if [ -f docker-compose-local.yml ];then\
+backend-dev: network backend-prep
+	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
+	@if [ -f docker-compose-local.yml ];then\
 		DC_LOCAL="-f docker-compose-local.yml";\
 	fi;\
 	export BACKEND_ENV=development;\
@@ -282,7 +285,7 @@ backend-docker-pull:
 		&& echo docker successfully pulled && (echo "${commit}" > ${BACKEND}/.lastcommit) \
 	) || echo "${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} not found on Docker Hub build, using local"
 
-backend-build: backend-prep register-secrets backend-check-build backend-docker-pull
+backend-build: backend-prep backend-check-build backend-docker-pull
 	@if [ -f docker-compose-local.yml ];then\
 		DC_LOCAL="-f docker-compose-local.yml";\
 	fi;\
@@ -295,6 +298,7 @@ backend-build: backend-prep register-secrets backend-check-build backend-docker-
 	@docker tag ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:latest
 
 backend: network backend-docker-check
+	@echo WARNING new ADMIN_PASSWORD is ${ADMIN_PASSWORD}
 	@if [ -f docker-compose-local.yml ];then\
 		DC_LOCAL="-f docker-compose-local.yml";\
 	fi;\
@@ -423,14 +427,9 @@ deploy-remote-publish:
 	@if [ -z "${NGINX_HOST}" -o -z "${NGINX_USER}" ];then\
 		(echo "can't deploy without NGINX_HOST and NGINX_USER" && exit 1);\
 	fi;
-	@if [ "${GIT_BRANCH}" == "${GIT_BRANCH_MASTER}" ];then\
-		APP_DNS=${APP_DNS};\
-	else\
-		APP_DNS="${GIT_BRANCH}-${APP_DNS}";\
-	fi;\
 	make -C ${APP_PATH}/${GIT_TOOLS} remote-test-api-in-vpc nginx-conf-apply remote-test-api\
 		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} PORT=${PORT}\
-		APP_DNS=$$APP_DNS API_TEST_PATH=${API_TEST_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
+		APP_DNS=${APP_DNS} API_TEST_PATH=${API_TEST_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
 		${MAKEOVERRIDES}
 
 deploy-delete-old:
