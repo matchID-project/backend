@@ -84,7 +84,7 @@ def replace_regex(x,regex):
     elif (type(x)==list):
         x=[replace_regex(z,regex) for z in x]
     elif (type(x)==dict):
-        x=dict((k,replace_regex(v,regex)) for (k,v) in x.items())
+        x=dict((k,replace_regex(v,regex)) for (k,v) in list(x.items()))
     return x
 
 def replace_dict(x,dic):
@@ -94,7 +94,7 @@ def replace_dict(x,dic):
     elif (type(x)==list):
         x=[replace_dict(z,dic) for z in x]
     elif ((type(x)==dict) | (type(x).__name__=="OrderedDict")):
-        x=dict((k,replace_dict(v,dic)) for (k,v) in x.items())
+        x=dict((k,replace_dict(v,dic)) for (k,v) in list(x.items()))
     return x
 
 def sha1(row):
@@ -190,7 +190,7 @@ def levenshtein(s1, s2):
     #original
     # len(s1) >= len(s2)
 
-    previous_row = range(len(s2) + 1)
+    previous_row = list(range(len(s2) + 1))
     for i, c1 in enumerate(s1):
         current_row = [i + 1]
         for j, c2 in enumerate(s2):
