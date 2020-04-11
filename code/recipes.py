@@ -511,7 +511,7 @@ class Dataset(Configured):
             try:
                 if (self.filter != None):
                     self.filter.init(df=pd.DataFrame(), parent=self)
-                    self.reader = itertools.imap(
+                    self.reader = map(
                         lambda data: dict({
                             "desc": data['desc'],
                             "df": self.filter.run_chunk(data['chunk']['id'], data['df'], data['desc'])}),
@@ -755,7 +755,7 @@ class Dataset(Configured):
                 if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode == 'create'):
                         # unsafe insert speed enable to speed up
                     actions = [{'_op_type': mode, '_index': self.table, '_source': dict(
-                        (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+                        (k, v) for k, v in records[it].items() if (v != ""))} for it in records]
                 else:
                     if ('_id' not in df.columns):
                         df['_id'] = df.apply(lambda row: sha1(row), axis=1)
@@ -763,10 +763,10 @@ class Dataset(Configured):
                     ids = df['_id'].T.to_dict()
                     if (self.mode == "update"):
                         actions = [{'_op_type': 'update', '_id': ids[it], '_index': self.table, 'doc_as_upsert': True, 'doc': dict(
-                            (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+                            (k, v) for k, v in records[it].items() if (v != ""))} for it in records]
                     else:
                         actions = [{'_op_type': 'index', '_id': ids[it], '_index': self.table, '_source': dict(
-                            (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+                            (k, v) for k, v in records[it].items() if (v != ""))} for it in records]
                 try:
                     tries = 0
                     success = False
@@ -1643,7 +1643,7 @@ class Recipe(Configured):
             return df
 
     def internal_rename(self, df=None, desc=None):
-        dic = {v: k for k, v in self.args.iteritems()}
+        dic = {v: k for k, v in self.args.items()}
         df.rename(columns=dic, inplace=True)
         return df
 
@@ -2181,7 +2181,7 @@ class Recipe(Configured):
                     # map new names of retrieved colums
                     if ("select" in self.args):
                         reverse = {v: k for k, v in self.args[
-                            "select"].iteritems()}
+                            "select"].items()}
                         # python 3 reverse={v: k for k, v in
                         # self.args["select"].items()}
                         df.rename(columns=reverse, inplace=True)
