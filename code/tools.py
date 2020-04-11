@@ -121,6 +121,8 @@ def tokenize (x=None):
         return tokenize(str(x))
 
 def unicode_safe(x):
+    if (type(x) == float) | (type(x) == int):
+        return x
     try:
         return str(x)
     except:
