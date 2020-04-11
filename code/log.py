@@ -34,7 +34,7 @@ class Log(object):
             self.writer=StringIO()
             self.level=2
         else:
-            if ("log" in config.conf["global"].keys()):
+            if ("log" in list(config.conf["global"].keys())):
                 try:
                     self.dir=config.conf["global"]["log"]["dir"]
                 except:
