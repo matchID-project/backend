@@ -2424,7 +2424,8 @@ class Recipe(Configured):
     def internal_normalize(self, df=None, desc=None):
         if True:
             self.select_columns(df=df)
-            df[self.cols] = df[self.cols].applymap(normalize)
+            for col in list(self.cols):
+                df[col] = df[col].str.normalize('NFKD').str.encode('ASCII',errors='ignore').str.decode('ASCII')
             return df
         else:
             return df

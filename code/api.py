@@ -516,7 +516,7 @@ class FileConf(Resource):
                     pfile = os.path.join(config.conf["global"]["projects"][
                         project]["path"], file)
                     with open(pfile, 'w') as f:
-                        f.write(filecontent.encode("utf-8", 'ignore'))
+                        f.write(filecontent)
                     response = {file: {"saved": "ok"}}
                     config.read_conf()
                     response[file]["yaml_validator"] = config.conf[
