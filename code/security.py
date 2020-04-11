@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -29,11 +29,11 @@ def check_rights_groups(group, user, project, right):
     group = Group(group)
     try:
         for p in ["_all", project]:
-            if (p in group.projects.keys()):
+            if (p in list(group.projects.keys())):
                 for u in ["_all", user]:
-                    for r in group.projects[p].keys():
+                    for r in list(group.projects[p].keys()):
                         try:
-                            if (u in group.projects[p][r].keys()):
+                            if (u in list(group.projects[p][r].keys())):
                                 r = Role(r)
                                 if r.right[right] == True:
                                     return True
@@ -81,7 +81,7 @@ class User(Configured, UserMixin):
                     "paths"]["conf"], 'security', provider+'.yml')
                 provider_users = { 'users': { user: config.conf["users"][user]
                                  for user in config.conf["users"]
-                                 if (('provider' in config.conf["users"][user].keys()) and (config.conf["users"][user]['provider'] == provider))
+                                 if (('provider' in list(config.conf["users"][user].keys())) and (config.conf["users"][user]['provider'] == provider))
                                  }
                     }
                 with open(creds_file, 'w') as f:

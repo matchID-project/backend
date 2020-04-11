@@ -1,7 +1,7 @@
 #######################
 # Step 1: Base target #
 #######################
-FROM python:2-slim as base
+FROM python:3-slim as base
 ARG http_proxy
 ARG https_proxy
 ARG no_proxy

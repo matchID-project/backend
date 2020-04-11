@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 
@@ -16,7 +16,7 @@ import boto3
 from smart_open import open
 
 from werkzeug.utils import secure_filename
-from cStringIO import StringIO
+from io import StringIO
 
 import traceback
 import yaml as y
@@ -62,10 +62,9 @@ import networkx as nx
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction import DictVectorizer
-from sklearn.preprocessing import Imputer
 from sklearn.metrics import mean_squared_error
 from sklearn.metrics import roc_auc_score
-from sklearn.externals import joblib
+import joblib
 from numpy import array
 
 # matchID imports
@@ -89,7 +88,7 @@ def to_fwf(df, fname, widths=None, sep="", header=False, names=None, append=Fals
             sep = ""
         wdf = wdf.apply(lambda row: fwf_format(row, widths, sep), axis=1)
         if header:
-            header = sep.join([unicode(col).ljust(widths[i] - len(sep))
+            header = sep.join([str(col).ljust(widths[i] - len(sep))
                                for i, col in enumerate(names)])
         else:
             header = None
@@ -512,7 +511,7 @@ class Dataset(Configured):
             try:
                 if (self.filter != None):
                     self.filter.init(df=pd.DataFrame(), parent=self)
-                    self.reader = itertools.imap(
+                    self.reader = map(
                         lambda data: dict({
                             "desc": data['desc'],
                             "df": self.filter.run_chunk(data['chunk']['id'], data['df'], data['desc'])}),
@@ -616,7 +615,7 @@ class Dataset(Configured):
 
     def scanner(self, **kwargs):
         self.select = json.loads(json.dumps(self.select))
-        scan = helpers.scan(client=self.connector.es, scroll=u'1000m', clear_scroll=False, query=self.select,
+        scan = helpers.scan(client=self.connector.es, scroll='1000m', clear_scroll=False, query=self.select,
                             index=self.table, preserve_order=True, size=self.chunk)
 
         hits = []
@@ -756,7 +755,7 @@ class Dataset(Configured):
                 if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode == 'create'):
                         # unsafe insert speed enable to speed up
                     actions = [{'_op_type': mode, '_index': self.table, '_source': dict(
-                        (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+                        (k, v) for k, v in records[it].items() if (v != ""))} for it in records]
                 else:
                     if ('_id' not in df.columns):
                         df['_id'] = df.apply(lambda row: sha1(row), axis=1)
@@ -764,10 +763,10 @@ class Dataset(Configured):
                     ids = df['_id'].T.to_dict()
                     if (self.mode == "update"):
                         actions = [{'_op_type': 'update', '_id': ids[it], '_index': self.table, 'doc_as_upsert': True, 'doc': dict(
-                            (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+                            (k, v) for k, v in records[it].items() if (v != ""))} for it in records]
                     else:
                         actions = [{'_op_type': 'index', '_id': ids[it], '_index': self.table, '_source': dict(
-                            (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
+                            (k, v) for k, v in records[it].items() if (v != ""))} for it in records]
                 try:
                     tries = 0
                     success = False
@@ -971,9 +970,9 @@ class Recipe(Configured):
 
         # initiate input connection : creater a reader or use inmemory dataset
         try:
-            if ("input" in self.args.keys()):
+            if ("input" in list(self.args.keys())):
                 self.input = Dataset(self.args.input, parent=self)
-            elif ((type(self.conf["input"]) == str) | (type(self.conf["input"]) == unicode)):
+            elif (type(self.conf["input"]) == str):
                 self.input = Dataset(self.conf["input"], parent=self)
             else:
                 self.input = Dataset(self.conf["input"][
@@ -981,7 +980,7 @@ class Recipe(Configured):
 
             try:
                 if (isinstance(self.conf["input"]["select"], list)):
-                    self.input.select = [unicode(x) for x in self.conf[
+                    self.input.select = [str(x) for x in self.conf[
                         "input"]["select"]]
                 else:
                     self.input.select = self.conf["input"]["select"]
@@ -989,7 +988,7 @@ class Recipe(Configured):
                 self.input.select = None
 
             try:
-                r = self.conf["input"]["filter"].keys()[0]
+                r = list(self.conf["input"]["filter"].keys())[0]
                 self.input.filter = Recipe(name=r, args=self.conf[
                                            "input"]["filter"][r])
             except:
@@ -1029,9 +1028,9 @@ class Recipe(Configured):
                 self.threads = 1
 
         try:
-            if ("before" in self.conf.keys()):
+            if ("before" in list(self.conf.keys())):
                 self.before = self.conf["before"]
-            elif ("run" in self.conf.keys()):
+            elif ("run" in list(self.conf.keys())):
                 self.before = self.conf["run"]
             else:
                 self.before = []
@@ -1045,9 +1044,9 @@ class Recipe(Configured):
 
         # initiate output connection : create a writer or use current dataframe
         try:
-            if ("output" in self.args.keys()):
+            if ("output" in list(self.args.keys())):
                 self.output = Dataset(self.args.output, parent=self)
-            elif ((type(self.conf["output"]) == str) | (type(self.conf["output"]) == unicode)):
+            elif (type(self.conf["output"]) == str):
                 self.output = Dataset(self.conf["output"], parent=self)
             else:
                 self.output = Dataset(self.conf["output"][
@@ -1088,7 +1087,7 @@ class Recipe(Configured):
         try:
             self.steps = []
             for s in self.conf["steps"]:
-                function = s.keys()[0]
+                function = list(s.keys())[0]
                 try:
                     self.steps.append(Recipe(name=function, args=s[function]))
                 except:
@@ -1234,7 +1233,7 @@ class Recipe(Configured):
                     df.shape[0], self.input.name, self.name))
         if (self.type == "internal"):
             df = getattr(self.__class__, "internal_" + self.name)(self, df=df, desc=desc)
-        elif((len(self.steps) > 0) | ("steps" in self.conf.keys())):
+        elif((len(self.steps) > 0) | ("steps" in list(self.conf.keys()))):
             for recipe in self.steps:
                 try:
                     self.log.write("{} > {}".format(
@@ -1306,13 +1305,13 @@ class Recipe(Configured):
         self.log.chunk = "supervisor"
         self.log.write("initiating supervisor")
         supervisor["end"] = False
-        if ("supervisor_interval" in self.conf.keys()):
+        if ("supervisor_interval" in list(self.conf.keys())):
             wait = self.conf["supervisor_interval"]
             while (supervisor["end"] == False):
                 try:
-                    writing = len([x for x in supervisor.keys()
+                    writing = len([x for x in list(supervisor.keys())
                                    if (supervisor[x] == "writing")])
-                    running = len([x for x in supervisor.keys()
+                    running = len([x for x in list(supervisor.keys())
                                    if (supervisor[x] == "run_chunk")])
                     self.log.write("threads - running: {}/{} - writing: {}/{}/{} ".format(
                         running, self.threads, writing, queue.qsize(), self.output.thread_count))
@@ -1367,7 +1366,7 @@ class Recipe(Configured):
             # runs the recipe
             if (self.test == True):  # test mode
                 # end of work if in test mode
-                print('run : desc',desc)
+                print(('run : desc',desc))
                 self.df = self.run_chunk(0, self.df, desc)
                 return self.df
             elif (not sql_direct):
@@ -1476,7 +1475,7 @@ class Recipe(Configured):
                     self.df = df
                 except:
                     self.df = None
-                if ((len(self.steps) > 0) | ("steps" in self.conf.keys())):
+                if ((len(self.steps) > 0) | ("steps" in list(self.conf.keys()))):
                     self.log.write(msg="in main loop of {} {}".format(
                         self.name, str(self.input.select)), error=error)
                 else:
@@ -1544,8 +1543,8 @@ class Recipe(Configured):
 
     def select_columns(self, df=None, arg="select"):
         try:
-            if ("select" in self.args.keys()):
-                if (type(self.args[arg]) == str) | (type(self.args[arg]) == unicode):
+            if ("select" in list(self.args.keys())):
+                if (type(self.args[arg]) == str):
                     self.cols = [x for x in list(
                         df) if re.match(self.args[arg] + "$", x)]
                 else:
@@ -1557,7 +1556,7 @@ class Recipe(Configured):
             self.cols = [x for x in list(df)]
 
     def prepare_categorical(self, df=None):
-        df = df[self.categorical].reset_index(drop=True).T.to_dict().values()
+        df = list(df[self.categorical].reset_index(drop=True).T.to_dict().values())
         prep = DictVectorizer()
         df = prep.fit_transform(df).toarray()
         return df
@@ -1566,14 +1565,12 @@ class Recipe(Configured):
         df = df[self.numerical].fillna("")
         df = df.applymap(lambda x: 0 if (
             (str(x) == "") | (x == None)) else float(x))
-        #imp = Imputer(missing_values=np.nan, strategy='mean', axis=0)
-        # df=imp.fit_transform(df)
         return df
 
     def internal_fillna(self, df=None, desc=None):
         # try:
         for step in self.args:
-            for col in step.keys():
+            for col in list(step.keys()):
                 # self.log.write("{}".format(col))
                 if (col not in list(df)):
                     df[col] = step[col]
@@ -1585,21 +1582,21 @@ class Recipe(Configured):
         # 	return df
 
     def internal_exec(self,df=None, desc=None):
-        if ((type(self.args) == str) | (type(self.args) == unicode)):
-            exec self.args
+        if (type(self.args) == str):
+            exec(self.args)
         elif (type(self.args) == list):
             for expression in self.args:
-                exec expression
+                exec(expression)
         return df
 
     def internal_eval(self, df=None, desc=None):
         try:
             cols = []
             for step in self.args:
-                for col in step.keys():
+                for col in list(step.keys()):
                     cols.append(col)
                     if True:
-                        if ((type(step[col]) == str) | (type(step[col]) == unicode)):
+                        if (type(step[col]) == str):
                             # self.log.write("Ooops: output shape {} to {}".format(dh.shape, df.shape),exit=False)
                             try:
                                 df[col] = df.apply(
@@ -1611,7 +1608,7 @@ class Recipe(Configured):
                                     lambda row: [safeeval(step[col], row)], axis=1)
                                 df[col] = a
                         elif (type(step[col]) == list):
-                            multicol = [unicode(x) for x in step[col]]
+                            multicol = [str(x) for x in step[col]]
                             # print col,multicol, list(df)
                             df[col] = df.apply(lambda row: [safeeval(
                                 x, row) for x in multicol], reduce=False, axis=1)
@@ -1646,7 +1643,7 @@ class Recipe(Configured):
             return df
 
     def internal_rename(self, df=None, desc=None):
-        dic = {v: k for k, v in self.args.iteritems()}
+        dic = {v: k for k, v in self.args.items()}
         df.rename(columns=dic, inplace=True)
         return df
 
@@ -1655,10 +1652,10 @@ class Recipe(Configured):
             if True:
                 if type(self.args[col]) == str:
                     df[col] = df[self.args[col]]
-                elif type(self.args[col]) == unicode:
+                elif type(self.args[col]) == str:
                     df[col] = df[self.args[col]]
                 elif (type(self.args[col]) == list):
-                    multicol = [unicode(x) for x in self.args[col]]
+                    multicol = [str(x) for x in self.args[col]]
                     df[col] = df.apply(lambda row: [row[x]
                                                     for x in multicol], axis=1)
             else:
@@ -1681,8 +1678,8 @@ class Recipe(Configured):
         # tested only with regression tree
         try:
 
-            if ("numerical" in self.args.keys()):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == unicode):
+            if ("numerical" in list(self.args.keys())):
+                if (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1690,8 +1687,8 @@ class Recipe(Configured):
             else:
                 self.numerical = []
 
-            if ("categorical" in self.args.keys()):
-                if (type(self.args["categorical"]) == str) | (type(self.args["categorical"]) == unicode):
+            if ("categorical" in list(self.args.keys())):
+                if (type(self.args["categorical"]) == str):
                     self.categorical = [x for x in list(
                         df) if re.match(self.args["categorical"], x)]
                 else:
@@ -1699,8 +1696,8 @@ class Recipe(Configured):
             else:
                 self.categorical = []
 
-            if ("target" in self.args.keys()):
-                if (type(self.args["target"]) == str) | (type(self.args["target"]) == unicode):
+            if ("target" in list(self.args.keys())):
+                if (type(self.args["target"]) == str):
                     self.target = [x for x in list(
                         df) if re.match(self.args["target"], x)]
                 else:
@@ -1785,8 +1782,8 @@ class Recipe(Configured):
         # callable recipe for building method
         # tested only with regression tree
         try:
-            if ("numerical" in self.args.keys()):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == unicode):
+            if ("numerical" in list(self.args.keys())):
+                if (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1794,8 +1791,8 @@ class Recipe(Configured):
             else:
                 self.numerical = []
 
-            if ("numerical" in self.args.keys()):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == unicode):
+            if ("numerical" in list(self.args.keys())):
+                if (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1803,8 +1800,8 @@ class Recipe(Configured):
             else:
                 self.numerical = []
 
-            if ("categorical" in self.args.keys()):
-                if (type(self.args["categorical"]) == str) | (type(self.args["categorical"]) == unicode):
+            if ("categorical" in list(self.args.keys())):
+                if (type(self.args["categorical"]) == str):
                     self.categorical = [x for x in list(
                         df) if re.match(self.args["categorical"], x)]
                 else:
@@ -1812,7 +1809,7 @@ class Recipe(Configured):
             else:
                 self.categorical = []
 
-            if ("target" in self.args.keys()):
+            if ("target" in list(self.args.keys())):
                 self.target = self.args["target"]
             else:
                 self.log.write(
@@ -1852,7 +1849,7 @@ class Recipe(Configured):
         # keep only selected columns
         self.select_columns(df=df)
         try:
-            if ("where" in self.args.keys()):
+            if ("where" in list(self.args.keys())):
                 df["matchid_selection_xykfsd"] = df.apply(
                     lambda row: safeeval(self.args["where"], row), axis=1)
                 df = df[df.matchid_selection_xykfsd == True]
@@ -1923,7 +1920,7 @@ class Recipe(Configured):
     def internal_ngram(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
-        if ("n" in self.args.keys()):
+        if ("n" in list(self.args.keys())):
             n = self.args['n']
         else:
             n = list([2, 3])
@@ -1965,7 +1962,7 @@ class Recipe(Configured):
             # create graph from links
             graph = nx.Graph()
             graph.add_edges_from(
-                zip(df[nodes[0]].values.tolist(), df[nodes[1]].values.tolist()))
+                list(zip(df[nodes[0]].values.tolist(), df[nodes[1]].values.tolist())))
 
             # compute every factor to compute
             computed = []
@@ -2013,7 +2010,7 @@ class Recipe(Configured):
         return df
 
     def internal_sql(self, df=None, desc=None):
-        if ((type(self.args) == str) | (type(self.args) == unicode)):
+        if (type(self.args) == str):
             self.input.connector.sql.execute(self.args)
         elif (type(self.args) == list):
             for expression in self.args:
@@ -2038,22 +2035,22 @@ class Recipe(Configured):
     def internal_groupby(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
-            if ("agg" in self.args.keys()):
+            if ("agg" in list(self.args.keys())):
                 self.cols = [
-                    x for x in self.cols if x not in self.args["agg"].keys()]
+                    x for x in self.cols if x not in list(self.args["agg"].keys())]
                 dic = {'list': union}
                 aggs = replace_dict(self.args["agg"], dic)
                 df = df.groupby(self.cols).agg(aggs).reset_index()
-            if ("transform" in self.args.keys()):
+            if ("transform" in list(self.args.keys())):
                 for step in self.args["transform"]:
-                    for col in step.keys():
+                    for col in list(step.keys()):
                         if (step[col] != "rank"):
                             df[col + '_' + step[col]
                                ] = df.groupby(self.cols)[col].transform(step[col])
                         else:
                             df[col + '_' + step[col]] = df.groupby(
                                 self.cols)[col].transform(step[col], method='dense')
-            if ("rank" in self.args.keys()):
+            if ("rank" in list(self.args.keys())):
                 for col in self.args["rank"]:
                     df[col + '_rank'] = df.groupby(self.cols)[col].rank(
                         method='dense', ascending=False)
@@ -2073,7 +2070,7 @@ class Recipe(Configured):
             join_type = "in_memory"
             if (self.args == None):
                 self.log.write(error="no args in join", exit=True)
-            if ("type" in self.args.keys()):
+            if ("type" in list(self.args.keys())):
                 if (self.args["type"] == "elasticsearch"):
                     join_type = "elasticsearch"
             if (join_type == "in_memory"):  # join in memory
@@ -2164,9 +2161,9 @@ class Recipe(Configured):
                     # now prematched fuzzy terms in cols _match are ok for a strict join
                     # list joining columns
                     left_on = [
-                        col + "_match" for col in self.args["fuzzy"].keys()]
+                        col + "_match" for col in list(self.args["fuzzy"].keys())]
                     right_on = [self.args["fuzzy"][x]
-                                for x in self.args["fuzzy"].keys()]
+                                for x in list(self.args["fuzzy"].keys())]
                     if ("strict" in list(self.args.keys())):
                         # complete joining columns list if asked
                         left_on = list(set().union(
@@ -2184,7 +2181,7 @@ class Recipe(Configured):
                     # map new names of retrieved colums
                     if ("select" in self.args):
                         reverse = {v: k for k, v in self.args[
-                            "select"].iteritems()}
+                            "select"].items()}
                         # python 3 reverse={v: k for k, v in
                         # self.args["select"].items()}
                         df.rename(columns=reverse, inplace=True)
@@ -2192,7 +2189,7 @@ class Recipe(Configured):
                     right_on = [x for x in right_on if x not in left_on]
                     df.drop(right_on, axis=1, inplace=True)
 
-                elif ("strict" in self.args.keys()):
+                elif ("strict" in list(self.args.keys())):
                     # simple strict join
                     df = pd.merge(df, join_df,
                                   how='left', left_on=list(self.args["strict"].keys()),
@@ -2201,14 +2198,14 @@ class Recipe(Configured):
                                   left_index=False, right_index=False)
 
                     # map new names of retrieved colums
-                    if ("select" in self.args.keys()):
+                    if ("select" in list(self.args.keys())):
                         reverse = {v: k for k, v in self.args[
-                            "select"].iteritems()}
+                            "select"].items()}
                         # python3 reverse={v: k for k, v in
                         # self.args["select"].items()}
                         df.rename(columns=reverse, inplace=True)
                     # remove unnecessary columns of the right_on
-                    for key in [self.args["strict"][x] for x in self.args["strict"].keys()]:
+                    for key in [self.args["strict"][x] for x in list(self.args["strict"].keys())]:
                         try:
                             del df[key]
                         except:
@@ -2244,7 +2241,7 @@ class Recipe(Configured):
                                 try:
                                     res = es.connector.es.msearch(
                                         bulk, request_timeout=10 + 10 * tries)
-                                    df_res = pd.concat(map(pd.DataFrame.from_dict, res['responses']), axis=1)[
+                                    df_res = pd.concat(list(map(pd.DataFrame.from_dict, res['responses'])), axis=1)[
                                         'hits'].T.reset_index(drop=True)
                                     max_tries = tries
                                     success = True
@@ -2398,7 +2395,7 @@ class Recipe(Configured):
 
     def internal_parsedate(self, df=None, desc=None):
         self.select_columns(df=df)
-        if ("format" in self.args.keys()):
+        if ("format" in list(self.args.keys())):
             # parse string do datetime i.e. 20001020 + %Y%m%d =>
             # 2000-10-20T00:00:00Z
             for col in self.cols:
@@ -2412,11 +2409,11 @@ class Recipe(Configured):
     def internal_replace(self, df=None, desc=None):
         if True:
             self.select_columns(df=df)
-            if ("regex" in self.args.keys()):
+            if ("regex" in list(self.args.keys())):
                 regex = []
                 # warning: replace use a dict which is not ordered
                 for r in self.args["regex"]:
-                    regex.append([re.compile(r.keys()[0]), r[r.keys()[0]]])
+                    regex.append([re.compile(list(r.keys())[0]), r[list(r.keys())[0]]])
                 pd.options.mode.chained_assignment = None
                 df[self.cols] = df[self.cols].applymap(
                     lambda x: replace_regex(x, regex))
@@ -2427,7 +2424,8 @@ class Recipe(Configured):
     def internal_normalize(self, df=None, desc=None):
         if True:
             self.select_columns(df=df)
-            df[self.cols] = df[self.cols].applymap(normalize)
+            for col in list(self.cols):
+                df[col] = df[col].str.normalize('NFKD').str.encode('ASCII',errors='ignore').str.decode('ASCII')
             return df
         else:
             return df
