@@ -3,7 +3,6 @@ elasticsearch
 enum34
 Flask
 flask-login
-Flask-OAuth
 flask_restplus
 geopy
 jellyfish
