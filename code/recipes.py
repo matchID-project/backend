@@ -1366,7 +1366,7 @@ class Recipe(Configured):
             # runs the recipe
             if (self.test == True):  # test mode
                 # end of work if in test mode
-                print('run : desc',desc)
+                print(('run : desc',desc))
                 self.df = self.run_chunk(0, self.df, desc)
                 return self.df
             elif (not sql_direct):

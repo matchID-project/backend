@@ -593,7 +593,7 @@ class DatasetApi(Resource):
         except:
             size = ds.connector.sample
             format_type = 'json'
-        print("args {} {}".format(format_type,size))
+        print(("args {} {}".format(format_type,size)))
         if (ds.connector.type == "elasticsearch"):
             if (ds.random_view == True):
                 ds.select = {"query": {"function_score": {

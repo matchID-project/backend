@@ -226,7 +226,7 @@ def safeeval(expression=None,row=None,verbose=True,defaut=""):
     locals().update(row)
     try:
         if ('cell' in expression):
-            exec expression
+            exec(expression)
         else:
             cell = eval(expression)
 
