@@ -33,7 +33,7 @@ def deepupdate(original, update):
     Recursively update a dict.
     Subdict's won't be overwritten but also updated.
     """
-    for key, value in original.iteritems():
+    for key, value in original.items():
     # python3 for key, value in original.items():
         if key not in update:
             update[key] = value
@@ -139,7 +139,7 @@ def normalize(x=None):
         x=re.sub('\s+', ' ', x)
         x=re.sub('^\s+$', '', x)
     elif (type(x)==list):
-        x=filter(None,[normalize(z) for z in x])
+        x=[_f for _f in [normalize(z) for z in x] if _f]
         # if (len(x)==1):
         # 	x=x[0]
         # elif(len(x)==0):
