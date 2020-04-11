@@ -972,7 +972,7 @@ class Recipe(Configured):
         try:
             if ("input" in list(self.args.keys())):
                 self.input = Dataset(self.args.input, parent=self)
-            elif ((type(self.conf["input"]) == str) | (type(self.conf["input"]) == str)):
+            elif (type(self.conf["input"]) == str):
                 self.input = Dataset(self.conf["input"], parent=self)
             else:
                 self.input = Dataset(self.conf["input"][
@@ -1046,7 +1046,7 @@ class Recipe(Configured):
         try:
             if ("output" in list(self.args.keys())):
                 self.output = Dataset(self.args.output, parent=self)
-            elif ((type(self.conf["output"]) == str) | (type(self.conf["output"]) == str)):
+            elif (type(self.conf["output"]) == str):
                 self.output = Dataset(self.conf["output"], parent=self)
             else:
                 self.output = Dataset(self.conf["output"][
@@ -1544,7 +1544,7 @@ class Recipe(Configured):
     def select_columns(self, df=None, arg="select"):
         try:
             if ("select" in list(self.args.keys())):
-                if (type(self.args[arg]) == str) | (type(self.args[arg]) == str):
+                if (type(self.args[arg]) == str):
                     self.cols = [x for x in list(
                         df) if re.match(self.args[arg] + "$", x)]
                 else:
@@ -1582,11 +1582,11 @@ class Recipe(Configured):
         # 	return df
 
     def internal_exec(self,df=None, desc=None):
-        if ((type(self.args) == str) | (type(self.args) == str)):
+        if (type(self.args) == str):
             exec(self.args)
         elif (type(self.args) == list):
             for expression in self.args:
-                exec expression
+                exec(expression)
         return df
 
     def internal_eval(self, df=None, desc=None):
@@ -1596,7 +1596,7 @@ class Recipe(Configured):
                 for col in list(step.keys()):
                     cols.append(col)
                     if True:
-                        if ((type(step[col]) == str) | (type(step[col]) == str)):
+                        if (type(step[col]) == str):
                             # self.log.write("Ooops: output shape {} to {}".format(dh.shape, df.shape),exit=False)
                             try:
                                 df[col] = df.apply(
@@ -1679,7 +1679,7 @@ class Recipe(Configured):
         try:
 
             if ("numerical" in list(self.args.keys())):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == str):
+                if (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1688,7 +1688,7 @@ class Recipe(Configured):
                 self.numerical = []
 
             if ("categorical" in list(self.args.keys())):
-                if (type(self.args["categorical"]) == str) | (type(self.args["categorical"]) == str):
+                if (type(self.args["categorical"]) == str):
                     self.categorical = [x for x in list(
                         df) if re.match(self.args["categorical"], x)]
                 else:
@@ -1697,7 +1697,7 @@ class Recipe(Configured):
                 self.categorical = []
 
             if ("target" in list(self.args.keys())):
-                if (type(self.args["target"]) == str) | (type(self.args["target"]) == str):
+                if (type(self.args["target"]) == str):
                     self.target = [x for x in list(
                         df) if re.match(self.args["target"], x)]
                 else:
@@ -1783,7 +1783,7 @@ class Recipe(Configured):
         # tested only with regression tree
         try:
             if ("numerical" in list(self.args.keys())):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == str):
+                if (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1792,7 +1792,7 @@ class Recipe(Configured):
                 self.numerical = []
 
             if ("numerical" in list(self.args.keys())):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == str):
+                if (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1801,7 +1801,7 @@ class Recipe(Configured):
                 self.numerical = []
 
             if ("categorical" in list(self.args.keys())):
-                if (type(self.args["categorical"]) == str) | (type(self.args["categorical"]) == str):
+                if (type(self.args["categorical"]) == str):
                     self.categorical = [x for x in list(
                         df) if re.match(self.args["categorical"], x)]
                 else:
@@ -2010,7 +2010,7 @@ class Recipe(Configured):
         return df
 
     def internal_sql(self, df=None, desc=None):
-        if ((type(self.args) == str) | (type(self.args) == str)):
+        if (type(self.args) == str):
             self.input.connector.sql.execute(self.args)
         elif (type(self.args) == list):
             for expression in self.args:
