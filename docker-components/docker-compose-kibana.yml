@@ -2,7 +2,7 @@ version: '2'
 
 services:
   kibana:
-    image: kibana:latest
+    image: kibana:${ES_VERSION}
     container_name: ${DC_PREFIX}-kibana
     volumes:
       - ${BACKEND}/kibana/config/:/usr/share/kibana/config

@@ -7,19 +7,20 @@ networks:
 
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.2.2
+    image: docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION}
     container_name: ${DC_PREFIX}-elasticsearch
     environment:
       - cluster.name=matchid-cluster
       - bootstrap.memory_lock=true
       - "ES_JAVA_OPTS=-Xms%M -Xmx%M"
+      - discovery.type=single-node
     ulimits:
       memlock:
         soft: -1
         hard: -1
     # mem_limit: %MM
     volumes:
-      - ${BACKEND}/esdata/node1:/usr/share/elasticsearch/data
+      - ${ES_DATA}/node1:/usr/share/elasticsearch/data
     # ports:
     #   - 9200:9200
 

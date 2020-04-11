@@ -1,22 +1,40 @@
-version: '2'
+version: '3.4'
 
 services:
   backend:
     build:
       context: .
+      target: ${BACKEND_ENV}
       args:
-        proxy: ${http_proxy}
-    image: matchid-backend:latest
-    container_name: ${DC_PREFIX}-backend
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+        no_proxy: ${no_proxy}
+        APP: ${APP_GROUP}
+    image: ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}${DC_POSTFIX}:${APP_VERSION}
+    container_name: ${DC_PREFIX}-${APP}${DC_POSTFIX}
+    environment:
+      - http_proxy
+      - https_proxy
+      - no_proxy
+      - aws_access_key_id
+      - aws_secret_access_key
+      - BACKEND_PORT
+      - ES_THREADS
+      - ES_MAX_TRIES
+      - ES_CHUNK
+      - NO_AUTH
+      - TWITTER_OAUTH_ID
+      - TWITTER_OAUTH_SECRET
+      - FACEBOOK_OAUTH_ID
+      - FACEBOOK_OAUTH_SECRET
+      - GITHUB_OAUTH_ID
+      - GITHUB_OAUTH_SECRET
+      - ADMIN_PASSWORD_HASH
     volumes:
-      - ${BACKEND}/code/:/matchid/code/
-      - ${BACKEND}/conf/:/matchid/conf/
-      - ${PROJECTS}:/matchid/projects/
-      - ${BACKEND}/log:/matchid/log/
-      - ${UPLOAD}:/matchid/upload/
-      - ${MODELS}:/matchid/models/
-      - ${BACKEND}/referential_data/:/matchid/referential_data/
-      - ${FRONTEND}/matchIdConfig:/matchid/matchIdConfig/
+      - ${PROJECTS}:/${APP_GROUP}/projects/
+      - ${BACKEND}/log:/${APP_GROUP}/log/
+      - ${UPLOAD}:/${APP_GROUP}/upload/
+      - ${MODELS}:/${APP_GROUP}/models/
     restart: always
 
 networks:

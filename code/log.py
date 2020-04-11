@@ -1,6 +1,7 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
+import sys
 import yaml as y
 from collections import OrderedDict
 import os, fnmatch, sys, datetime
@@ -25,6 +26,7 @@ class Log(object):
     def __init__(self,name=None,test=False):
         self.name=name
         self.chunk="init"
+        self.source=None
         self.test=test
         self.start=datetime.datetime.now()
         self.writer=sys.stdout
@@ -38,6 +40,7 @@ class Log(object):
                 except:
                     self.dir=""
                 self.file="{}./{}-{}.log".format(self.dir,datetime.datetime.now().isoformat(),self.name)
+                self.reject_file="{}./{}-{}.reject.csv".format(self.dir,datetime.datetime.now().isoformat(),self.name)
 
                 try :
                     self.writer=open(self.file,"w+")
@@ -55,26 +58,44 @@ class Log(object):
         except:
             self.verbose=False
 
+    def reject(self, string=None, exit=False):
+        with open(self.reject_file,"a") as w:
+            w.write(string)
+
     def write(self,msg=None,error=None,exit=False,level=1):
         try:
             self.writer
         except:
             return
         if (type(self.chunk) ==  int):
-            prefix="chunk "
+            chunk_desc ="chunk {}".format(self.chunk)
+        elif (type(self.chunk) == dict):
+            try:
+                chunk_desc = "chunk {}".format(self.chunk['chunk']['id'])
+                if (self.chunk['source']['type'] == "file"):
+                    if (self.chunk['total']['files'] > 1):
+                        chunk_desc = "chunk {} - subchunk {} in file {}/{} {} ".format(
+                            self.chunk['chunk']['id'],
+                            self.chunk['chunk']['local_id'],
+                            self.chunk['source']['file_id'],
+                            self.chunk['total']['files'],
+                            self.chunk['source']['name']
+                        )
+            except:
+                chunk_desc=str(self.chunk)
         else:
-            prefix=""
+            chunk_desc=self.chunk
 
         if (level<=self.level):
             t = datetime.datetime.now()
             d = (t-self.start)
             if (error != None):
                 if (msg != None):
-                    fmsg="{} - {} - {}{} : {} - Ooops: {} - {}".format(t,d,prefix,self.chunk,WHERE(1),msg,error)
+                    fmsg="{} - {} - {} : {} - Ooops: {} - {}".format(t,d,chunk_desc,WHERE(1),msg,error)
                 else:
-                    fmsg="{} - {} - {}{} : {} - Ooops: {}".format(t,d,prefix,self.chunk,WHERE(1),error)
+                    fmsg="{} - {} - {} : {} - Ooops: {}".format(t,d,chunk_desc,WHERE(1),error)
             else:
-                fmsg="{} - {} - {}{} : {} - {}".format(t,d,prefix,self.chunk,WHERE(1),msg)
+                fmsg="{} - {} - {} : {} - {}".format(t,d,chunk_desc,WHERE(1),msg)
             try:
                 if (self.verbose==True):
                     print(fmsg)

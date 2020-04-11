@@ -1,0 +1,7 @@
+code
+conf
+docker-compose.yml
+Dockerfile
+referential_data
+requirements.txt
+tagfiles.version

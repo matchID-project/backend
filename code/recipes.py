@@ -11,11 +11,12 @@ import datetime
 import hashlib
 import unicodedata
 import shutil
+import csv
+import boto3
+from smart_open import open
+
 from werkzeug.utils import secure_filename
 from cStringIO import StringIO
-from sqlalchemy import create_engine, Column, Integer, Sequence, String, Date, Float, BIGINT
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
 
 import traceback
 import yaml as y
@@ -32,9 +33,14 @@ from collections import deque
 
 # interact with datasets
 import gzip
+
 #from pandasql import sqldf
 import elasticsearch
 from elasticsearch import Elasticsearch, helpers
+from sqlalchemy import create_engine, Column, Integer, Sequence, String, Date, Float, BIGINT
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import redisearch as rs
 import pandas as pd
 
 # parallelize
@@ -64,10 +70,10 @@ from numpy import array
 
 # matchID imports
 import config
+from config import ordered_load, deepupdate, Configured
 from log import Log, err
 import automata
 from tools import *
-
 
 def fwf_format(row, widths, sep=""):
     return sep.join([row[col].ljust(widths[i] - len(sep)) for i, col in enumerate(row.keys())])
@@ -103,22 +109,15 @@ def to_fwf(df, fname, widths=None, sep="", header=False, names=None, append=Fals
             raise
 
 
-class Configured(object):
-
-    def __init__(self, family=None, name=None):
-        self.name = name
-        self.family = family
-        try:
-            self.conf = config.conf[family][name]
-        except:
-            sys.exit("Ooops: {} not found in {} conf".format(
-                self.name, self.family))
-
-
 class Connector(Configured):
 
     def __init__(self, name=None):
         Configured.__init__(self, "connectors", name)
+
+        try:
+            self.thread_count = self.conf["thread_count"]
+        except:
+            self.thread_count = 1
 
         try:
             self.type = self.conf["type"]
@@ -126,12 +125,56 @@ class Connector(Configured):
             sys.exit(
                 "Ooops: type of connector {} has to be defined".format(self.name))
 
-        if (self.type == "filesystem") | (self.type == "mongodb"):
+        if (self.type == "mongodb"):
             try:
                 self.database = self.conf["database"]
             except:
-                sys.exit("Ooops: database of connector {} has to be defined as type is {}".format(
-                    self.name, self.type))
+                sys.exit("Ooops: database of {} connector {} has to be defined".format(
+                    self.type, self.name))
+        if (self.type == "filesystem"):
+            try:
+                self.directory = self.conf["directory"]
+            except:
+                sys.exit("Ooops: directory of {} connector {} has to be defined".format(
+                    self.type, self.name))
+
+        if (self.type == "s3"):
+            try:
+                self.bucket = self.conf["bucket"]
+            except:
+                sys.exit("Ooops: bucket of {} connector {} has to be defined".format(
+                    self.type, self.name))
+            try:
+                self.aws_access_key_id = self.conf["aws_access_key_id"]
+            except:
+                self.aws_access_key_id = os.getenv('aws_access_key_id')
+            try:
+                self.aws_secret_access_key = self.conf["aws_secret_access_key"]
+            except:
+                self.aws_secret_access_key = os.getenv('aws_secret_access_key')
+            try:
+                self.endpoint_url = self.conf["endpoint_url"]
+            except:
+                self.endpoint_url = None
+            try:
+                self.signature_version = self.conf["signature_version"]
+            except:
+                self.signature_version = None
+            try:
+                self.region_name = self.conf["region_name"]
+            except:
+                self.region_name = None
+            self.s3_session = boto3.Session(
+                aws_access_key_id=self.aws_access_key_id,
+                aws_secret_access_key=self.aws_secret_access_key,
+                region_name=self.region_name
+                )
+            #self.client = session.client('s3', endpoint_url=self.endpoint_url)
+            self.s3_resource =  self.s3_session.resource('s3', endpoint_url =  self.endpoint_url)
+            self.transport_params={
+                "session": self.s3_session,
+                "resource_kwargs": {"endpoint_url": self.endpoint_url}
+            }
 
         try:
             self.timeout = self.conf["timeout"]
@@ -150,8 +193,12 @@ class Connector(Configured):
                 self.port = self.conf["port"]
             except:
                 self.port = 9200
+            try:
+                self.scheme = self.conf["scheme"]
+            except:
+                self.scheme = "http"
             self.es = Elasticsearch(
-                self.host, port=self.port, timeout=self.timeout)
+                self.host, port=self.port, scheme=self.scheme, timeout=self.timeout)
             try:
                 self.chunk_search = self.conf["chunk_search"]
             except:
@@ -160,7 +207,7 @@ class Connector(Configured):
             try:
                 self.max_tries = self.conf["max_tries"]
             except:
-                self.max_tries = 4
+                self.max_tries = 2
 
             try:
                 self.safe = self.conf["safe"]
@@ -177,15 +224,27 @@ class Connector(Configured):
         except:
             self.sample = 500
 
-        try:
-            self.thread_count = self.conf["thread_count"]
-        except:
-            self.thread_count = 1
-
         if (self.type == "sql"):
+            try:
+                self.encoding = self.conf["encoding"]
+            except:
+                self.encoding = "UTF8"
             self.uri = self.conf["uri"]
-            self.sql = create_engine(self.uri)
+            self.sql = create_engine(self.uri, encoding=self.encoding)
 
+        if (self.type == "redisearch"):
+            try:
+                self.host = self.conf["host"]
+            except:
+                self.host = "redis"
+            try:
+                self.port = self.conf["port"]
+            except:
+                self.port = 6379
+            try:
+                self.batchIndexer = self.conf["batchIndexer"]
+            except:
+                self.batchIndexer = 100000
 
 class Dataset(Configured):
     # a dataset is mainly a table linked to a pandas dataframe
@@ -197,9 +256,10 @@ class Dataset(Configured):
         except:
             if (self.name == "inmemory"):
                 self.connector = {"type": "inmemory", "chunk": 10000}
+                self.filter = None
                 return
             else:
-                log.write(error="no conf for dataset {}".format(self.name))
+                config.log.write(error="no conf for dataset {}".format(self.name))
 
         try:
             self.parent = parent
@@ -221,6 +281,11 @@ class Dataset(Configured):
                 error="table of dataset {} has to be defined".format(self.name))
 
         try:
+            self.encoding = self.conf["encoding"]
+        except:
+            self.encoding = "utf8"
+
+        try:
             self.thread_count = self.conf["thread_count"]
         except:
             self.thread_count = self.connector.thread_count
@@ -229,6 +294,22 @@ class Dataset(Configured):
             self.chunk = self.conf["chunk"]
         except:
             self.chunk = self.connector.chunk
+
+        if (self.connector.type == "redisearch"):
+            try:
+                self.index = self.conf["index"]
+            except:
+                self.index = []
+
+        if (self.connector.type == "sql"):
+            try:
+                self.select = self.conf["select"].replace('\n', ' ')
+            except:
+                self.select = "select * from {}".format(self.table)
+            try:
+                self.mode = self.conf["mode"]
+            except:
+                self.mode = 'basic'
 
         if (self.connector.type == "elasticsearch"):
             try:
@@ -275,15 +356,32 @@ class Dataset(Configured):
         if (self.connector.type == "filesystem"):
             self.select = None
             try:
-                self.files = [os.path.join(self.connector.database, f)
-                              for f in os.listdir(self.connector.database)
+                self.files = [os.path.join(self.connector.directory, f)
+                              for f in os.listdir(self.connector.directory)
                               if re.match(r'^' + self.table['regex'] + '$', f)]
                 self.file = self.files[0]
             except:
-                self.file = os.path.join(self.connector.database, self.table)
+                self.file = os.path.join(self.connector.directory, self.table)
                 self.files = [self.file]
                 #log.write("Ooops: couldn't set filename for dataset {}, connector {}".format(self.name,self.connector.name),exit=True)
 
+        if (self.connector.type == "s3"):
+            self.select = None
+            if (type(self.table) == str):
+                self.file = "s3://" + os.path.join(self.connector.bucket,self.table)
+                self.files = [self.file]
+            else:
+                try:
+                    self.files = ["s3://" + os.path.join(f.bucket_name,f.key)
+                              for f in self.connector.s3_resource.Bucket(self.connector.bucket).objects.all()
+                              if re.match(r'^' + self.table['regex'] + '$', f.key)]
+                    self.file = self.files[0]
+                except:
+                    self.files= [str(err())]
+                    # config.log.write("Ooops: couldn't match files for {} in connector {}".format(self.name,self.connector.name),exit=True)
+
+
+        if (self.connector.type == "filesystem") | (self.connector.type == "s3"):
             try:
                 self.skiprows = self.conf["skiprows"]
             except:
@@ -336,53 +434,89 @@ class Dataset(Configured):
                 self.widths = [1000]
 
             try:
-                self.encoding = self.conf["encoding"]
+                quoting = self.conf["quoting"]
+                if (quoting == 'QUOTE_MINIMAL'):
+                    self.quoting = csv.QUOTE_MINIMAL
+                elif (quoting == 'QUOTE_NONE'):
+                    self.quoting = csv.QUOTE_NONE
+                elif (quoting == 'QUOTE_ALL'):
+                    self.quoting = csv.QUOTE_ALL
+                elif (quoting == 'QUOTE_NONNUMERIC'):
+                    self.quoting = csv.QUOTE_NONNUMERIC
             except:
-                self.encoding = "utf8"
+                self.quoting = csv.QUOTE_MINIMAL
 
-    def init_reader(self, df=None):
+    def init_reader(self, df = None, test = False, test_chunk_size=None):
         try:
             self.log = self.parent.log
         except:
             self.log = config.log
+        try:
+            test_chunk_size = self.parent.conf["test_chunk_size"]
+        except:
+            test_chunk_size = config.conf["global"]["test_chunk_size"]
 
         if True:
             if (self.name == "inmemory"):
                 if (df is not None):
-                    self.reader = [df]
+                    self.reader = [
+                        dict({
+                            "desc": {
+                                "source": {
+                                    "type": "inmemory",
+                                    "name": "inmemory"
+                                },
+                                "chunk": {"id": 0}
+                            },
+                            "df": df
+                            })
+                        ]
                 else:
                     if((len(self.before) + len(self.after)) == 0):
                         self.log.write(
                             error="can't initiate inmemory dataset with no dataframe", exit=True)
                     else:
                         self.reader = []
-            elif (self.connector.type == "filesystem"):
-                if (self.type == "csv"):
-                    self.reader = itertools.chain.from_iterable(pd.read_csv(file, sep=self.sep, usecols=self.select, chunksize=self.chunk,
-                                                                            compression=self.compression, encoding=self.encoding, dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
-                                                                            prefix=self.prefix, iterator=True, index_col=False, keep_default_na=False) for file in self.files)
-                elif (self.type == "fwf"):
-                    self.reader = itertools.chain.from_iterable(pd.read_fwf(file, chunksize=self.connector.chunk, skiprows=self.skiprows,
-                                                                            encoding=self.encoding, delimiter=self.sep, compression=self.compression, dtype=object, names=self.names, widths=self.widths,
-                                                                            iterator=True, keep_default_na=False) for file in self.files)
-                elif (self.type == "hdf"):
-                    self.reader = itertools.chain.from_iterable(pd.read_hdf(
-                        file, chunksize=self.chunk) for file in self.files)
-                elif (self.type == "msgpack"):
-                    self.reader = itertools.chain.from_iterable(pd.read_msgpack(
-                        file, iterator=True, encoding=self.encoding) for file in self.files)
-
+            elif (self.connector.type == "filesystem") | (self.connector.type == "s3"):
+                self.reader = self.iterator_from_files()
             elif (self.connector.type == "elasticsearch"):
                 self.reader = self.scanner()
             elif (self.connector.type == "sql"):
-                self.reader = pd.read_sql_table(
-                    table_name=self.table, con=self.connector.sql, chunksize=self.chunk)
+                if (self.select == None):
+                    self.select = "select * from {}".format(self.table)
+                if self.mode == 'expert':
+                    fbuf = StringIO()
+                    if test:
+                        table = r"(^|\s+|\()" + re.escape(self.table) + r"(\s+|\.|\)|$)"
+                        query = 'WITH MATCHID_INPUT_TABLE AS (SELECT * from {} limit {})\n'.format(self.table, test_chunk_size)
+                        query = query + re.sub(table, r'\1MATCHID_INPUT_TABLE\2', self.select, flags=re.IGNORECASE)
+                        query = "COPY (select * from (\n{}) query limit {}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(query, test_chunk_size)
+                    else:
+                        query = "COPY (\n{}) TO STDOUT WITH (FORMAT CSV, HEADER TRUE, DELIMITER '\x01')".format(self.select)
+                    self.log.write("execute statement using expert mode (WARNING: all typed columns will be converted to string):\n{}".format(query))
+                    self.connector.sql.raw_connection().cursor().copy_expert(query, fbuf)
+                    fbuf.seek(0)
+                    self.reader = pd.read_csv(fbuf, sep='\x01', dtype=object, encoding="utf8", iterator=True, keep_default_na=False, chunksize=self.chunk)
+                else:
+                    if test:
+                        table = r"(^|\s+|\()" + re.escape(self.table) + r"(\s+|\.|\)|$)"
+                        query = 'WITH MATCHID_INPUT_TABLE AS (SELECT * from {} limit {})\n'.format(self.table, test_chunk_size)
+                        query = query + re.sub(table, r'\1MATCHID_INPUT_TABLE\2', self.select, flags=re.IGNORECASE)
+                        query = "select * from (\n{}) query limit {}".format(query, test_chunk_size)
+                    else:
+                        query = self.select
+                    self.log.write("execute statement:\n{}".format(query))
+                    self.reader = pd.read_sql(query, self.connector.sql, chunksize=self.chunk)
+
 
             try:
                 if (self.filter != None):
-                    self.filter.init(df=self.reader, parent=self)
+                    self.filter.init(df=pd.DataFrame(), parent=self)
                     self.reader = itertools.imap(
-                        lambda df: self.filter.run_chunk(0, df), self.reader)
+                        lambda data: dict({
+                            "desc": data['desc'],
+                            "df": self.filter.run_chunk(data['chunk']['id'], data['df'], data['desc'])}),
+                        self.reader)
                     self.log.write(msg="filtered dataset")
             except:
                 self.log.write(
@@ -392,14 +526,104 @@ class Dataset(Configured):
             self.log.write(msg="couldn't initiate dataset {}".format(
                 self.name), error=err(), exit=True)
 
+    def iterator_from_files(self):
+        if (self.connector.type == "filesystem") | (self.connector.type == "s3"):
+            n_chunk_total = 0
+            n_rows_total = 0
+            for n_file, file in enumerate(self.files):
+                n_rows_file = 0
+                if (self.type == "csv"):
+                    reader = pd.read_csv(
+                        self.open(file),
+                        sep=self.sep, usecols=self.select, chunksize=self.chunk,
+                        encoding=self.encoding,dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
+                        prefix=self.prefix, iterator=True, index_col=False, keep_default_na=False
+                    )
+                elif (self.type == "fwf"):
+                    reader = pd.read_fwf(
+                        self.open(file),
+                        chunksize=self.connector.chunk, skiprows=self.skiprows,
+                        encoding=self.encoding,
+                        delimiter=self.sep, compression='infer', dtype=object, names=self.names, widths=self.widths,
+                        iterator=True, keep_default_na=False
+                    )
+                elif (self.type == "hdf"):
+                    reader = pd.read_hdf(
+                        self.open(file),
+                        chunksize=self.chunk
+                    )
+                elif (self.type == "msgpack"):
+                    reader = self.iterator_to_chunked_iterator(
+                        pd.read_msgpack(
+                            self.open(file),
+                            iterator=True, encoding=self.encoding
+                        )
+                    )
+                for n_chunk_file, df in enumerate(reader):
+                    size = df.shape[0]
+                    n_rows_total = n_rows_total + size
+                    n_rows_file = n_rows_file + size
+                    # print(df.head())
+                    # sys.stdout.flush()
+                    yield dict({ "desc": {
+                            "source": {
+                                "dataset": self.name,
+                                "type": "file",
+                                "name": file,
+                                "file_id": n_file + 1,
+                                "chunk_size": self.chunk
+                            },
+                            "chunk": {
+                                "id": n_chunk_total + 1,
+                                "local_id": n_chunk_file + 1,
+                                "rows": size
+                            },
+                            "sum": {
+                                "rows": n_rows_total,
+                                "file_rows": n_rows_file
+                            },
+                            "total": {
+                                "files": len(self.files)
+                            }
+                        },
+                        "df": df
+                    })
+                    n_chunk_total = n_chunk_total + 1
+
+    def open(self, file, mode='rb'):
+        if (self.connector.type == "s3"):
+            return open(file, mode, transport_params=self.connector.transport_params)
+        return open(file, mode)
+
+    def iterator_to_chunked_iterator(self, iterator):
+        # force to regroup in chunks iterators that are only line by line
+        df_list=[]
+        current_size = 0
+        for j, df in enumerate(iterator):
+            while (current_size + df.shape[0] > self.chunk):
+                df_list.append(df.head(n = self.chunk - current_size))
+                yield pd.concat(df_list)
+                df_list = []
+                current_size = 0
+                df = df.tail(n = df.shape[0] - (self.chunk - current_size))
+                if (current_size > 0):
+                    df_list.append(df.tail(n = current_size))
+            if (df.shape[0] > 0):
+                df_list.append(df)
+                current_size = current_size + df.shape[0]
+        if (current_size > 0):
+            yield pd.concat(df_list)
+
     def scanner(self, **kwargs):
         self.select = json.loads(json.dumps(self.select))
         scan = helpers.scan(client=self.connector.es, scroll=u'1000m', clear_scroll=False, query=self.select,
-                            index=self.table, doc_type=self.doc_type, preserve_order=True, size=self.chunk)
+                            index=self.table, preserve_order=True, size=self.chunk)
 
         hits = []
         ids = []
         labels = ['_id', '_source']
+        c = 0
+        s = 0
         for j, item in enumerate(scan):
             item = (item['_id'], item['_source'])
             hits.append(item)
@@ -410,11 +634,40 @@ class Dataset(Configured):
                     [df['_id'], df['_source'].apply(pd.Series)], axis=1)
                 hits = []
                 ids = []
-                yield df
+                size = df.shape[0]
+                s = s + size
+                yield dict({
+                    "desc": {
+                        "source": {
+                            "type": "elasticsearch",
+                            "name": self.table,
+                            "chunk_size": self.chunk
+                        },
+                        "chunk": {
+                            "id": c + 1,
+                            "rows": size
+                        },
+                        "sum": {
+                            "rows": s
+                        }
+                    },
+                    "df": df
+                })
+                c = c + 1
         if (len(hits) > 0):
             df = pd.DataFrame.from_records(hits, columns=labels)
             df = pd.concat([df['_id'], df['_source'].apply(pd.Series)], axis=1)
-            yield df
+            yield dict({
+                "source": {
+                    "type": "elasticsearch",
+                    "name": self.table
+                },
+                "chunk": {
+                    "total": c,
+                    "rows": df.shape[0]
+                },
+                "df": df
+            })
 
     def init_writer(self):
         try:
@@ -449,10 +702,37 @@ class Dataset(Configured):
                     # further better except should make difference btw no
                     # existing file and unwritable
                     pass
+                self.fs = open(self.file, 'wb')
+            else:
+                self.fs = open(self.file, 'ab')
+            self.log.write(msg="initiated stream output {}".format(self.name))
+        elif (self.connector.type == "s3"):
+            try:
+                self.log.write(msg="tries to remove {}".format(self.file))
+                self.connector.s3_resource.Object(self.connector.bucket, self.file.replace(self.connector.bucket + '/', '')).delete()
+                self.log.write(msg="removed successfully {}".format(self.file))
+            except:
+                self.log.write(msg="couldn't remove {} {}".format(self.file,err()))
+                # further better except should make difference btw no
+                # existing file and unwritable
+                pass
+            self.fs = open(self.file,
+                'wb', transport_params=self.connector.transport_params)
+            self.log.write(msg="initiated stream output {}".format(self.name))
+
         elif (self.connector.type == "sql"):
             if (self.mode == 'create'):
                 self.connector.sql.execute(
                     'DROP TABLE IF EXISTS {};'.format(self.table))
+
+        elif (self.connector.type == "redisearch"):
+            self.client = rs.Client(self.table, host=self.connector.host, port=self.connector.port)
+            if (self.mode == 'create'):
+                try:
+                    self.client.drop_index()
+                    self.log.write(msg="DROP previously created index {}".format(self.table))
+                except:
+                    pass
 
         return None
 
@@ -475,7 +755,7 @@ class Dataset(Configured):
                 df = df.fillna("")
                 if (self.connector.safe == False) & ('_id' not in df.columns) & (self.mode == 'create'):
                         # unsafe insert speed enable to speed up
-                    actions = [{'_op_type': mode, '_index': self.table, '_type': self.name, '_source': dict(
+                    actions = [{'_op_type': mode, '_index': self.table, '_source': dict(
                         (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
                 else:
                     if ('_id' not in df.columns):
@@ -483,10 +763,10 @@ class Dataset(Configured):
                     records = df.drop(['_id'], axis=1).T.to_dict()
                     ids = df['_id'].T.to_dict()
                     if (self.mode == "update"):
-                        actions = [{'_op_type': 'update', '_id': ids[it], '_index': self.table, '_type': self.name, 'doc_as_upsert': True, 'doc': dict(
+                        actions = [{'_op_type': 'update', '_id': ids[it], '_index': self.table, 'doc_as_upsert': True, 'doc': dict(
                             (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
                     else:
-                        actions = [{'_op_type': 'index', '_id': ids[it], '_index': self.table, '_type': self.name, '_source': dict(
+                        actions = [{'_op_type': 'index', '_id': ids[it], '_index': self.table, '_source': dict(
                             (k, v) for k, v in records[it].iteritems() if (v != ""))} for it in records]
                 try:
                     tries = 0
@@ -548,7 +828,7 @@ class Dataset(Configured):
                     self.log.write(msg="elasticsearch bulk of subchunk {} failed {}/{}".format(
                         i, self.connector.name, self.table), error=err())
 
-            elif (self.connector.type == "filesystem"):
+            elif (self.connector.type in ["filesystem", "s3"]):
                 # self.log.write("filesystem write {}".format(self.name))
                 if (self.type == "csv"):
                     try:
@@ -557,9 +837,16 @@ class Dataset(Configured):
                         if (chunk == 0):
                             header = self.header
                         else:
-                            header = None
-                        df.to_csv(self.file, mode='a', index=False, sep=self.sep,
-                                  compression=self.compression, encoding=self.encoding, header=header)
+                            header = False
+                        if (self.names != None):
+                            df=df[self.names]
+                        else:
+                            df.sort_index(axis=1, inplace=True)
+
+                        df.to_csv(
+                            self.fs,
+                            mode='a', index=False, sep=self.sep, quoting=self.quoting,
+                            encoding=self.encoding, header=header)
                     except:
                         self.log.write(
                             "write to csv failed writing {}".format(self.file), err())
@@ -569,42 +856,91 @@ class Dataset(Configured):
                     else:
                         header = False
                     try:
-                        to_fwf(df, self.file, names=self.names, header=header, sep=self.sep,
-                               widths=self.widths, append=True, encoding=self.encoding, log=self.log)
+                        to_fwf(df,
+                            self.fs,
+                            names=self.names, header=header, sep=self.sep,
+                            widths=self.widths, append=True, encoding=self.encoding, log=self.log)
                     except:
                         self.log.write(
                             "write to fwf failed writing {}".format(self.file), err())
                     pass
                 elif (self.type == "hdf"):
                     try:
-                        df.to_hdf(self.file, key=self.name,
-                                  mode='a', format='table')
+                        df.to_hdf(
+                            self.fs,
+                            key=self.name,
+                            mode='a', format='table')
                     except:
                         self.log.write(
                             "write to hdf failed writing {}".format(self.file), err())
                 elif (self.type == "msgpack"):
                     try:
-                        df.to_msgpack(self.file, append=True,
-                                      encoding=self.encoding)
+                        df.to_msgpack(
+                            self.fs,
+                            append=True,
+                            encoding=self.encoding)
                     except:
                         self.log.write(
                             "write to msgpack failed writing {}".format(self.file), err())
                 else:
                     self.log.write("no method for writing to {} with type {}".format(
                         self.file, self.type))
-
+                if self.connector.type == "filesystem":
+                    self.fs.flush()
             elif (self.connector.type == "sql"):
                 try:
                     self.log.write(
                         msg="try to write {} rows".format(df.shape[0]))
-                    df.to_sql(name=self.table, con=self.connector.sql,
-                              if_exists='append', index=False, chunksize=self.chunk)
+                    df.sort_index(axis=1, inplace=True)
+                    if not self.connector.sql.has_table(self.table):
+                       df[:0].to_sql(name=self.table, con=self.connector.sql, if_exists='fail', index=False)
+                       self.log.write(msg="created table {} with columns {}".format(self.table, list(df)))
+                    try:
+                        sql_cnxn = self.connector.sql.raw_connection()
+                        cursor = sql_cnxn.cursor()
+                        fbuf = StringIO()
+                        df.to_csv(fbuf, index=False, header=False, sep='\x01', encoding="utf8")
+                        fbuf.seek(0)
+                        cursor.copy_expert("COPY " + self.table + " FROM STDIN WITH DELIMITER '\x01' NULL ''", fbuf)
+                        sql_cnxn.commit()
+                        cursor.close()
+                    except:
+                        self.log.write(msg="WARNING: direct COPY to {} method failed, fall back to to_sql\n{}".format(self.table, err()))
+                        self.log.reject(fbuf.getvalue())
+                        df.to_sql(name=self.table, con=self.connector.sql,
+                            if_exists='append', index=False, chunksize=self.chunk)
+
                 except:
-                    self.log.write(msg="couldn't write to {}".format(
-                        self.table), error=err())
+                    self.log.write(msg="couldn't write to {}".format(self.table),
+                        error=err())
+
+            elif (self.connector.type == "redisearch"):
+                self.log.write(
+                    msg="try to write {} rows".format(df.shape[0]))
+                df.sort_index(axis=1, inplace=True)
+                try:
+                    self.client.create_index([rs.TagField(col, separator = ' ', no_index=(True if col in self.index else False)) for col in list(set(list(df)))])
+                    self.client.batch_indexer(chunk_size=self.batchIndexer)
+                    self.log.write(
+                        msg="created table {} with index for {}".format(self.table,", ".join([col for col in list.df and col in self.inx])))
+                except:
+                    self.log.write(msg="couldn't create {}".format(self.table),
+                        error=err())
+
+                try:
+                    for index, row in df.iterrows():
+                        doc_id = size * chunk + self.chunk * i + index
+                        row = row.to_dict()
+                        self.client.add_document(doc_id, **row)
+                except:
+                    self.log.write(msg="couldn't write to {}".format(self.table),
+                        error=err())
 
         return processed
 
+    def close(self):
+        if self.connector.type in ["filesystem", "s3"]:
+            self.fs.close()
 
 class Recipe(Configured):
 
@@ -747,7 +1083,7 @@ class Recipe(Configured):
                 self.write_queue_length = config.conf[
                     "global"]["write_queue_length"]
             except:
-                self.write_queue_length = 50
+                self.write_queue_length = 20
 
         try:
             self.steps = []
@@ -781,17 +1117,17 @@ class Recipe(Configured):
             self.log.write(msg="couldn't init log for recipe {}".format(
                 self.name), error=err(), exit=True)
         try:
-            self.input.init_reader(df=df)
+            if ((self.test == False) and (len(self.steps) == 0) and (self.input.connector.type == "sql") and (self.output.connector.type == "sql") and (self.input.select != None) and (self.input.connector.name == self.output.connector.name)):
+                return
+        except:
+            pass
+
+        try:
+            self.input.init_reader(df=df, test=test)
         except:
             if ((len(self.before) + len(self.after)) == 0):
                 self.log.write(msg="couldn't init input {} of recipe {}".format(
                     self.input.name, self.name), error=err())
-        if (self.test == False):
-            try:
-                self.output.init_writer()
-            except:
-                self.log.write(msg="couldn't init output {} of recipe {}".format(
-                    self.output.name, self.name), error=err())
 
     def set_job(self, job=None):
         self.job = job
@@ -837,12 +1173,18 @@ class Recipe(Configured):
 
     def write_queue(self, queue, supervisor=None):
         exit = False
+        if (self.test == False):
+            try:
+                self.output.init_writer()
+            except:
+                self.log.write(msg="couldn't init output {} of recipe {}".format(
+                    self.output.name, self.name), error=err())
         w_queue = []
         try:
             max_threads = self.output.thread_count
+            self.log.write("initiating queue with {} threads".format(max_threads))
         except:
             max_threads = 1
-        self.log.write("initiating queue with {} threads".format(max_threads))
         while (exit == False):
             try:
                 res = queue.get()
@@ -857,11 +1199,15 @@ class Recipe(Configured):
                                 t[1].is_alive() & (supervisor[t[0]] == "writing"))]
                             time.sleep(0.05)
                     supervisor[res[0]] = "writing"
-                    thread = Process(target=self.write, args=[
-                                     res[0], res[1], supervisor])
-                    thread.start()
-                    w_queue.append([res[0], thread])
-                    time.sleep(0.05)
+                    if ((max_threads == 1) | (self.output.connector.type in ["filesystem", "s3"])):
+                        # filestream can't be parallelized
+                        self.write(res[0], res[1], supervisor)
+                    else:
+                        thread = Process(target=self.write, args=[
+                                        res[0], res[1], supervisor])
+                        thread.start()
+                        w_queue.append([res[0], thread])
+                        time.sleep(0.05)
             except:
                 # self.log.write("waiting to write - {}, {}".format(self.name, w_queue))
                 time.sleep(1)
@@ -872,8 +1218,9 @@ class Recipe(Configured):
                     t[1].is_alive() & (supervisor[t[0]] == "writing"))]
         except:
             pass
+        self.output.close()
 
-    def run_chunk(self, i, df, queue=None, supervisor=None):
+    def run_chunk(self, i, df, desc=None, queue=None, supervisor=None):
         if (supervisor != None):
             supervisor[i] = "run_chunk"
         df.rename(columns=lambda x: x.strip(), inplace=True)
@@ -881,12 +1228,12 @@ class Recipe(Configured):
         # 	#stupid but working hack to leave time for inmemory preload of first thread first chunk
         # 	#the limit is if the treatment of a chunk takes more than 30s... better workaround has to be found
         # 	time.sleep(30)
-        self.log.chunk = i
+        self.log.chunk = desc if (desc != None) else i
         if (self.input.name != "inmemory"):
-            self.log.write("proceed {} rows from {} with recipe {}".format(
-                df.shape[0], self.input.name, self.name))
+                self.log.write("proceed {} rows from {} with recipe {}".format(
+                    df.shape[0], self.input.name, self.name))
         if (self.type == "internal"):
-            df = getattr(self.__class__, "internal_" + self.name)(self, df=df)
+            df = getattr(self.__class__, "internal_" + self.name)(self, df=df, desc=desc)
         elif((len(self.steps) > 0) | ("steps" in self.conf.keys())):
             for recipe in self.steps:
                 try:
@@ -894,7 +1241,7 @@ class Recipe(Configured):
                         self.name, recipe.name), level=2)
                     recipe.init(df=df, parent=self, test=self.test)
                     # recipe.run()
-                    df = recipe.run_chunk(i, df)
+                    df = recipe.run_chunk(i, df, desc)
                     if (recipe.name == "pause"):
                         return df
                 except:
@@ -975,6 +1322,7 @@ class Recipe(Configured):
                     pass
 
     def run(self, head=None, write_queue=None, supervisor=None):
+        desc = None
         # recipes to run before
         self.run_deps(self.before)
 
@@ -987,13 +1335,16 @@ class Recipe(Configured):
         self.df = pd.DataFrame()
         self.input.processed = 0
         try:
-            # for i, df in enumerate(self.input.reader):
-            # 	self.run_chunk(i,df,test)
-            # first lauch the first chunk for initialization of "inmemory"
-            # datasets, then iterate with // threads
-            if ((self.input.chunked == True) | (self.test == True)):
+            sql_direct = False
+
+            if ((self.test == False) and (len(self.steps) == 0) and (self.input.connector.type == "sql") and (self.output.connector.type == "sql") and (self.input.select != None) and (self.input.connector.name == self.output.connector.name)):
+                sql_direct = True
+
+            elif ((self.input.chunked == True) | (self.test == True)):
                 try:
-                    self.df = next(self.input.reader, "")
+                    data = next(self.input.reader, "")
+                    self.df = data['df']
+                    desc = data['desc']
                     if(self.test == True):
                         self.df = self.df.head(n=head)
                 except:
@@ -1004,20 +1355,22 @@ class Recipe(Configured):
                 self.log.write("reading whole input before processing recipe")
                 self.df = []
                 size = 0
-                for i, df in enumerate(self.input.reader):
-                    self.log.chunk = i
+                for i, data in enumerate(self.input.reader):
+                    df = data['df']
+                    self.log.chunk = data['desc']
                     self.df.append(df)
-                    size = size + df.shape[0]
-                    self.log.write(msg="loaded {} rows".format(size))
+                    size = data['desc']['rows']['chunk']
+                    self.log.write(msg="loaded {} rows from {}".format(size, data['desc']['source']['name']))
                 self.df = pd.concat(self.df)
                 self.log.write(msg="concatenated {} rows".format(size))
 
             # runs the recipe
             if (self.test == True):  # test mode
                 # end of work if in test mode
-                self.df = self.run_chunk(0, self.df)
+                print('run : desc',desc)
+                self.df = self.run_chunk(0, self.df, desc)
                 return self.df
-            else:
+            elif (not sql_direct):
                 if (supervisor == None):
                     supervisor = config.manager.dict()
                 if (write_queue == None):
@@ -1026,19 +1379,30 @@ class Recipe(Configured):
                     except:
                         self
                         write_queue = Queue()
-
                 # create the writer queue
-                supervisor_thread = Process(target=self.supervise, args=[
-                                            write_queue, supervisor])
-                supervisor_thread.start()
-                write_thread = Process(target=self.write_queue, args=[
+                try:
+                    supervisor_thread = Process(target=self.supervise, args=[
+                                                write_queue, supervisor])
+                    supervisor_thread.start()
+                except:
+                    self.log.write(msg="couldn't thread supervise", error=err())
+                self.log.write(msg="supervise thread initiated")
+
+                try:
+                    write_thread = Process(target=self.write_queue, args=[
                                        write_queue, supervisor])
-                write_thread.start()
+                    write_thread.start()
+                except:
+                    self.log.write(msg="couldn't thread write_queue", error=err())
+                self.log.write(msg="write_queue thread initiated")
                 run_queue = []
+                print("je suis dans run après write_queue threading")
 
-                self.df = self.run_chunk(0, self.df, write_queue, supervisor)
+                self.df = self.run_chunk(0, self.df, desc, write_queue, supervisor)
 
-                for i, df in enumerate(self.input.reader):
+                for i, data in enumerate(self.input.reader):
+                    df = data['df']
+                    desc = data['desc']
                     supervisor[i + 1] = "started"
                     self.log.chunk = "main_thread"
                     # wait if running queue is full
@@ -1053,7 +1417,7 @@ class Recipe(Configured):
                             time.sleep(0.05)
                     supervisor[i + 1] = "run_chunk"
                     run_thread = Process(target=self.run_chunk, args=[
-                                         i + 1, df, write_queue, supervisor])
+                                         i + 1, df, desc, write_queue, supervisor])
                     run_thread.start()
                     run_queue.append([i + 1, run_thread])
 
@@ -1074,20 +1438,28 @@ class Recipe(Configured):
                 supervisor["end"] = True
                 supervisor_thread.terminate()
 
+            else:
+                query = 'DROP TABLE IF EXISTS {};\nCREATE TABLE {} as select * from ({}) query;'.format(self.output.table, self.output.table, self.input.select)
+                if (self.input.table not in query):
+                    self.log.write(msg="input table {} not in query:{".format(self.input.table,self.input.query), err="", exit=True)
+                self.log.write(msg="recipe is a direct SQL statement:\n{}".format(query))
+                sql_response = self.input.connector.sql.execute(query)
+
         except SystemExit:
             try:
                 self.log.write("terminating ...")
-                write_queue.put(True)
-                write_thread.terminate()
-                supervisor["end"] = True
-                supervisor_thread.terminate()
+                if (not sql_direct):
+                    write_queue.put(True)
+                    write_thread.terminate()
+                    supervisor["end"] = True
+                    supervisor_thread.terminate()
 
-                for t in run_queue:
-                    try:
-                        self.log.write("terminating chunk {}".format(t[0]))
-                        t[1].terminate()
-                    except:
-                        pass
+                    for t in run_queue:
+                        try:
+                            self.log.write("terminating chunk {}".format(t[0]))
+                            t[1].terminate()
+                        except:
+                            pass
 
             except:
                 pass
@@ -1119,17 +1491,18 @@ class Recipe(Configured):
                     self.name), error=error)
             try:
                 self.log.write("terminating ...")
-                write_queue.put(True)
-                write_thread.terminate()
-                supervisor["end"] = True
-                supervisor_thread.terminate()
+                if (not sql_direct):
+                    write_queue.put(True)
+                    write_thread.terminate()
+                    supervisor["end"] = True
+                    supervisor_thread.terminate()
 
-                for t in run_queue:
-                    try:
-                        self.log.write("terminating chunk {}".format(t[0]))
-                        t[1].terminate()
-                    except:
-                        pass
+                    for t in run_queue:
+                        try:
+                            self.log.write("terminating chunk {}".format(t[0]))
+                            t[1].terminate()
+                        except:
+                            pass
             except:
                 pass
 
@@ -1139,26 +1512,35 @@ class Recipe(Configured):
         chunk_number = self.log.chunk
 
         self.log.chunk = "end"
-        try:
-            with open(self.log.file, 'r') as f:
-                logtext = f.read().split("\n")
-            self.errors = len(set([re.search('chunk (\d+)', line).group(1)
-                                   for line in logtext if "Ooops" in line]))
-            self.processed = sum([int(re.search(
-                'proceed (\d+) rows', line).group(1)) for line in logtext if "proceed" in line])
-            self.written = sum([int(re.search('wrote (\d+)', line).group(1))
-                                for line in logtext if "wrote" in line])
+        if (not sql_direct):
+            try:
+                with open(self.log.file, 'r') as f:
+                    logtext = f.read().split("\n")
+                self.errors = len(set([re.search('chunk (\d+)', line).group(1)
+                                    for line in logtext if (("Ooops" in line) & ("chunk " in line))]))
+                self.processed = sum([int(re.search(
+                    'proceed (\d+) rows', line).group(1)) for line in logtext if "proceed" in line])
+                self.written = sum([int(re.search('wrote (\d+)', line).group(1))
+                                    for line in logtext if "wrote" in line])
 
-        except:
-            self.errors = err()
-            self.processed = 0
-            self.written = 0
-        if (self.errors > 0):
-            self.log.write(msg="Recipe {} finished with errors on {} chunks (i.e. max {} errors out of {}) - {} lines written".format(
-                self.name, self.errors, self.errors * self.input.connector.chunk, self.processed, self.written))
+            except:
+                self.errors = err()
+                self.processed = 0
+                self.written = 0
+            if (self.errors > 0):
+                self.log.write(msg="Recipe {} finished with errors on {} chunks (i.e. max {} errors out of {}) - {} lines written".format(
+                    self.name, self.errors, self.errors * self.input.connector.chunk, self.processed, self.written))
+            else:
+                self.log.write(msg="Recipe {} successfully fininshed with no error, {} lines processed, {} lines written".format(
+                    self.name, self.processed, self.written))
+
         else:
-            self.log.write(msg="Recipe {} successfully fininshed with no error, {} lines processed, {} lines written".format(
-                self.name, self.processed, self.written))
+            try:
+                self.log.write(msg="successfully executed SQL statement: {} rows inserted".format(sql_response.rowcount))
+            except:
+                self.log.write(msg="SQL statement ended with error, please check error message above")
+
+        self.log.write("end of all")
 
     def select_columns(self, df=None, arg="select"):
         try:
@@ -1188,7 +1570,7 @@ class Recipe(Configured):
         # df=imp.fit_transform(df)
         return df
 
-    def internal_fillna(self, df=None):
+    def internal_fillna(self, df=None, desc=None):
         # try:
         for step in self.args:
             for col in step.keys():
@@ -1202,7 +1584,15 @@ class Recipe(Configured):
         # 	self.log.write("Ooops: problem in {} - {}: {} - {}".format(self.name,col,step[col],err()),exit=False)
         # 	return df
 
-    def internal_eval(self, df=None):
+    def internal_exec(self,df=None, desc=None):
+        if ((type(self.args) == str) | (type(self.args) == unicode)):
+            exec self.args
+        elif (type(self.args) == list):
+            for expression in self.args:
+                exec expression
+        return df
+
+    def internal_eval(self, df=None, desc=None):
         try:
             cols = []
             for step in self.args:
@@ -1255,12 +1645,12 @@ class Recipe(Configured):
                                                                 col, step[col]), error=err(), exit=False)
             return df
 
-    def internal_rename(self, df=None):
+    def internal_rename(self, df=None, desc=None):
         dic = {v: k for k, v in self.args.iteritems()}
         df.rename(columns=dic, inplace=True)
         return df
 
-    def internal_map(self, df=None):
+    def internal_map(self, df=None, desc=None):
         for col in list(self.args.keys()):
             if True:
                 if type(self.args[col]) == str:
@@ -1275,7 +1665,7 @@ class Recipe(Configured):
                 pass
         return df
 
-    def internal_shuffle(self, df=None):
+    def internal_shuffle(self, df=None, desc=None):
         # fully shuffles columnes and lines
         try:
             return df.apply(np.random.permutation)
@@ -1286,7 +1676,7 @@ class Recipe(Configured):
                 msg="problem in {} - {}".format(self.name), error=err(), exit=False)
             return df
 
-    def internal_build_model(self, df=None):
+    def internal_build_model(self, df=None, desc=None):
         # callable recipe for building method
         # tested only with regression tree
         try:
@@ -1391,7 +1781,7 @@ class Recipe(Configured):
             return df
         return df
 
-    def internal_apply_model(self, df=None):
+    def internal_apply_model(self, df=None, desc=None):
         # callable recipe for building method
         # tested only with regression tree
         try:
@@ -1458,7 +1848,7 @@ class Recipe(Configured):
 
         return df
 
-    def internal_keep(self, df=None):
+    def internal_keep(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1474,7 +1864,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_to_integer(self, df=None):
+    def internal_to_integer(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1487,7 +1877,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_list_to_tuple(self, df=None):
+    def internal_list_to_tuple(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1500,7 +1890,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_tuple_to_list(self, df=None):
+    def internal_tuple_to_list(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1513,7 +1903,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_to_float(self, df=None):
+    def internal_to_float(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         try:
@@ -1530,7 +1920,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_ngram(self, df=None):
+    def internal_ngram(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         if ("n" in self.args.keys()):
@@ -1547,8 +1937,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_clique(self, df=None):
-
+    def internal_clique(self, df=None, desc=None):
         try:
             self.select_columns(df=df)
             nodes = self.cols
@@ -1623,16 +2012,15 @@ class Recipe(Configured):
             self.log.write(msg="", error=err())
         return df
 
-    # def internal_sql(self,df=None):
-    # 	if True:
-    # 		if ("query" in self.args.keys()):
-    # 			print self.args["query"]
-    # 			print sqldf(self.args["query"], locals())
-    # 		return df
-    # 	else:
-    # 		return df
+    def internal_sql(self, df=None, desc=None):
+        if ((type(self.args) == str) | (type(self.args) == unicode)):
+            self.input.connector.sql.execute(self.args)
+        elif (type(self.args) == list):
+            for expression in self.args:
+                self.input.connector.sql.execute(expression)
+        return df
 
-    def internal_delete(self, df=None):
+    def internal_delete(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
         #log("selecting {}".format(self.cols),level=3)
@@ -1647,7 +2035,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err(), exit=False)
             return df
 
-    def internal_groupby(self, df=None):
+    def internal_groupby(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
             if ("agg" in self.args.keys()):
@@ -1680,7 +2068,7 @@ class Recipe(Configured):
             self.log.write(msg="{}".format(self.cols), error=err())
         return df
 
-    def internal_join(self, df=None):
+    def internal_join(self, df=None, desc=None):
         try:
             join_type = "in_memory"
             if (self.args == None):
@@ -1702,7 +2090,7 @@ class Recipe(Configured):
                     config.inmemory[ds] = Dataset(self.args["dataset"])
                     config.inmemory[ds].init_reader()
                     config.inmemory[ds].df = pd.concat(
-                        [dx for dx in config.inmemory[ds].reader]).reset_index(drop=True)
+                        [dx['df'] for dx in config.inmemory[ds].reader]).reset_index(drop=True)
 
                 # collects useful columns
                 if ("select" in list(self.args.keys())):
@@ -1938,7 +2326,7 @@ class Recipe(Configured):
                 self.name, self.args["dataset"], err()))
         return df.fillna('')
 
-    def internal_unnest(self, df=None):
+    def internal_unnest(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
             prefix = self.args["prefix"]
@@ -1956,7 +2344,7 @@ class Recipe(Configured):
             self.log.write(error=err())
             return df
 
-    def internal_nest(self, df=None):
+    def internal_nest(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
             target = self.args["target"]
@@ -1971,7 +2359,7 @@ class Recipe(Configured):
             self.log.write(error=err())
         return df
 
-    def internal_unfold(self, df=None):
+    def internal_unfold(self, df=None, desc=None):
         self.select_columns(df=df)
         try:
             fill_na = self.args["fill_na"]
@@ -2008,7 +2396,7 @@ class Recipe(Configured):
             self.log.write(error=err())
             return df
 
-    def internal_parsedate(self, df=None):
+    def internal_parsedate(self, df=None, desc=None):
         self.select_columns(df=df)
         if ("format" in self.args.keys()):
             # parse string do datetime i.e. 20001020 + %Y%m%d =>
@@ -2021,7 +2409,7 @@ class Recipe(Configured):
 
         return df
 
-    def internal_replace(self, df=None):
+    def internal_replace(self, df=None, desc=None):
         if True:
             self.select_columns(df=df)
             if ("regex" in self.args.keys()):
@@ -2036,7 +2424,7 @@ class Recipe(Configured):
         else:
             return df
 
-    def internal_normalize(self, df=None):
+    def internal_normalize(self, df=None, desc=None):
         if True:
             self.select_columns(df=df)
             df[self.cols] = df[self.cols].applymap(normalize)
@@ -2044,17 +2432,8 @@ class Recipe(Configured):
         else:
             return df
 
-    def internal_pause(self, df=None):
-        try:
-            try:
-                head = self.args["head"]
-            except:
-                head = config.conf["global"]["test_chunk_size"]
-
-            self.select_columns(df=df)
-            return df[self.cols].head(n=head)
-        except:
-            return df
+    def internal_pause(self, df=None, desc=None):
+        return df
 
 
 def thread_job(recipe=None):

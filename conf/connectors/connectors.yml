@@ -1,11 +1,11 @@
 connectors:
   upload:
     type: filesystem
-    database: upload/
-    chunk: 2000
+    directory: upload/
+    chunk: 10000
   referential_data:
     type: filesystem
-    database: referential_data/
+    directory: referential_data/
     chunk: 10000
   models:
     type: filesystem
@@ -13,12 +13,20 @@ connectors:
   elasticsearch:
     type: elasticsearch
     host: elasticsearch
-    thread_count: 3
-    chunk: 500
+    thread_count: !ENV ${ES_THREADS}
+    chunk: !ENV ${ES_CHUNK}
     chunk_search: 20
+    max_tries: !ENV ${ES_MAX_TRIES}
     port: 9200
   postgres:
     type: sql 
     uri: postgres://postgres:matchid@postgres:5432 
     chunk: 2000
-
+    thread_count: 1
+  redisearch:
+    type: redisearch
+    host: redis
+    chunk: 10000
+    batchIndexer: 1000000
+    thread_count: 40
+    port: 6379

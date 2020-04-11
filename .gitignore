@@ -6,4 +6,6 @@ kibana
 log
 projects
 artifacts
-
+backup
+config
+aws

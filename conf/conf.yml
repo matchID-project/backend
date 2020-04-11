@@ -1,15 +1,19 @@
 global:
+  frontend:
+    url: !ENV /${APP}/
   api:
-    prefix: /matchID/api/v0
-    port: 8081
+    no_auth: True
+    prefix: !ENV /${APP}/api/v0
+    port: !ENV ${BACKEND_PORT}
     es_proxy_path: '/matchID/api/v0/datasets' 
     domain: '' 
     host: 0.0.0.0
-    use_reloader: True
+    use_reloader: !ENV ${BACKEND_RELOAD}
     processes: 1
-    debug: True
+    threaded: True
+    debug: !ENV ${BACKEND_DEBUG}
   threads_by_job: 2
-  write_queue_length: 100
+  write_queue_length: 20
   paths:
     conf: conf #optionnal self-link
     projects: projects
@@ -33,6 +37,6 @@ global:
       tries: 5
       test_size: 0.33 # test percentage
   log:
-    dir: /matchid/log/
+    dir: !ENV /${APP}/log/
     verbose: True
     level: 1

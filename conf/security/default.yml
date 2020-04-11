@@ -1,0 +1,28 @@
+groups:
+  default:
+    projects:
+      _all:
+        admin: admin
+      $admin:
+        admin: admin
+      $create_projects:
+        admin: _all
+      conf:
+        reader: _all
+
+roles:
+  admin:
+    create: true
+    read: true
+    update: true
+    delete: true
+  reader:
+    create: false
+    read: true
+    update: false
+    delete: false
+  contrib:
+    create: false
+    read: true
+    update: true
+    delete: false
