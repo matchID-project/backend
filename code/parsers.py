@@ -9,7 +9,7 @@ conf_parser.add_argument('file', location='files',
 
 yaml_parser = reqparse.RequestParser()
 yaml_parser.add_argument('yaml',
-                         type=unicode, required=True, help='yaml text')
+                         type=str, required=True, help='yaml text')
 
 upload_parser = reqparse.RequestParser()
 upload_parser.add_argument('file', location='files',

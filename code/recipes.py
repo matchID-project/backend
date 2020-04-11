@@ -88,7 +88,7 @@ def to_fwf(df, fname, widths=None, sep="", header=False, names=None, append=Fals
             sep = ""
         wdf = wdf.apply(lambda row: fwf_format(row, widths, sep), axis=1)
         if header:
-            header = sep.join([unicode(col).ljust(widths[i] - len(sep))
+            header = sep.join([str(col).ljust(widths[i] - len(sep))
                                for i, col in enumerate(names)])
         else:
             header = None
@@ -615,7 +615,7 @@ class Dataset(Configured):
 
     def scanner(self, **kwargs):
         self.select = json.loads(json.dumps(self.select))
-        scan = helpers.scan(client=self.connector.es, scroll=u'1000m', clear_scroll=False, query=self.select,
+        scan = helpers.scan(client=self.connector.es, scroll='1000m', clear_scroll=False, query=self.select,
                             index=self.table, preserve_order=True, size=self.chunk)
 
         hits = []
@@ -972,7 +972,7 @@ class Recipe(Configured):
         try:
             if ("input" in list(self.args.keys())):
                 self.input = Dataset(self.args.input, parent=self)
-            elif ((type(self.conf["input"]) == str) | (type(self.conf["input"]) == unicode)):
+            elif ((type(self.conf["input"]) == str) | (type(self.conf["input"]) == str)):
                 self.input = Dataset(self.conf["input"], parent=self)
             else:
                 self.input = Dataset(self.conf["input"][
@@ -980,7 +980,7 @@ class Recipe(Configured):
 
             try:
                 if (isinstance(self.conf["input"]["select"], list)):
-                    self.input.select = [unicode(x) for x in self.conf[
+                    self.input.select = [str(x) for x in self.conf[
                         "input"]["select"]]
                 else:
                     self.input.select = self.conf["input"]["select"]
@@ -1046,7 +1046,7 @@ class Recipe(Configured):
         try:
             if ("output" in list(self.args.keys())):
                 self.output = Dataset(self.args.output, parent=self)
-            elif ((type(self.conf["output"]) == str) | (type(self.conf["output"]) == unicode)):
+            elif ((type(self.conf["output"]) == str) | (type(self.conf["output"]) == str)):
                 self.output = Dataset(self.conf["output"], parent=self)
             else:
                 self.output = Dataset(self.conf["output"][
@@ -1543,8 +1543,8 @@ class Recipe(Configured):
 
     def select_columns(self, df=None, arg="select"):
         try:
-            if ("select" in self.args.keys()):
-                if (type(self.args[arg]) == str) | (type(self.args[arg]) == unicode):
+            if ("select" in list(self.args.keys())):
+                if (type(self.args[arg]) == str) | (type(self.args[arg]) == str):
                     self.cols = [x for x in list(
                         df) if re.match(self.args[arg] + "$", x)]
                 else:
@@ -1584,8 +1584,8 @@ class Recipe(Configured):
         # 	return df
 
     def internal_exec(self,df=None, desc=None):
-        if ((type(self.args) == str) | (type(self.args) == unicode)):
-            exec self.args
+        if ((type(self.args) == str) | (type(self.args) == str)):
+            exec(self.args)
         elif (type(self.args) == list):
             for expression in self.args:
                 exec expression
@@ -1598,7 +1598,7 @@ class Recipe(Configured):
                 for col in step.keys():
                     cols.append(col)
                     if True:
-                        if ((type(step[col]) == str) | (type(step[col]) == unicode)):
+                        if ((type(step[col]) == str) | (type(step[col]) == str)):
                             # self.log.write("Ooops: output shape {} to {}".format(dh.shape, df.shape),exit=False)
                             try:
                                 df[col] = df.apply(
@@ -1610,7 +1610,7 @@ class Recipe(Configured):
                                     lambda row: [safeeval(step[col], row)], axis=1)
                                 df[col] = a
                         elif (type(step[col]) == list):
-                            multicol = [unicode(x) for x in step[col]]
+                            multicol = [str(x) for x in step[col]]
                             # print col,multicol, list(df)
                             df[col] = df.apply(lambda row: [safeeval(
                                 x, row) for x in multicol], reduce=False, axis=1)
@@ -1654,10 +1654,10 @@ class Recipe(Configured):
             if True:
                 if type(self.args[col]) == str:
                     df[col] = df[self.args[col]]
-                elif type(self.args[col]) == unicode:
+                elif type(self.args[col]) == str:
                     df[col] = df[self.args[col]]
                 elif (type(self.args[col]) == list):
-                    multicol = [unicode(x) for x in self.args[col]]
+                    multicol = [str(x) for x in self.args[col]]
                     df[col] = df.apply(lambda row: [row[x]
                                                     for x in multicol], axis=1)
             else:
@@ -1680,8 +1680,8 @@ class Recipe(Configured):
         # tested only with regression tree
         try:
 
-            if ("numerical" in self.args.keys()):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == unicode):
+            if ("numerical" in list(self.args.keys())):
+                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1689,8 +1689,8 @@ class Recipe(Configured):
             else:
                 self.numerical = []
 
-            if ("categorical" in self.args.keys()):
-                if (type(self.args["categorical"]) == str) | (type(self.args["categorical"]) == unicode):
+            if ("categorical" in list(self.args.keys())):
+                if (type(self.args["categorical"]) == str) | (type(self.args["categorical"]) == str):
                     self.categorical = [x for x in list(
                         df) if re.match(self.args["categorical"], x)]
                 else:
@@ -1698,8 +1698,8 @@ class Recipe(Configured):
             else:
                 self.categorical = []
 
-            if ("target" in self.args.keys()):
-                if (type(self.args["target"]) == str) | (type(self.args["target"]) == unicode):
+            if ("target" in list(self.args.keys())):
+                if (type(self.args["target"]) == str) | (type(self.args["target"]) == str):
                     self.target = [x for x in list(
                         df) if re.match(self.args["target"], x)]
                 else:
@@ -1784,8 +1784,8 @@ class Recipe(Configured):
         # callable recipe for building method
         # tested only with regression tree
         try:
-            if ("numerical" in self.args.keys()):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == unicode):
+            if ("numerical" in list(self.args.keys())):
+                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1793,8 +1793,8 @@ class Recipe(Configured):
             else:
                 self.numerical = []
 
-            if ("numerical" in self.args.keys()):
-                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == unicode):
+            if ("numerical" in list(self.args.keys())):
+                if (type(self.args["numerical"]) == str) | (type(self.args["numerical"]) == str):
                     self.numerical = [x for x in list(
                         df) if re.match(self.args["numerical"], x)]
                 else:
@@ -1802,8 +1802,8 @@ class Recipe(Configured):
             else:
                 self.numerical = []
 
-            if ("categorical" in self.args.keys()):
-                if (type(self.args["categorical"]) == str) | (type(self.args["categorical"]) == unicode):
+            if ("categorical" in list(self.args.keys())):
+                if (type(self.args["categorical"]) == str) | (type(self.args["categorical"]) == str):
                     self.categorical = [x for x in list(
                         df) if re.match(self.args["categorical"], x)]
                 else:
@@ -2012,7 +2012,7 @@ class Recipe(Configured):
         return df
 
     def internal_sql(self, df=None, desc=None):
-        if ((type(self.args) == str) | (type(self.args) == unicode)):
+        if ((type(self.args) == str) | (type(self.args) == str)):
             self.input.connector.sql.execute(self.args)
         elif (type(self.args) == list):
             for expression in self.args:
