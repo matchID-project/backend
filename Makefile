@@ -117,7 +117,7 @@ config:
 	# this proc relies on matchid/tools and works both local and remote
 	@sudo apt-get install make -yq
 	@if [ -z "${TOOLS_PATH}" ];then\
-		git clone ${GIT_ROOT}/${GIT_TOOLS};\
+		git clone -q ${GIT_ROOT}/${GIT_TOOLS};\
 		make -C ${APP_PATH}/${GIT_TOOLS} config ${MAKEOVERRIDES};\
 	else\
 		ln -s ${TOOLS_PATH} ${APP_PATH}/${GIT_TOOLS};\
@@ -342,7 +342,7 @@ dev-stop: services-dev-stop network-stop
 frontend-config:
 ifeq ("$(wildcard ${FRONTEND})","")
 	@echo downloading frontend code
-	@git clone ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
+	@git clone -q ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
 	@cd ${FRONTEND};git checkout ${GIT_FRONTEND_BRANCH}
 endif
 
@@ -388,7 +388,7 @@ logs: backend
 example-download:
 	@echo downloading example code
 	@mkdir -p ${EXAMPLES}
-	@cd ${EXAMPLES}; git clone https://github.com/matchID-project/examples . ; true
+	@cd ${EXAMPLES}; git clone -q https://github.com/matchID-project/examples . ; true
 	@mv projects _${date}_${id}_projects 2> /dev/null; true
 	@mv upload _${date}_${id}_upload 2> /dev/null; true
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
