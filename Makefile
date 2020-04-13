@@ -69,8 +69,7 @@ export BACKUP_DIR=${BACKEND}/backup
 # to use within matchid backend, you have to add credential as env variables and declare configuration in a s3 connector
 # 	export aws_access_key_id=XXXXXXXXXXXXXXXXX
 # 	export aws_secret_access_key=XXXXXXXXXXXXXXXXXXXXXXXXXXX
-export S3_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
-export AWS=${BACKEND}/aws
+export BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
 
 # elasticsearch defaut configuration
 export ES_NODES = 1		# elasticsearch number of nodes
@@ -123,7 +122,6 @@ config:
 		ln -s ${TOOLS_PATH} ${APP_PATH}/${GIT_TOOLS};\
 	fi
 	cp artifacts ${APP_PATH}/${GIT_TOOLS}/
-	@ln -s ${APP_PATH}/${GIT_TOOLS}/aws ${APP_PATH}/aws
 	@touch config
 
 config-clean:
@@ -165,14 +163,14 @@ elasticsearch-restore: elasticsearch-stop backup-dir
 	 sudo tar --extract --listed-incremental=/dev/null --file ${BACKUP_DIR}/${ES_BACKUP_FILE} && \
 	 echo backup restored
 
-elasticsearch-s3-push:
+elasticsearch-storage-push:
 	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no archive to push: "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
-	@${AWS} s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE} s3://${S3_BUCKET}/${ES_BACKUP_FILE}
-	@${AWS} s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE_SNAR} s3://${S3_BUCKET}/${ES_BACKUP_FILE_SNAR}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-push FILE=${BACKUP_DIR}/${ES_BACKUP_FILE} BUCKET=${BUCKET}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-push FILE=${BACKUP_DIR}/${ES_BACKUP_FILE_SNAR} BUCKET=${BUCKET}
 
-elasticsearch-s3-pull: backup-dir
-	@echo pulling s3://${S3_BUCKET}/${ES_BACKUP_FILE}
-	@${AWS} s3 cp s3://${S3_BUCKET}/${ES_BACKUP_FILE} ${BACKUP_DIR}/${ES_BACKUP_FILE}
+elasticsearch-storage-pull: backup-dir
+	@echo pulling ${BUCKET}/${ES_BACKUP_FILE}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-pull FILE=${ES_BACKUP_FILE} DATA_DIR=${BACKUP_DIR} BUCKET=${BUCKET}
 
 backup-dir:
 	@if [ ! -d "$(BACKUP_DIR)" ] ; then mkdir -p $(BACKUP_DIR) ; fi
