@@ -69,7 +69,8 @@ export BACKUP_DIR=${BACKEND}/backup
 # to use within matchid backend, you have to add credential as env variables and declare configuration in a s3 connector
 # 	export aws_access_key_id=XXXXXXXXXXXXXXXXX
 # 	export aws_secret_access_key=XXXXXXXXXXXXXXXXXXXXXXXXXXX
-export BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
+export MATCHID_DATA_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
+export MATCHID_CONFIG_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
 
 # elasticsearch defaut configuration
 export ES_NODES = 1		# elasticsearch number of nodes
@@ -165,12 +166,18 @@ elasticsearch-restore: elasticsearch-stop backup-dir
 
 elasticsearch-storage-push:
 	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no archive to push: "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
-	@make -C ${APP_PATH}/${GIT_TOOLS} storage-push FILE=${BACKUP_DIR}/${ES_BACKUP_FILE} BUCKET=${BUCKET}
-	@make -C ${APP_PATH}/${GIT_TOOLS} storage-push FILE=${BACKUP_DIR}/${ES_BACKUP_FILE_SNAR} BUCKET=${BUCKET}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-push\
+		FILE=${BACKUP_DIR}/${ES_BACKUP_FILE}\
+		STORAGE_BUCKET=${STORAGE_BUCKET} STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY} STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-push\
+		FILE=${BACKUP_DIR}/${ES_BACKUP_FILE_SNAR}\
+		STORAGE_BUCKET=${STORAGE_BUCKET} STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY} STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
 
 elasticsearch-storage-pull: backup-dir
 	@echo pulling ${BUCKET}/${ES_BACKUP_FILE}
-	@make -C ${APP_PATH}/${GIT_TOOLS} storage-pull FILE=${ES_BACKUP_FILE} DATA_DIR=${BACKUP_DIR} BUCKET=${BUCKET}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-pull\
+		FILE=${ES_BACKUP_FILE} DATA_DIR=${BACKUP_DIR}\
+		STORAGE_BUCKET=${STORAGE_BUCKET} STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY} STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
 
 backup-dir:
 	@if [ ! -d "$(BACKUP_DIR)" ] ; then mkdir -p $(BACKUP_DIR) ; fi
