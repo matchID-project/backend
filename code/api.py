@@ -770,7 +770,7 @@ class pushToValidation(Resource):
                     try:
                         # hack for speed up an minimal rendering on object
                         resp = original_flask_make_response(json.dumps(ds.connector.es.search(
-                            body=ds.select, index=ds.table, doc_type=ds.doc_type, size=size)))
+                            body=ds.select, index=ds.table, size=size)))
                         resp.headers['Content-Type'] = 'application/json'
                         return resp
                     except:
