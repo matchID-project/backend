@@ -701,9 +701,9 @@ class Dataset(Configured):
                     # further better except should make difference btw no
                     # existing file and unwritable
                     pass
-                self.fs = open(self.file, 'wb')
+                self.fs = open(self.file, 'w')
             else:
-                self.fs = open(self.file, 'ab')
+                self.fs = open(self.file, 'a')
             self.log.write(msg="initiated stream output {}".format(self.name))
         elif (self.connector.type == "s3"):
             try:
