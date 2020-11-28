@@ -1,11 +1,11 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import sys
 import yaml as y
 from collections import OrderedDict
 import os, fnmatch, sys, datetime
-from cStringIO import StringIO
+from io import StringIO
 
 # matchID imports
 import config
@@ -34,7 +34,7 @@ class Log(object):
             self.writer=StringIO()
             self.level=2
         else:
-            if ("log" in config.conf["global"].keys()):
+            if ("log" in list(config.conf["global"].keys())):
                 try:
                     self.dir=config.conf["global"]["log"]["dir"]
                 except:

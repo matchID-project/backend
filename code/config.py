@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import yaml as y
@@ -96,7 +96,7 @@ def deepupdate(original, update):
     Recursively update a dict.
     Subdict's won't be overwritten but also updated.
     """
-    for key, value in original.iteritems():
+    for key, value in original.items():
         # python3 for key, value in original.items():
         if key not in update:
             update[key] = value
@@ -107,7 +107,7 @@ def deepupdate(original, update):
 
 def check_conf(cfg, project, source):
     for key in list(["recipes", "datasets", "connectors"]):
-        if (key in cfg.keys()):
+        if (key in list(cfg.keys())):
             for obj in cfg[key]:
                 cfg[key][obj]["source"] = source
                 cfg[key][obj]["project"] = project
@@ -140,7 +140,7 @@ def read_conf():
             cfg = read_conf_dir(project, cfg)
 
     except:
-        print err()
+        print(err())
 
     conf = cfg
 

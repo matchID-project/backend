@@ -16,8 +16,9 @@ services:
       - http_proxy
       - https_proxy
       - no_proxy
-      - aws_access_key_id
-      - aws_secret_access_key
+      - STORAGE_BUCKET
+      - STORAGE_ACCESS_KEY
+      - STORAGE_SECRET_KEY
       - BACKEND_PORT
       - ES_THREADS
       - ES_MAX_TRIES

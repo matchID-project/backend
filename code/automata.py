@@ -57,7 +57,7 @@ class NFA(object):
     def get_inputs(self, states):
         inputs = set()
         for state in states:
-            inputs.update(self.transitions.get(state, {}).keys())
+            inputs.update(list(self.transitions.get(state, {}).keys()))
         return inputs
 
     def to_dfa(self):
@@ -136,9 +136,9 @@ class DFA(object):
 
     def find_next_edge(self, s, x):
         if x is None:
-            x = u'\0'
+            x = '\0'
         else:
-            x = unichr(ord(x) + 1)
+            x = chr(ord(x) + 1)
         state_transitions = self.transitions.get(s, {})
         if x in state_transitions or s in self.defaults:
             return x
@@ -180,14 +180,14 @@ def find_all_matches(word, k, lookup_func):
       Every matching word within levenshtein distance k from the database.
     """
     lev = levenshtein_automata(word, k).to_dfa()
-    match = lev.next_valid_string(u'\0')
+    match = lev.next_valid_string('\0')
     while match:
         next = lookup_func(match)
         if not next:
             return
         if match == next:
             yield match
-            next = next + u'\0'
+            next = next + '\0'
         match = lev.next_valid_string(next)
 
 
@@ -203,12 +203,12 @@ def find_match(word, k, lookup_func):
       Every matching word within levenshtein distance k from the database.
     """
     lev = levenshtein_automata(word, k).to_dfa()
-    match = lev.next_valid_string(u'\0')
+    match = lev.next_valid_string('\0')
     while match:
         next = lookup_func(match)
         if not next:
             return
         if match == next:
             yield match
-            next = next + u'\0'
+            next = next + '\0'
         match = lev.next_valid_string(next)

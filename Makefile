@@ -59,8 +59,6 @@ export ADMIN_PASSWORD:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 8
 export ADMIN_PASSWORD_HASH:=$(shell echo -n ${ADMIN_PASSWORD} | sha384sum | sed 's/\s*\-.*//')
 export POSTGRES_PASSWORD=matchid
 
-export CRED_TEMPLATE=./creds.yml
-export CRED_FILE=conf/security/creds.yml
 
 # backup dir
 export BACKUP_DIR=${BACKEND}/backup
@@ -71,8 +69,8 @@ export BACKUP_DIR=${BACKEND}/backup
 # to use within matchid backend, you have to add credential as env variables and declare configuration in a s3 connector
 # 	export aws_access_key_id=XXXXXXXXXXXXXXXXX
 # 	export aws_secret_access_key=XXXXXXXXXXXXXXXXXXXXXXXXXXX
-export S3_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
-export AWS=${BACKEND}/aws
+export MATCHID_DATA_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
+export MATCHID_CONFIG_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
 
 # elasticsearch defaut configuration
 export ES_NODES = 1		# elasticsearch number of nodes
@@ -94,7 +92,7 @@ dummy		    := $(shell touch artifacts)
 include ./artifacts
 
 tag                 := $(shell git describe --tags | sed 's/-.*//')
-version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/creds.yml|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
+version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/(github|facebook|twitter).yml$$|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
 export APP_VERSION =  ${tag}-${version}
 
 commit 				= ${APP_VERSION}
@@ -119,13 +117,12 @@ config:
 	# this proc relies on matchid/tools and works both local and remote
 	@sudo apt-get install make -yq
 	@if [ -z "${TOOLS_PATH}" ];then\
-		git clone ${GIT_ROOT}/${GIT_TOOLS};\
+		git clone -q ${GIT_ROOT}/${GIT_TOOLS};\
 		make -C ${APP_PATH}/${GIT_TOOLS} config ${MAKEOVERRIDES};\
 	else\
 		ln -s ${TOOLS_PATH} ${APP_PATH}/${GIT_TOOLS};\
 	fi
 	cp artifacts ${APP_PATH}/${GIT_TOOLS}/
-	@ln -s ${APP_PATH}/${GIT_TOOLS}/aws ${APP_PATH}/aws
 	@touch config
 
 config-clean:
@@ -167,14 +164,20 @@ elasticsearch-restore: elasticsearch-stop backup-dir
 	 sudo tar --extract --listed-incremental=/dev/null --file ${BACKUP_DIR}/${ES_BACKUP_FILE} && \
 	 echo backup restored
 
-elasticsearch-s3-push:
+elasticsearch-storage-push:
 	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_FILE}" ] ; then (echo no archive to push: "${BACKUP_DIR}/${ES_BACKUP_FILE}" && exit 1);fi
-	@${AWS} s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE} s3://${S3_BUCKET}/${ES_BACKUP_FILE}
-	@${AWS} s3 cp ${BACKUP_DIR}/${ES_BACKUP_FILE_SNAR} s3://${S3_BUCKET}/${ES_BACKUP_FILE_SNAR}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-push\
+		FILE=${BACKUP_DIR}/${ES_BACKUP_FILE}\
+		STORAGE_BUCKET=${STORAGE_BUCKET} STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY} STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-push\
+		FILE=${BACKUP_DIR}/${ES_BACKUP_FILE_SNAR}\
+		STORAGE_BUCKET=${STORAGE_BUCKET} STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY} STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
 
-elasticsearch-s3-pull: backup-dir
-	@echo pulling s3://${S3_BUCKET}/${ES_BACKUP_FILE}
-	@${AWS} s3 cp s3://${S3_BUCKET}/${ES_BACKUP_FILE} ${BACKUP_DIR}/${ES_BACKUP_FILE}
+elasticsearch-storage-pull: backup-dir
+	@echo pulling ${BUCKET}/${ES_BACKUP_FILE}
+	@make -C ${APP_PATH}/${GIT_TOOLS} storage-pull\
+		FILE=${ES_BACKUP_FILE} DATA_DIR=${BACKUP_DIR}\
+		STORAGE_BUCKET=${STORAGE_BUCKET} STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY} STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY}
 
 backup-dir:
 	@if [ ! -d "$(BACKUP_DIR)" ] ; then mkdir -p $(BACKUP_DIR) ; fi
@@ -344,7 +347,7 @@ dev-stop: services-dev-stop network-stop
 frontend-config:
 ifeq ("$(wildcard ${FRONTEND})","")
 	@echo downloading frontend code
-	@git clone ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
+	@git clone -q ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
 	@cd ${FRONTEND};git checkout ${GIT_FRONTEND_BRANCH}
 endif
 
@@ -390,7 +393,7 @@ logs: backend
 example-download:
 	@echo downloading example code
 	@mkdir -p ${EXAMPLES}
-	@cd ${EXAMPLES}; git clone https://github.com/matchID-project/examples . ; true
+	@cd ${EXAMPLES}; git clone -q https://github.com/matchID-project/examples . ; true
 	@mv projects _${date}_${id}_projects 2> /dev/null; true
 	@mv upload _${date}_${id}_upload 2> /dev/null; true
 	@ln -s ${EXAMPLES}/projects ${BACKEND}/projects
