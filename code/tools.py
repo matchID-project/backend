@@ -11,7 +11,7 @@ from nltk.util import ngrams
 #from nltk.tokenize import WhitespaceTokenizer
 
 # geodistance computation
-from geopy.distance import vincenty
+from geopy.distance import geodesic
 # from decimal import *
 # from fuzzywuzzy import fuzz, process
 # from fastcomp import compare
@@ -73,7 +73,7 @@ def union(x):
 
 def distance(a,b):
     try:
-        return round(10*vincenty(geopoint(a),geopoint(b)).kilometers)/10
+        return round(10*geodesic(geopoint(a),geopoint(b)).kilometers)/10
     except:
         return ""
 
