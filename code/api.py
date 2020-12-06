@@ -707,8 +707,7 @@ class pushToValidation(Resource):
                             "dataset": dataset
                         }
                         props[conf] = replace_dict(cfg[conf], dic)
-                        print(conf)
-                    print({"dataset": dataset, "status": "to validation", "props": props})
+
                     return {"dataset": dataset, "status": "to validation", "props": props}
                 except:
                     return api.abort(500, {"dataset": dataset, "status": "error: " + err()})
