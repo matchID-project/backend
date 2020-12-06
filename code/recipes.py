@@ -316,10 +316,7 @@ class Dataset(Configured):
             except:
                 self.select = {"query": {"match_all": {}}}
             # self.select={"query":{"function_score":{"query":{"match_all":{}},"functions":[{"random_score":{}}]}}}
-            try:
-                self.doc_type = self.conf["doc_type"]
-            except:
-                self.doc_type = self.name
+            self.doc_type = "_doc"
 
             try:
                 self.random_view = self.conf["random_view"]
