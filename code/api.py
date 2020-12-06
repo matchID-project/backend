@@ -783,13 +783,13 @@ class pushToValidation(Resource):
             api.abort(403)
 
 
-@api.route('/datasets/<dataset>/<doc_type>/<id>/<action>', endpoint='datasets/<dataset>/<doc_type>/<id>/<action>')
+@api.route('/datasets/<dataset>/<action>/<id>', endpoint='datasets/<dataset>/<action>/<id>')
 class pushToValidation(Resource):
 
     @login_required
     @authorize(right="update")
     @api.expect(parsers.es_parser)
-    def post(self, dataset, doc_type, id, action):
+    def post(self, dataset, id, action):
         '''elasticsearch update api proxy'''
         if ((action == "_update")):
             try:
@@ -802,7 +802,7 @@ class pushToValidation(Resource):
                 try:
                     # hack for speed up an minimal rendering on object
                     resp = original_flask_make_response(json.dumps(ds.connector.es.update(
-                        body=data, index=ds.table, id=id, doc_type=doc_type)))
+                        index=ds.table, id=id, body=data)))
                     resp.headers['Content-Type'] = 'application/json'
                     return resp
                 except:
