@@ -258,7 +258,11 @@ class Dataset(Configured):
                 self.filter = None
                 return
             else:
-                config.log.write(error="no conf for dataset {}".format(self.name))
+                if (parent == None):
+                    self.log = config.log
+                else:
+                    self.log = parent.log
+                self.log.write(error="no conf for dataset {}".format(self.name))
 
         try:
             self.parent = parent
@@ -507,7 +511,7 @@ class Dataset(Configured):
 
             try:
                 if (self.filter != None):
-                    self.filter.init(df=pd.DataFrame(), parent=self)
+                    self.filter.init(df=pd.DataFrame())
                     self.reader = map(
                         lambda data: dict({
                             "desc": data['desc'],
@@ -940,13 +944,18 @@ class Dataset(Configured):
 
 class Recipe(Configured):
 
-    def __init__(self, name=None, args={}):
+    def __init__(self, name=None, parent=None, test=False, args={}):
         try:
             Configured.__init__(self, "recipes", name)
             self.type = "configured"
             self.args = args
             self.errors = 0
-            self.log = None
+            self.parent = parent
+            self.test = parent.test if (parent and parent.test) else test
+            if (self.parent == None):
+                self.log = Log(self.name, test=self.test)
+            else:
+                self.log = self.parent.log
         except:
             if (hasattr(self.__class__, "internal_" + name) and callable(getattr(self.__class__, "internal_" + name))):
                 self.input = Dataset("inmemory", parent=self)
@@ -957,8 +966,13 @@ class Recipe(Configured):
                 self.before = []
                 self.after = []
                 self.head = None
-                self.log = None
                 self.args = args
+                self.parent = parent
+                self.test = parent.test if (parent and parent.test) else test
+                if (self.parent == None):
+                    self.log = Log(self.name, test=self.test)
+                else:
+                    self.log = self.parent.log
                 return
             else:
                 self.log = config.log
@@ -986,7 +1000,7 @@ class Recipe(Configured):
 
             try:
                 r = list(self.conf["input"]["filter"].keys())[0]
-                self.input.filter = Recipe(name=r, args=self.conf[
+                self.input.filter = Recipe(name=r, parent=self, test=self.test, args=self.conf[
                                            "input"]["filter"][r])
             except:
                 self.input.filter = None
@@ -1086,26 +1100,21 @@ class Recipe(Configured):
             for s in self.conf["steps"]:
                 function = list(s.keys())[0]
                 try:
-                    self.steps.append(Recipe(name=function, args=s[function]))
+                    self.steps.append(Recipe(name=function, parent=self, args=s[function]))
                 except:
                     self.log.write(
                         error="recipe {} calls an unknown function {}".format(self.name, function))
         except:
             pass
 
-    def init(self, df=None, parent=None, test=False, callback=None):
+    def init(self, df=None, callback=None):
         try:
             self.callback = callback
         except:
             pass
         try:
-            self.test = test
-            if (parent != None):
-                self.parent = parent
-                self.log = self.parent.log
-            else:
-                self.parent = None
-                self.log = Log(self.name, test=test)
+            if (self.log == None):
+                self.log = Log(self.name, self.test)
 
         except:
             if (self.log == None):
@@ -1119,7 +1128,7 @@ class Recipe(Configured):
             pass
 
         try:
-            self.input.init_reader(df=df, test=test)
+            self.input.init_reader(df=df, test=self.test )
         except:
             if ((len(self.before) + len(self.after)) == 0):
                 self.log.write(msg="couldn't init input {} of recipe {}".format(
@@ -1235,7 +1244,7 @@ class Recipe(Configured):
                 try:
                     self.log.write("{} > {}".format(
                         self.name, recipe.name), level=2)
-                    recipe.init(df=df, parent=self, test=self.test)
+                    recipe.init(df=df)
                     # recipe.run()
                     df = recipe.run_chunk(i, df, desc)
                     if (recipe.name == "pause"):
@@ -1392,7 +1401,6 @@ class Recipe(Configured):
                     self.log.write(msg="couldn't thread write_queue", error=err())
                 self.log.write(msg="write_queue thread initiated")
                 run_queue = []
-                print("je suis dans run après write_queue threading")
 
                 self.df = self.run_chunk(0, self.df, desc, write_queue, supervisor)
 
@@ -2282,8 +2290,8 @@ class Recipe(Configured):
                         # unfold
                         if (unfold == True):
                             unfold = Recipe(
-                                'unfold', args={"select": ['hits'], "fill_na": ""})
-                            unfold.init(df=df, parent=self, test=self.test)
+                                'unfold', parent=self, args={"select": ['hits'], "fill_na": ""})
+                            unfold.init(df=df)
                             df = unfold.run_chunk(0, df)
                             #self.log.write("after unfold:{}".format(df.shape))
                             try:
@@ -2303,9 +2311,9 @@ class Recipe(Configured):
                                 df['hits'] = df['hits'].apply(lambda x: {} if (
                                     x == "") else deepupdate(x['_source'], {'score': x['_score']}))
 
-                                unnest = Recipe('unnest', args={"select": [
+                                unnest = Recipe('unnest', parent=self, args={"select": [
                                                 'hits'], "prefix": prefix})
-                                unnest.init(df=df, parent=self, test=self.test)
+                                unnest.init(df=df)
                                 df = unnest.run_chunk(0, df)
                                 #self.log.write("after unnest :{}".format(df.shape))
 
