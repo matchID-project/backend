@@ -871,7 +871,8 @@ class RecipeRun(Resource):
                     return {"recipe": recipe, "status": "down"}
                 if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],logfiles[0])).st_mtime) < 5):
                     return {"recipe": recipe, "status": "up"}
-                return {"recipe": recipe, "status": "down"}
+                else:
+                    return {"recipe": recipe, "status": config.jobs[recipe].job_status()}
                 # still bogus:
                 # return {"recipe":recipe, "status":
                 # config.jobs_list[str(recipe)]}
@@ -1050,7 +1051,7 @@ class jobsList(Resource):
                     if re.match(r'^.*.log$', f)]
         logfiles.sort(reverse=True)
         for file in logfiles:
-            if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) < 5):
+            if ((config.jobs[recipe].job_status() == "down") and ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) < 5)):
                 running = True
             else:
                 running = False
