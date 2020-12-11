@@ -948,10 +948,10 @@ class RecipeRun(Resource):
             file = args['file']
             if not (allowed_upload_file(file.filename)):
                 api.abort(403)
-            r = Recipe(recipe)
+            r = Recipe(recipe, test=True)
             r.input.chunked = False
             r.input.file = file.stream
-            r.init(test=True)
+            r.init()
             r.run()
             if isinstance(r.df, pd.DataFrame):
                 df = r.df.fillna("")
@@ -976,8 +976,8 @@ class RecipeRun(Resource):
         if (action == "test"):
             try:
                 callback = config.manager.dict()
-                r = Recipe(recipe)
-                r.init(test=True, callback=callback)
+                r = Recipe(recipe, test=True)
+                r.init(callback=callback)
                 r.set_job(Process(target=thread_job, args=[r]))
                 r.start_job()
                 r.join_job()
