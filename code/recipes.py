@@ -658,13 +658,15 @@ class Dataset(Configured):
             df = pd.DataFrame.from_records(hits, columns=labels)
             df = pd.concat([df['_id'], df['_source'].apply(pd.Series)], axis=1)
             yield dict({
-                "source": {
-                    "type": "elasticsearch",
-                    "name": self.table
-                },
-                "chunk": {
-                    "total": c,
-                    "rows": df.shape[0]
+                "desc": {
+                    "source": {
+                        "type": "elasticsearch",
+                        "name": self.table
+                    },
+                    "chunk": {
+                        "total": c,
+                        "rows": df.shape[0]
+                    }
                 },
                 "df": df
             })
