@@ -812,6 +812,10 @@ class Dataset(Configured):
                                 # prevents combo deny of service of
                                 # elasticsearch
                                 time.sleep(random.random() * (4 ** tries))
+                        except SystemExit:
+                            self.log.write(msg="elasticsearch bulk of subchunk {} aborted {}/{}".format(
+                                i, self.connector.name, self.table), error=err())
+                            return
                         except:
                             tries = max_tries
                             error = err()
@@ -1170,13 +1174,17 @@ class Recipe(Configured):
 
     def write(self, i, df, supervisor=None):
         self.log.chunk = i
-        if (supervisor != None):
-            supervisor[i] = "writing"
-        self.input.processed += self.output.write(i, df)
-        if (supervisor != None):
-            supervisor[i] = "done"
-        self.log.write("wrote {} to {} after recipe {}".format(
-            df.shape[0], self.output.name, self.name))
+        try:
+            if (supervisor != None):
+                supervisor[i] = "writing"
+            self.input.processed += self.output.write(i, df)
+            if (supervisor != None):
+                supervisor[i] = "done"
+            self.log.write("wrote {} to {} after recipe {}".format(
+                df.shape[0], self.output.name, self.name))
+        except SystemExit:
+            supervisor[i] = "aborted"
+            self.log.write("write aborted to {} after recipe {}".format(self.output.name, self.name))
 
     def write_queue(self, queue, supervisor=None):
         exit = False
@@ -1221,11 +1229,16 @@ class Recipe(Configured):
                 pass
         try:
             while (len(w_queue) > 0):
+                if exit:
+                    for t in w_queue:
+                        t[1].terminate()
                 w_queue = [t for t in w_queue if (
                     t[1].is_alive() & (supervisor[t[0]] == "writing"))]
         except:
             pass
         self.output.close()
+        self.log.write(msg="write queue and output properly closed")
+
 
     def run_chunk(self, i, df, desc=None, queue=None, supervisor=None):
         if (supervisor != None):
@@ -1453,8 +1466,13 @@ class Recipe(Configured):
 
         except SystemExit:
             try:
-                self.log.write("terminating ...")
+                self.log.write("terminating, may take some time to close write queue ...")
                 if (not sql_direct):
+                    try:
+                        while not write_queue.empty():
+                            write_queue.get_nowait()
+                    except:
+                        pass
                     write_queue.put(True)
                     write_thread.terminate()
                     supervisor["end"] = True
