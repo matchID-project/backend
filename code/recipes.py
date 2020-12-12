@@ -1188,6 +1188,7 @@ class Recipe(Configured):
 
     def write_queue(self, queue, supervisor=None):
         exit = False
+        kill = False
         if (self.test == False):
             try:
                 self.output.init_writer()
@@ -1205,6 +1206,7 @@ class Recipe(Configured):
                 res = queue.get()
                 if (type(res) == bool):
                     exit = True
+                    kill = not res
                 else:
                     #self.log.write("current queue has {} threads".format(len(w_queue)))
                     if (len(w_queue) == max_threads):
@@ -1229,7 +1231,7 @@ class Recipe(Configured):
                 pass
         try:
             while (len(w_queue) > 0):
-                if exit:
+                if kill:
                     for t in w_queue:
                         t[1].terminate()
                 w_queue = [t for t in w_queue if (
@@ -1473,7 +1475,7 @@ class Recipe(Configured):
                             write_queue.get_nowait()
                     except:
                         pass
-                    write_queue.put(True)
+                    write_queue.put(False)
                     write_thread.terminate()
                     supervisor["end"] = True
                     supervisor_thread.terminate()
