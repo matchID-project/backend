@@ -761,7 +761,7 @@ class Dataset(Configured):
                         (k, v) for k, v in records[it].items() if (v != ""))} for it in records]
                 else:
                     if ('_id' not in df.columns):
-                        df['_id'] = df.apply(lambda row: sha1(row), axis=1)
+                        df['_id'] = df.apply(lambda row: hash(row), axis=1)
                     records = df.drop(['_id'], axis=1).T.to_dict()
                     ids = df['_id'].T.to_dict()
                     if (self.mode == "update"):
@@ -2013,7 +2013,7 @@ class Recipe(Configured):
             if ("clique_list" in to_compute):
                 cluster_nodes = {}
             for cluster in nx.connected_components(graph):
-                cluster_id = sha1(uuid.uuid4())
+                cluster_id = hash(uuid.uuid4())
                 cluster = sorted(cluster)
                 for node in cluster:
                     id[node] = cluster_id
@@ -2149,7 +2149,7 @@ class Recipe(Configured):
 
                 # caches filtered version of the dataset
                 try:
-                    join_df = config.inmemory[ds].filtered[sha1(cols)]
+                    join_df = config.inmemory[ds].filtered[hash(cols)]
                 except:
                     try:
                         self.log.write(
@@ -2157,9 +2157,9 @@ class Recipe(Configured):
                         config.inmemory[ds].filtered
                     except:
                         config.inmemory[ds].filtered = {}
-                    config.inmemory[ds].filtered[sha1(cols)] = config.inmemory[
+                    config.inmemory[ds].filtered[hash(cols)] = config.inmemory[
                         ds].df[cols]
-                    join_df = config.inmemory[ds].filtered[sha1(cols)]
+                    join_df = config.inmemory[ds].filtered[hash(cols)]
 
                 if ("fuzzy" in list(self.args.keys())):
                     for col in list(self.args["fuzzy"].keys()):
