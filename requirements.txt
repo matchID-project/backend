@@ -1,3 +1,4 @@
+blake3
 boto3
 elasticsearch
 enum34
@@ -5,6 +6,7 @@ Flask
 flask-login
 flask_restplus
 geopy
+fuzzywuzzy[speedup]
 jellyfish
 networkx
 nltk

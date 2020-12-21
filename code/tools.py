@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 # various libs
-import re, datetime, hashlib, unicodedata, shutil, simplejson, random
+import re, datetime, hashlib, unicodedata, shutil, simplejson, random, base64
 from collections import OrderedDict
 
-
+from blake3 import blake3
 #ngram with nltk
 from nltk.util import ngrams
 #from nltk.tokenize import WhitespaceTokenizer
@@ -13,7 +13,7 @@ from nltk.util import ngrams
 # geodistance computation
 from geopy.distance import geodesic
 # from decimal import *
-# from fuzzywuzzy import fuzz, process
+from fuzzywuzzy import fuzz, process
 # from fastcomp import compare
 import jellyfish
 import jellyfish._jellyfish as py_jellyfish
@@ -99,6 +99,12 @@ def replace_dict(x,dic):
 
 def sha1(row):
     return hashlib.sha1(str(row).encode('utf-8')).hexdigest()
+
+def sha256(row):
+    return hashlib.sha256(str(row).encode('utf-8')).hexdigest()
+
+def hash(row):
+    return blake3(str(row).encode('utf-8')).hexdigest()
 
 def ngrams(x,n = [3]):
     if (type(x) == list):
