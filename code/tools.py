@@ -13,7 +13,7 @@ from nltk.util import ngrams
 # geodistance computation
 from geopy.distance import geodesic
 # from decimal import *
-# from fuzzywuzzy import fuzz, process
+from fuzzywuzzy import fuzz, process
 # from fastcomp import compare
 import jellyfish
 import jellyfish._jellyfish as py_jellyfish
