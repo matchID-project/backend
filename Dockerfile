@@ -8,7 +8,7 @@ ARG no_proxy
 ARG APP
 
 RUN apt-get update -y
-RUN apt-get install curl -y
+RUN apt-get install curl python-dev build-essential -y
 
 RUN pip install --upgrade pip
 
@@ -18,6 +18,8 @@ RUN ls
 
 COPY requirements.txt .
 RUN pip install `echo $http_proxy | sed 's/\(\S\S*\)/--proxy \1/'` -r requirements.txt
+
+RUN apt-get autoremove python-dev build-essential -y
 
 RUN mkdir -p code\
              conf/run\
