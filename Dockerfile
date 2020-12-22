@@ -7,19 +7,16 @@ ARG https_proxy
 ARG no_proxy
 ARG APP
 
-RUN apt-get update -y
-RUN apt-get install curl python-dev build-essential -y
-
-RUN pip install --upgrade pip
-
 WORKDIR /${APP}
-
-RUN ls
-
 COPY requirements.txt .
-RUN pip install `echo $http_proxy | sed 's/\(\S\S*\)/--proxy \1/'` -r requirements.txt
 
-RUN apt-get autoremove python-dev build-essential -y
+RUN apt-get update -y;\
+    apt-get install curl build-essential -y;\
+    pip install --upgrade pip;\
+    pip install `echo $http_proxy | sed 's/\(\S\S*\)/--proxy \1/'` -r requirements.txt;\
+    apt-get autoremove build-essential -y;\
+    apt-get purge perl manpages libfakeroot:amd64 gpg-agent dpkg-dev dirmngr -y;\
+    apt-get autoclean -y
 
 RUN mkdir -p code\
              conf/run\
