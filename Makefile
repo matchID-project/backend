@@ -426,6 +426,63 @@ down: stop
 
 restart: down up
 
+docker-save-all: config backend-docker-check frontend-docker-check postgres-docker-check elasticsearch-docker-check
+	@echo saving docker images to ${DC_DIR}
+	@if [ ! -f "${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz" ];then\
+		docker save ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} | gzip > ${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz;\
+	fi
+	@if [ ! -f "${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz" ];then\
+		docker save docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} | gzip > ${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz;\
+	fi
+	@if [ ! -f "${DC_DIR}/postgres:latest.tar.gz" ];then\
+		docker save postgres:latest | gzip > ${DC_DIR}/postgres:latest.tar.gz;\
+	fi
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
+	if [ ! -f "${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz" ];then\
+		docker save ${DOCKER_USERNAME}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION | gzip > ${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz;\
+	fi
+
+package: docker-save-all
+	@curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.rpm
+	@curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.deb
+	@curl -s -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$$(uname -s)-$$(uname -m)" -o docker-compose
+
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
+	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
+	cd ${APP_PATH}/..;\
+	DC_DIR=`echo ${DC_DIR} | sed "s|${APP_PATH}|$${APP_PATH##*/}|"`;\
+	echo $$DD;\
+	tar cvzf $${APP_PATH##*/}/$$PACKAGE \
+		$${APP_PATH##*/}/rclone-current-linux*\
+		$${APP_PATH##*/}/docker-compose\
+		`cd ${APP_PATH};git ls-files | sed "s/^/$${APP_PATH##*/}\//"` \
+		$${APP_PATH##*/}/.git\
+		$$DC_DIR/postgres:latest.tar.gz\
+		$$DC_DIR/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz\
+		$$DC_DIR/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz\
+		$$DC_DIR/elasticsearch-oss:${ES_VERSION}.tar.gz\
+		`cd ${APP_PATH}/${GIT_TOOLS};git ls-files | sed "s/^/$${APP_PATH##*/}\/${GIT_TOOLS}\//"`\
+		$${APP_PATH##*/}/${GIT_TOOLS}/.git\
+		`cd ${FRONTEND};git ls-files | sed "s/^/$${FRONTEND##*/}\//"`\
+		$${FRONTEND##*/}/.git\
+
+depackage:
+	@if [ ! -f "/usr/bin/rclone" ]; then\
+		if [ "${OS_TYPE}" = "DEB" ]; then\
+			sudo dpkg -i rclone-current-linux-amd64.deb;\
+		fi;\
+		if [ "${OS_TYPE}" = "RPM" ]; then\
+			sudo yum localinstall -y rclone-current-linux-amd64.rpm;\
+		fi;\
+	fi
+	@if [ -z "$(wildcard /usr/bin/docker-compose /usr/local/bin/docker-compose)" ];then\
+		mkdir -p ${HOME}/.local/bin && cp docker-compose ${HOME}/.local/bin/docker-compose;\
+		chmod +x ${HOME}/.local/bin/docker-compose;\
+	fi;
+	@make config
+	@ls ${DC_DIR}/*.tar.gz | xargs -L 1 sudo -u $$USER docker load -i;
+	@echo you can now start all service using 'make up';
+
 logs: backend
 	@docker logs ${DC_PREFIX}-${APP}
 
