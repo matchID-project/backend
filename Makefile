@@ -135,7 +135,7 @@ config:
 	@touch config
 
 config-clean:
-	@rm -rf tools aws config
+	@rm -rf tools config
 
 docker-clean: stop
 	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana
