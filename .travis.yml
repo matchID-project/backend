@@ -37,7 +37,7 @@ before_script:
     fi
 
 script:
-  - git fetch --unshallow && git tag -l
+  - git fetch && git tag -l
   - make backend-docker-check || ( make backend-build && make backend backend-stop)
   - if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( ( "$TRAVIS_BRANCH" == "tuto" ) || ( "$TRAVIS_BRANCH" == "master" ) || ( "$TRAVIS_BRANCH" == "dev" ) ) ]]; then
       make backend-docker-push GIT_BRANCH="$TRAVIS_BRANCH";
