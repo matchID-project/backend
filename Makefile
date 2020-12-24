@@ -426,18 +426,21 @@ down: stop
 restart: down up
 
 docker-save-all: config backend-docker-check frontend-docker-check postgres-docker-check elasticsearch-docker-check
-	@echo saving docker images to ${DC_DIR}
 	@if [ ! -f "${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz" ];then\
+		echo saving backend docker image;\
 		docker save ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} | gzip > ${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz;\
 	fi
 	@if [ ! -f "${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz" ];then\
+		echo saving elasticsearch docker image;\
 		docker save docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} | gzip > ${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz;\
 	fi
 	@if [ ! -f "${DC_DIR}/postgres:latest.tar.gz" ];then\
+		echo saving postgres docker image;\
 		docker save postgres:latest | gzip > ${DC_DIR}/postgres:latest.tar.gz;\
 	fi
 	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
 	if [ ! -f "${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz" ];then\
+		echo saving frontend docker image;\
 		docker save ${DOCKER_USERNAME}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION | gzip > ${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz;\
 	fi
 
