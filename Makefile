@@ -352,28 +352,30 @@ backend-docker-check: config
 backend-docker-push:
 	@make -C ${APP_PATH}/${GIT_TOOLS} docker-push DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} ${MAKEOVERRIDES}
 
+
+
 backend-update:
 	@cd ${BACKEND}; git pull ${GIT_ORIGIN} ${GIT_BRANCH}
 
 update: frontend-update backend-update
 
 services-dev:
-	for service in ${SERVICES}; do\
+	@for service in ${SERVICES}; do\
 		(make $$service-dev ${MAKEOVERRIDES} || echo starting $$service failed);\
 	done
 
 services-dev-stop:
-	for service in ${SERVICES}; do\
+	@for service in ${SERVICES}; do\
 		(make $$service-dev-stop ${MAKEOVERRIDES} || echo stopping $$service failed);\
 	done
 
 services:
-	for service in ${SERVICES}; do\
+	@for service in ${SERVICES}; do\
 		(make $$service ${MAKEOVERRIDES} || echo starting $$service failed);\
 	done
 
 services-stop:
-	for service in ${SERVICES}; do\
+	@for service in ${SERVICES}; do\
 		(make $$service-stop ${MAKEOVERRIDES} || echo stopping $$service failed);\
 	done
 
