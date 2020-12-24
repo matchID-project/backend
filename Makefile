@@ -251,6 +251,20 @@ ifeq ("$(wildcard ${BACKEND}/kibana)","")
 endif
 	${DC} -f ${DC_FILE}-kibana.yml up -d
 
+postgres-docker-check:
+	@if [ ! -f ".postgres:latest" ]; then\
+		(\
+				(docker image inspect postgres:latest > /dev/null 2>&1)\
+				&& touch .postgres:latest\
+		)\
+		||\
+		(\
+				(docker pull postgres:latest 2> /dev/null)\
+				&& touch .postgres:latest\
+		)\
+		|| (echo no image found for postgres:latest && exit 1);\
+	fi;
+
 postgres-dev-stop: postgres-stop
 
 postgres-stop:
