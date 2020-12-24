@@ -6,6 +6,7 @@
 ##############################################
 
 SHELL=/bin/bash
+OS_TYPE := $(shell cat /etc/os-release | grep -E '^NAME=' | sed 's/^.*debian.*$$/DEB/I;s/^.*ubuntu.*$$/DEB/I;s/^.*fedora.*$$/RPM/I;s/.*centos.*$$/RPM/I;')
 export DEBIAN_FRONTEND=noninteractive
 export USE_TTY := $(shell test -t 1 && USE_TTY="-t")
 #matchID default exposition port
@@ -91,7 +92,7 @@ export SERVICES=${DB_SERVICES} backend frontend
 dummy		    := $(shell touch artifacts)
 include ./artifacts
 
-tag                 := $(shell git describe --tags | sed 's/-.*//')
+tag                 := $(shell [ -f "/usr/bin/git" ] && git describe --tags | sed 's/-.*//')
 version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/(github|facebook|twitter).yml$$|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
 export APP_VERSION =  ${tag}-${version}
 
@@ -114,10 +115,18 @@ version:
 	@echo ${APP_GROUP} ${APP} ${APP_VERSION}
 
 config:
-	# this proc relies on matchid/tools and works both local and remote
-	@sudo apt-get install make -yq
+	@if [ ! -f "/usr/bin/git" ];then\
+		if [ "${OS_TYPE}" = "DEB" ]; then\
+			sudo apt-get install git -yq;\
+		fi;\
+		if [ "${OS_TYPE}" = "RPM" ]; then\
+			sudo yum install -y git;\
+		fi;\
+	fi
 	@if [ -z "${TOOLS_PATH}" ];then\
-		git clone -q ${GIT_ROOT}/${GIT_TOOLS};\
+		if [ ! -f "${APP_PATH}/${GIT_TOOLS}" ]; then\
+			git clone -q ${GIT_ROOT}/${GIT_TOOLS};\
+		fi;\
 		make -C ${APP_PATH}/${GIT_TOOLS} config ${MAKEOVERRIDES};\
 	else\
 		ln -s ${TOOLS_PATH} ${APP_PATH}/${GIT_TOOLS};\
