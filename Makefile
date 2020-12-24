@@ -348,15 +348,13 @@ backend: network backend-docker-check
 	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s --noproxy "*" --fail -XGET localhost:${BACKEND_PORT}/matchID/api/v0/ > /dev/null) ; ret=$$? ; echo;if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for backend to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
 
 backend-docker-check: config
-	@make -C ${APP_PATH}/${GIT_TOOLS} docker-check DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+	@make -C ${APP_PATH}/${GIT_TOOLS} docker-check DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} GIT_BRANCH="${GIT_BRANCH}" ${MAKEOVERRIDES}
 
 backend-docker-push:
 	@make -C ${APP_PATH}/${GIT_TOOLS} docker-push DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} ${MAKEOVERRIDES}
 
-
-
 backend-update:
-	@cd ${BACKEND}; git pull ${GIT_ORIGIN} ${GIT_BRANCH}
+	@cd ${BACKEND}; git pull ${GIT_ORIGIN} "${GIT_BRANCH}"
 
 update: frontend-update backend-update
 
@@ -388,32 +386,32 @@ frontend-config:
 ifeq ("$(wildcard ${FRONTEND})","")
 	@echo downloading frontend code
 	@git clone -q ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
-	@cd ${FRONTEND};git checkout ${GIT_FRONTEND_BRANCH}
+	@cd ${FRONTEND};git checkout "${GIT_FRONTEND_BRANCH}"
 endif
 
 frontend-docker-check: frontend-config
-	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend-clean:
-	@make -C ${FRONTEND} frontend-clean GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+	@make -C ${FRONTEND} frontend-clean GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend-update:
-	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} ${GIT_FRONTEND_BRANCH}
+	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} "${GIT_FRONTEND_BRANCH}"
 
 frontend-dev: frontend-config
-	@make -C ${FRONTEND} frontend-dev GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+	@make -C ${FRONTEND} frontend-dev GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend-dev-stop:
-	@make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+	@make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend-build: network frontend-config
-	@make -C ${FRONTEND} frontend-build GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+	@make -C ${FRONTEND} frontend-build GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend-stop:
-	@make -C ${FRONTEND} frontend-stop GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+	@make -C ${FRONTEND} frontend-stop GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend: frontend-docker-check
-	@make -C ${FRONTEND} frontend GIT_BRANCH=${GIT_FRONTEND_BRANCH}
+	@make -C ${FRONTEND} frontend GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 stop: services-stop network-stop
 	@echo all components stopped
@@ -529,29 +527,29 @@ deploy-remote-instance: config frontend-config
 	make -C ${APP_PATH}/${GIT_TOOLS} remote-config\
 			APP=${APP} APP_VERSION=${APP_VERSION} CLOUD_TAG=front:$$FRONTEND_APP_VERSION-back:${APP_VERSION}\
 			DC_IMAGE_NAME=${DC_IMAGE_NAME}\
-			GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+			GIT_BRANCH="${GIT_BRANCH}" ${MAKEOVERRIDES}
 
 deploy-remote-services:
 	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
 		APP=${APP} APP_VERSION=${APP_VERSION}\
-		ACTIONS="config up" SERVICES="elasticsearch postgres backend" GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+		ACTIONS="config up" SERVICES="elasticsearch postgres backend" GIT_BRANCH="${GIT_BRANCH}" ${MAKEOVERRIDES}
 	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
 		make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
 		APP=${GIT_FRONTEND} APP_VERSION=$$FRONTEND_APP_VERSION DC_IMAGE_NAME=${FRONTEND_DC_IMAGE_NAME}\
-		ACTIONS=${GIT_FRONTEND} GIT_BRANCH=${GIT_FRONTEND_BRANCH} ${MAKEOVERRIDES}
+		ACTIONS="${GIT_FRONTEND}" GIT_BRANCH="${GIT_FRONTEND_BRANCH}" ${MAKEOVERRIDES}
 
 deploy-remote-publish:
 	@if [ -z "${NGINX_HOST}" -o -z "${NGINX_USER}" ];then\
 		(echo "can't deploy without NGINX_HOST and NGINX_USER" && exit 1);\
 	fi;
 	make -C ${APP_PATH}/${GIT_TOOLS} remote-test-api-in-vpc nginx-conf-apply remote-test-api\
-		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} PORT=${PORT}\
+		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH="${GIT_BRANCH}" PORT=${PORT}\
 		APP_DNS=${APP_DNS} API_TEST_PATH=${API_TEST_PATH} API_TEST_JSON_PATH=${API_TEST_JSON_PATH} API_TEST_DATA=''\
 		${MAKEOVERRIDES}
 
 deploy-delete-old:
 	@make -C ${APP_PATH}/${GIT_TOOLS} cloud-instance-down-invalid\
-		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
+		APP=${APP} APP_VERSION=${APP_VERSION} GIT_BRANCH="${GIT_BRANCH}" ${MAKEOVERRIDES}
 
 deploy-monitor:
 	@make -C ${APP_PATH}/${GIT_TOOLS} remote-install-monitor-nq NQ_TOKEN=${NQ_TOKEN} ${MAKEOVERRIDES}
