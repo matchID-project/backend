@@ -443,29 +443,46 @@ docker-save-all: config backend-docker-check frontend-docker-check postgres-dock
 		docker save ${DOCKER_USERNAME}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION | gzip > ${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz;\
 	fi
 
-package: docker-save-all
-	@curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.rpm
-	@curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.deb
-	@curl -s -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$$(uname -s)-$$(uname -m)" -o docker-compose
-
+package:
 	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
 	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
-	cd ${APP_PATH}/..;\
-	DC_DIR=`echo ${DC_DIR} | sed "s|${APP_PATH}|$${APP_PATH##*/}|"`;\
-	echo $$DD;\
-	tar cvzf $${APP_PATH##*/}/$$PACKAGE \
-		$${APP_PATH##*/}/rclone-current-linux*\
-		$${APP_PATH##*/}/docker-compose\
-		`cd ${APP_PATH};git ls-files | sed "s/^/$${APP_PATH##*/}\//"` \
-		$${APP_PATH##*/}/.git\
-		$$DC_DIR/postgres:latest.tar.gz\
-		$$DC_DIR/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz\
-		$$DC_DIR/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz\
-		$$DC_DIR/elasticsearch-oss:${ES_VERSION}.tar.gz\
-		`cd ${APP_PATH}/${GIT_TOOLS};git ls-files | sed "s/^/$${APP_PATH##*/}\/${GIT_TOOLS}\//"`\
-		$${APP_PATH##*/}/${GIT_TOOLS}/.git\
-		`cd ${FRONTEND};git ls-files | sed "s/^/$${FRONTEND##*/}\//"`\
-		$${FRONTEND##*/}/.git\
+	if [ ! -f "$$PACKAGE" ];then\
+		make docker-save-all;\
+		curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.rpm;\
+		curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.deb;\
+		curl -s -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$$(uname -s)-$$(uname -m)" -o docker-compose;\
+		cd ${APP_PATH}/..;\
+		DC_DIR=`echo ${DC_DIR} | sed "s|${APP_PATH}|$${APP_PATH##*/}|"`;\
+		echo $$DD;\
+		tar cvzf $${APP_PATH##*/}/$$PACKAGE \
+			$${APP_PATH##*/}/rclone-current-linux*\
+			$${APP_PATH##*/}/docker-compose\
+			`cd ${APP_PATH};git ls-files | sed "s/^/$${APP_PATH##*/}\//"` \
+			$${APP_PATH##*/}/.git\
+			$$DC_DIR/postgres:latest.tar.gz\
+			$$DC_DIR/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz\
+			$$DC_DIR/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz\
+			$$DC_DIR/elasticsearch-oss:${ES_VERSION}.tar.gz\
+			`cd ${APP_PATH}/${GIT_TOOLS};git ls-files | sed "s/^/$${APP_PATH##*/}\/${GIT_TOOLS}\//"`\
+			$${APP_PATH##*/}/${GIT_TOOLS}/.git\
+			`cd ${FRONTEND};git ls-files | sed "s/^/$${FRONTEND##*/}\//"`\
+			$${FRONTEND##*/}/.git;\
+	fi
+
+package-publish: package
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
+	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
+	make -C ${APP_PATH}/${GIT_TOOLS} storage-push\
+		FILE=${APP_PATH}/$$PACKAGE\
+		STORAGE_OPTIONS="--s3-acl=public-read"\
+		STORAGE_BUCKET=matchid-dist STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY} STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY};\
+	if [ "${GIT_BRANCH}" = "${GIT_BRANCH_MASTER}" ]; then\
+		ln -s $$PACKAGE ${APP_PATH}/${APP_GROUP}-latest.tar.gz;\
+		make -C ${APP_PATH}/${GIT_TOOLS} storage-push\
+			FILE=${APP_PATH}/${APP_GROUP}-latest.tar.gz\
+			STORAGE_OPTIONS="--copy-links --s3-acl=public-read"\
+			STORAGE_BUCKET=matchid-dist STORAGE_ACCESS_KEY=${STORAGE_ACCESS_KEY} STORAGE_SECRET_KEY=${STORAGE_SECRET_KEY};\
+	fi
 
 depackage:
 	@if [ ! -f "/usr/bin/rclone" ]; then\
