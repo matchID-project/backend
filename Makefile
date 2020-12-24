@@ -159,7 +159,7 @@ elasticsearch-docker-check:
 			)\
 			||\
 			(\
-					(docker pull docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION}} 2> /dev/null)\
+					(docker pull docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} 2> /dev/null)\
 					&& touch .docker.elastic.co-elasticsearch-oss:${ES_VERSION}\
 			)\
 			|| (echo no image found for docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} && exit 1);\
