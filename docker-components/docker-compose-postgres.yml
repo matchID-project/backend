@@ -2,7 +2,7 @@ version: '2'
 
 services:
   postgres:
-    image: postgres:11
+    image: postgres:latest
     container_name: ${DC_PREFIX}-postgres
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD} 

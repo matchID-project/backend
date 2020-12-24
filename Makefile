@@ -6,6 +6,7 @@
 ##############################################
 
 SHELL=/bin/bash
+OS_TYPE := $(shell cat /etc/os-release | grep -E '^NAME=' | sed 's/^.*debian.*$$/DEB/I;s/^.*ubuntu.*$$/DEB/I;s/^.*fedora.*$$/RPM/I;s/.*centos.*$$/RPM/I;')
 export DEBIAN_FRONTEND=noninteractive
 export USE_TTY := $(shell test -t 1 && USE_TTY="-t")
 #matchID default exposition port
@@ -91,7 +92,7 @@ export SERVICES=${DB_SERVICES} backend frontend
 dummy		    := $(shell touch artifacts)
 include ./artifacts
 
-tag                 := $(shell git describe --tags | sed 's/-.*//')
+tag                 := $(shell [ -f "/usr/bin/git" ] && git describe --tags | sed 's/-.*//')
 version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/(github|facebook|twitter).yml$$|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
 export APP_VERSION =  ${tag}-${version}
 
@@ -114,10 +115,18 @@ version:
 	@echo ${APP_GROUP} ${APP} ${APP_VERSION}
 
 config:
-	# this proc relies on matchid/tools and works both local and remote
-	@sudo apt-get install make -yq
+	@if [ ! -f "/usr/bin/git" ];then\
+		if [ "${OS_TYPE}" = "DEB" ]; then\
+			sudo apt-get install git -yq;\
+		fi;\
+		if [ "${OS_TYPE}" = "RPM" ]; then\
+			sudo yum install -y git;\
+		fi;\
+	fi
 	@if [ -z "${TOOLS_PATH}" ];then\
-		git clone -q ${GIT_ROOT}/${GIT_TOOLS};\
+		if [ ! -f "${APP_PATH}/${GIT_TOOLS}" ]; then\
+			git clone -q ${GIT_ROOT}/${GIT_TOOLS};\
+		fi;\
 		make -C ${APP_PATH}/${GIT_TOOLS} config ${MAKEOVERRIDES};\
 	else\
 		ln -s ${TOOLS_PATH} ${APP_PATH}/${GIT_TOOLS};\
@@ -126,7 +135,7 @@ config:
 	@touch config
 
 config-clean:
-	@rm -rf tools aws config
+	@rm -rf tools config
 
 docker-clean: stop
 	docker container rm matchid-build-front matchid-nginx elasticsearch postgres kibana
@@ -140,6 +149,20 @@ network: config
 	@docker network create ${DC_NETWORK_OPT} ${DC_NETWORK} 2> /dev/null; true
 
 elasticsearch-dev-stop: elasticsearch-stop
+
+elasticsearch-docker-check:
+	@if [ ! -f ".docker.elastic.co-elasticsearch-oss:${ES_VERSION}" ]; then\
+			(\
+					(docker image inspect docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} > /dev/null 2>&1)\
+					&& touch .docker.elastic.co-elasticsearch-oss:${ES_VERSION}\
+			)\
+			||\
+			(\
+					(docker pull docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION}} 2> /dev/null)\
+					&& touch .docker.elastic.co-elasticsearch-oss:${ES_VERSION}\
+			)\
+			|| (echo no image found for docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} && exit 1);\
+	fi;
 
 elasticsearch-stop:
 	@echo docker-compose down matchID elasticsearch
@@ -202,7 +225,7 @@ elasticsearch: network vm_max
 	done;\
 	true)
 	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d
-	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
 
 elasticsearch2:
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
@@ -227,6 +250,20 @@ ifeq ("$(wildcard ${BACKEND}/kibana)","")
 	sudo mkdir -p ${BACKEND}/kibana && sudo chmod g+rw ${BACKEND}/kibana/. && sudo chown 1000:1000 ${BACKEND}/kibana/.
 endif
 	${DC} -f ${DC_FILE}-kibana.yml up -d
+
+postgres-docker-check:
+	@if [ ! -f ".postgres:latest" ]; then\
+		(\
+				(docker image inspect postgres:latest > /dev/null 2>&1)\
+				&& touch .postgres:latest\
+		)\
+		||\
+		(\
+				(docker pull postgres:latest 2> /dev/null)\
+				&& touch .postgres:latest\
+		)\
+		|| (echo no image found for postgres:latest && exit 1);\
+	fi;
 
 postgres-dev-stop: postgres-stop
 
@@ -307,7 +344,7 @@ backend: network backend-docker-check
 	fi;\
 	export BACKEND_ENV=production;\
 	${DC} -f docker-compose.yml $$DC_LOCAL up -d
-	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s --noproxy "*" --fail -XGET localhost:${BACKEND_PORT}/matchID/api/v0/ > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo "waiting for backend to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; exit $$ret
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-backend curl -s --noproxy "*" --fail -XGET localhost:${BACKEND_PORT}/matchID/api/v0/ > /dev/null) ; ret=$$? ; echo;if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for backend to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
 
 backend-docker-check: config
 	@make -C ${APP_PATH}/${GIT_TOOLS} docker-check DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} GIT_BRANCH=${GIT_BRANCH} ${MAKEOVERRIDES}
@@ -315,28 +352,30 @@ backend-docker-check: config
 backend-docker-push:
 	@make -C ${APP_PATH}/${GIT_TOOLS} docker-push DC_IMAGE_NAME=${DC_IMAGE_NAME} APP_VERSION=${APP_VERSION} ${MAKEOVERRIDES}
 
+
+
 backend-update:
 	@cd ${BACKEND}; git pull ${GIT_ORIGIN} ${GIT_BRANCH}
 
 update: frontend-update backend-update
 
 services-dev:
-	for service in ${SERVICES}; do\
+	@for service in ${SERVICES}; do\
 		(make $$service-dev ${MAKEOVERRIDES} || echo starting $$service failed);\
 	done
 
 services-dev-stop:
-	for service in ${SERVICES}; do\
+	@for service in ${SERVICES}; do\
 		(make $$service-dev-stop ${MAKEOVERRIDES} || echo stopping $$service failed);\
 	done
 
 services:
-	for service in ${SERVICES}; do\
+	@for service in ${SERVICES}; do\
 		(make $$service ${MAKEOVERRIDES} || echo starting $$service failed);\
 	done
 
 services-stop:
-	for service in ${SERVICES}; do\
+	@for service in ${SERVICES}; do\
 		(make $$service-stop ${MAKEOVERRIDES} || echo stopping $$service failed);\
 	done
 
@@ -386,6 +425,63 @@ up: start
 down: stop
 
 restart: down up
+
+docker-save-all: config backend-docker-check frontend-docker-check postgres-docker-check elasticsearch-docker-check
+	@echo saving docker images to ${DC_DIR}
+	@if [ ! -f "${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz" ];then\
+		docker save ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} | gzip > ${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz;\
+	fi
+	@if [ ! -f "${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz" ];then\
+		docker save docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} | gzip > ${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz;\
+	fi
+	@if [ ! -f "${DC_DIR}/postgres:latest.tar.gz" ];then\
+		docker save postgres:latest | gzip > ${DC_DIR}/postgres:latest.tar.gz;\
+	fi
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
+	if [ ! -f "${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz" ];then\
+		docker save ${DOCKER_USERNAME}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION | gzip > ${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz;\
+	fi
+
+package: docker-save-all
+	@curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.rpm
+	@curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.deb
+	@curl -s -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$$(uname -s)-$$(uname -m)" -o docker-compose
+
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
+	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
+	cd ${APP_PATH}/..;\
+	DC_DIR=`echo ${DC_DIR} | sed "s|${APP_PATH}|$${APP_PATH##*/}|"`;\
+	echo $$DD;\
+	tar cvzf $${APP_PATH##*/}/$$PACKAGE \
+		$${APP_PATH##*/}/rclone-current-linux*\
+		$${APP_PATH##*/}/docker-compose\
+		`cd ${APP_PATH};git ls-files | sed "s/^/$${APP_PATH##*/}\//"` \
+		$${APP_PATH##*/}/.git\
+		$$DC_DIR/postgres:latest.tar.gz\
+		$$DC_DIR/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz\
+		$$DC_DIR/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz\
+		$$DC_DIR/elasticsearch-oss:${ES_VERSION}.tar.gz\
+		`cd ${APP_PATH}/${GIT_TOOLS};git ls-files | sed "s/^/$${APP_PATH##*/}\/${GIT_TOOLS}\//"`\
+		$${APP_PATH##*/}/${GIT_TOOLS}/.git\
+		`cd ${FRONTEND};git ls-files | sed "s/^/$${FRONTEND##*/}\//"`\
+		$${FRONTEND##*/}/.git\
+
+depackage:
+	@if [ ! -f "/usr/bin/rclone" ]; then\
+		if [ "${OS_TYPE}" = "DEB" ]; then\
+			sudo dpkg -i rclone-current-linux-amd64.deb;\
+		fi;\
+		if [ "${OS_TYPE}" = "RPM" ]; then\
+			sudo yum localinstall -y rclone-current-linux-amd64.rpm;\
+		fi;\
+	fi
+	@if [ -z "$(wildcard /usr/bin/docker-compose /usr/local/bin/docker-compose)" ];then\
+		mkdir -p ${HOME}/.local/bin && cp docker-compose ${HOME}/.local/bin/docker-compose;\
+		chmod +x ${HOME}/.local/bin/docker-compose;\
+	fi;
+	@make config
+	@ls ${DC_DIR}/*.tar.gz | xargs -L 1 sudo -u $$USER docker load -i;
+	@echo you can now start all service using 'make up';
 
 logs: backend
 	@docker logs ${DC_PREFIX}-${APP}
