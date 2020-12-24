@@ -426,26 +426,28 @@ down: stop
 restart: down up
 
 docker-save-all: config backend-docker-check frontend-docker-check postgres-docker-check elasticsearch-docker-check
-	@echo saving docker images to ${DC_DIR}
 	@if [ ! -f "${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz" ];then\
+		echo saving backend docker image;\
 		docker save ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} | gzip > ${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz;\
 	fi
 	@if [ ! -f "${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz" ];then\
+		echo saving elasticsearch docker image;\
 		docker save docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} | gzip > ${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz;\
 	fi
 	@if [ ! -f "${DC_DIR}/postgres:latest.tar.gz" ];then\
+		echo saving postgres docker image;\
 		docker save postgres:latest | gzip > ${DC_DIR}/postgres:latest.tar.gz;\
 	fi
 	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
 	if [ ! -f "${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz" ];then\
+		echo saving frontend docker image;\
 		docker save ${DOCKER_USERNAME}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION | gzip > ${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz;\
 	fi
 
-package:
+package: docker-save-all
 	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
 	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
 	if [ ! -f "$$PACKAGE" ];then\
-		make docker-save-all;\
 		curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.rpm;\
 		curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.deb;\
 		curl -s -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$$(uname -s)-$$(uname -m)" -o docker-compose;\
