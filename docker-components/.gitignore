@@ -1,1 +1,2 @@
 docker-compose-elasticsearch-huge.yml
+*.tar.gz
