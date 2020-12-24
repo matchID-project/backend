@@ -444,11 +444,10 @@ docker-save-all: config backend-docker-check frontend-docker-check postgres-dock
 		docker save ${DOCKER_USERNAME}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION | gzip > ${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz;\
 	fi
 
-package:
+package: docker-save-all
 	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $$NF}');\
 	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
 	if [ ! -f "$$PACKAGE" ];then\
-		make docker-save-all;\
 		curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.rpm;\
 		curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.deb;\
 		curl -s -L "https://github.com/docker/compose/releases/download/1.27.4/docker-compose-$$(uname -s)-$$(uname -m)" -o docker-compose;\
