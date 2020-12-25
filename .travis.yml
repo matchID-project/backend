@@ -42,7 +42,7 @@ script:
   - if [[ ( "$TRAVIS_PULL_REQUEST" == "false" ) && ( ( "$TRAVIS_BRANCH" == "tuto" ) || ( "$TRAVIS_BRANCH" == "master" ) || ( "$TRAVIS_BRANCH" == "dev" ) ) ]]; then
       make backend-docker-push GIT_BRANCH="$TRAVIS_BRANCH";
       if [[ ( "$TRAVIS_BRANCH" == "master" ) ]]; then
-        make package-publish GIT_BRANCH="$TRAVIS_BRANCH" STORAGE_ACCES_KEY=$aws_access_key_id STORAGE_SECRET_KEY=$aws_secret_access_key;
+        make package-publish GIT_BRANCH="$TRAVIS_BRANCH" STORAGE_ACCES_KEY=$STORAGE_ACCES_KEY STORAGE_SECRET_KEY=$STORAGE_SECRET_KEY;
       fi
     fi
 
