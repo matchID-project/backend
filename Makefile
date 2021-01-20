@@ -388,6 +388,10 @@ ifeq ("$(wildcard ${FRONTEND})","")
 	@git clone -q ${GIT_ROOT}/${GIT_FRONTEND} ${FRONTEND} #2> /dev/null; true
 	@cd ${FRONTEND};git checkout "${GIT_FRONTEND_BRANCH}"
 endif
+ifeq ("$(wildcard ${FRONTEND}/${GIT_TOOLS})","")
+	@ln -s ${APP_PATH}/${GIT_TOOLS} ${FRONTEND}/${GIT_TOOLS}
+endif
+
 
 frontend-docker-check: frontend-config
 	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
