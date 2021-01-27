@@ -787,18 +787,16 @@ class Dataset(Configured):
                         except elasticsearch.SerializationError:
                             error = err()
                             if ('"errors":false' in error):
-                                # processed+=size
-                                tries += 1
                                 # prevents combo deny of service of
                                 # elasticsearch
-                                time.sleep(random.random() * (4 ** tries))
+                                # time.sleep(random.random() * (4 ** tries))
+                                success = True
                             elif (('JSONDecodeError' in error) & (not (re.match('"failed":[1-9]', error)))):
-                                max_tries = tries
                                 self.log.write(
                                     msg="elasticsearch JSONDecodeError but found no error")
                                 # processed+=size
-                            else:
-                                max_tries = tries
+                                success = True
+                            max_tries = tries
                         except elasticsearch.ConnectionTimeout:
                             error = err()
                             tries += 1
@@ -2277,7 +2275,7 @@ class Recipe(Configured):
                                     tries = max_tries
                                     df_res = part['matchid_id'].apply(
                                         lambda x: {"_source": {}})
-                                except:
+                                except ConnectionTimeout:
                                     tries += 1
                                     # prevents combo deny of service of
                                     # elasticsearch
