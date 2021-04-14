@@ -56,8 +56,8 @@ export GIT_FRONTEND_BRANCH=dev
 export FRONTEND=${BACKEND}/../${GIT_FRONTEND}
 export FRONTEND_DC_IMAGE_NAME=${DC_PREFIX}-${GIT_FRONTEND}
 
-export API_SECRET_KEY:=$(openssl rand -base64 24)
-export ADMIN_PASSWORD:=$(openssl rand -base64 24)
+export API_SECRET_KEY:=$(shell openssl rand -base64 24)
+export ADMIN_PASSWORD:=$(shell openssl rand -base64 24)
 export ADMIN_PASSWORD_HASH:=$(shell echo -n ${ADMIN_PASSWORD} | sha384sum | sed 's/\s*\-.*//')
 export POSTGRES_PASSWORD=matchid
 
@@ -100,7 +100,7 @@ export APP_VERSION =  ${tag}-${version}
 commit 				= ${APP_VERSION}
 lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
 date                := $(shell date -I)
-id                  := $(openssl rand -base64 8)
+id                  := $(shell openssl rand -base64 8)
 
 vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262144 && echo true)
 
