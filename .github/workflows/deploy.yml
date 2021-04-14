@@ -1,0 +1,64 @@
+name: deploy
+
+on:
+  push:
+    branches:
+      - tuto
+
+jobs:
+  deploy:
+    name: 🚀 Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+      - name: deploy-key
+        if: success()
+        run: |
+          apt-get update -y && apt-get install -y make sudo git openssh-client;
+          mkdir -p ~/.ssh/;
+          ssh-agent -a $SSH_AUTH_SOCK > /dev/null;
+          echo "$SSHENC" | base64 -d | gpg -d --passphrase $SSHPWD --batch > /tmp/id_rsa_matchID;
+          chmod 600 /tmp/id_rsa_matchID;
+          ssh-add /tmp/id_rsa_matchID;
+          echo "$SSHPUB" > ~/.ssh/id_rsa_matchID.pub;
+          echo "Host * !""$BASTION_HOST" > ~/.ssh/config;
+          echo "   ProxyCommand ssh -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST nc %h %p" >> ~/.ssh/config;
+          cat ~/.ssh/config;
+        env:
+          GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+          BASTION_HOST: ${{ secrets.BASTION_HOST }}
+          BASTION_USER: ${{ secrets.BASTION_USER }}
+          SSHENC: ${{ secrets.SSHENC }}
+          SSHPWD: ${{ secrets.SSHPWD }}
+          SSHPUB: ${{ secrets.SSHPUB }}
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+      - name: deploy
+        if: success()
+        run: >
+          make deploy-remote NO_AUTH=$NO_AUTH ADMIN_PASSWORD_HASH=$ADMIN_PASSWORD_HASH FACEBOOK_OAUTH_ID=$FACEBOOK_OAUTH_ID FACEBOOK_OAUTH_SECRET=$FACEBOOK_OAUTH_SECRET GITHUB_OAUTH_ID=$GITHUB_OAUTH_ID GITHUB_OAUTH_SECRET=$GITHUB_OAUTH_SECRET GIT_BRANCH=master GIT_FRONTEND_BRANCH=master APP_DNS=$APP_DNS NGINX_USER=$NGINX_USER NGINX_HOST=$NGINX_HOST SCW_FLAVOR=$SCW_FLAVOR remote_http_proxy=$remote_http_proxy remote_https_proxy=$remote_https_proxy remote_no_proxy=localhost NQ_TOKEN=$NQ_TOKEN;
+        env:
+          NO_AUTH: ${{ secrets.NO_AUTH }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          SCW_FLAVOR: ${{ secrets.SCW_FLAVOR }}
+          FACEBOOK_OAUTH_ID: ${{ secrets.FACEBOOK_OAUTH_ID }}
+          FACEBOOK_OAUTH_SECRET: ${{ secrets.FACEBOOK_OAUTH_SECRET }}
+          GITHUB_OAUTH_ID: ${{ secrets.GITHUB_OAUTH_ID }}
+          GITHUB_OAUTH_SECRET: ${{ secrets.GITHUB_OAUTH_SECRET }}
+          NGINX_USER: ${{ secrets.NGINX_USER }}
+          NGINX_HOST: ${{ secrets.NGINX_HOST }}
+          NQ_TOKEN: ${{ secrets.NQ_TOKEN }}
+          remote_http_proxy: ${{ secrets.remote_http_proxy }}
+          remote_https_proxy: ${{ secrets.remote_https_proxy }}
+          remote_no_proxy: localhost
+          SCW_ORGANIZATION_ID: ${{ secrets.SCW_ORGANIZATION_ID }}
+          SCW_PROJECT_ID: ${{ secrets.SCW_PROJECT_ID }}
+          SCW_SECRET_TOKEN: ${{ secrets.SCW_SECRET_TOKEN }}
+          SCW_SERVER_OPTS: ${{ secrets.SCW_SERVER_OPTS }}
+          STORAGE_ACCESS_KEY: ${{ secrets.STORAGE_ACCESS_KEY }}
+          STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}}
+          SSH_AUTH_SOCK: /tmp/ssh_agent.sock
+          APP_DNS: tuto.matchid.io

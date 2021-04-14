@@ -1,0 +1,35 @@
+name: push
+
+on:
+  push:
+    branches:
+      - dev
+      - master
+
+jobs:
+  build:
+    name: 🐳 Build docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+      - name: build
+        if: success()
+        run: make version backend-docker-check GIT_BRANCH=$GIT_BRANCH || ( make backend-build GIT_BRANCH=$GIT_BRANCH && make backend backend-stop GIT_BRANCH=$GIT_BRANCH)
+        env:
+          GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+      - name: publish
+        if: success()
+        run: |
+          make backend-docker-push GIT_BRANCH="$GIT_BRANCH";
+          if [[ ( "$GIT_BRANCH" == "master" ) ]]; then
+            make package-publish GIT_BRANCH="$GIT_BRANCH" STORAGE_ACCES_KEY=$STORAGE_ACCES_KEY STORAGE_SECRET_KEY=$STORAGE_SECRET_KEY;
+          fi
+        env:
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+          STORAGE_ACCESS_KEY: ${{ secrets.STORAGE_ACCESS_KEY }}
+          STORAGE_SECRET_KEY: ${{ secrets.STORAGE_SECRET_KEY }}
