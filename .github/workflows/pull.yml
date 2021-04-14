@@ -1,0 +1,19 @@
+name: pull request
+
+on: pull_request
+
+jobs:
+  test:
+    name: pull request test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Extract branch name
+        shell: bash
+        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
+        id: extract_branch
+      - name: build
+        if: success()
+        run: make version backend-docker-check || ( make backend-build && make backend backend-stop)
+        env:
+          GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
