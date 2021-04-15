@@ -6,30 +6,8 @@ on:
       - tuto
 
 jobs:
-  build:
-    name: 🐳 Build docker image
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v1
-      - name: extract branch name
-        shell: bash
-        run: echo "##[set-output name=branch;]$(echo ${GITHUB_REF#refs/heads/})"
-        id: extract_branch
-      - name: build
-        if: success()
-        run: make version backend-docker-check || ( make backend-build && make backend backend-stop)
-        env:
-          GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
-      - name: publish
-        if: success()
-        run: |
-          make backend-docker-push GIT_BRANCH="$GIT_BRANCH";
-        env:
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-          GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
   deploy:
     name: 🚀 Deploy
-    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v1
@@ -40,6 +18,7 @@ jobs:
       - name: deploy-key
         if: success()
         run: |
+          apt-get update -y && apt-get install -y make sudo git openssh-client;
           mkdir -p ~/.ssh/;
           ssh-agent -a $SSH_AUTH_SOCK > /dev/null;
           echo "$SSHENC" | base64 -d | gpg -d --passphrase $SSHPWD --batch > /tmp/id_rsa_matchID;
@@ -60,6 +39,7 @@ jobs:
       - name: deploy
         if: success()
         run: |
+          echo GIT_BRANCH=$GIT_BRANCH
           make deploy-remote
             NO_AUTH=$NO_AUTH ADMIN_PASSWORD_HASH=$ADMIN_PASSWORD_HASH
             FACEBOOK_OAUTH_ID=$FACEBOOK_OAUTH_ID FACEBOOK_OAUTH_SECRET=$FACEBOOK_OAUTH_SECRET
