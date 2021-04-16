@@ -117,7 +117,7 @@ test:
 	echo "${OAUTH_CREDS_ENC}" | base64 -d | gpg -d --passphrase ${SSHPWD} --batch > creds-local.yml
 
 version:
-	@echo ${APP_GROUP} ${APP} ${APP_VERSION} ${GIT_BRANCH} ${GIT_FRONTEND_BRANCH}
+	@echo ${APP_GROUP} ${APP} ${APP_VERSION}
 
 config:
 	@if [ ! -f "/usr/bin/git" ];then\
