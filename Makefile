@@ -51,7 +51,7 @@ export GIT_BRANCH := $(shell [ -f "/usr/bin/git" ] && git branch | grep '*' | aw
 export GIT_BRANCH_MASTER=master
 export GIT_TOOLS=tools
 export GIT_FRONTEND=frontend
-export GIT_FRONTEND_BRANCH=dev
+export GIT_FRONTEND_BRANCH:=$(shell [ "${GIT_BRANCH}" = "${GIT_BRANCH_MASTER}" ] && echo -n "${GIT_BRANCH_MASTER}" || echo -n dev)
 
 export FRONTEND=${BACKEND}/../${GIT_FRONTEND}
 export FRONTEND_DC_IMAGE_NAME=${DC_PREFIX}-${GIT_FRONTEND}
@@ -94,7 +94,7 @@ dummy		    := $(shell touch artifacts)
 include ./artifacts
 
 tag                 := $(shell [ -f "/usr/bin/git" ] && git describe --tags | sed 's/-.*//')
-version 			:= $(shell (git checkout ${GIT_BRANCH} > /dev/null 2>&1);cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/(github|facebook|twitter).yml$$|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
+version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/(github|facebook|twitter).yml$$|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
 export APP_VERSION =  ${tag}-${version}
 
 commit 				= ${APP_VERSION}
@@ -112,8 +112,9 @@ include /etc/os-release
 test:
 	echo "${DC_LOCAL}" | base64 -d > docker-compose-local.yml;\
 	echo "${OAUTH_CREDS_ENC}" | base64 -d | gpg -d --passphrase ${SSHPWD} --batch > creds-local.yml
+
 version:
-	@echo ${APP_GROUP} ${APP} ${APP_VERSION}
+	@echo ${APP_GROUP} ${APP} ${APP_VERSION} ${GIT_BRANCH} ${GIT_FRONTEND_BRANCH}
 
 config:
 	@if [ ! -f "/usr/bin/git" ];then\
@@ -442,14 +443,14 @@ docker-save-all: config backend-docker-check frontend-docker-check postgres-dock
 		echo saving postgres docker image;\
 		docker save postgres:latest | gzip > ${DC_DIR}/postgres:latest.tar.gz;\
 	fi
-	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND}; (git checkout ${GIT_FRONTEND_BRANCH} > /dev/null 2>&1); make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
 	if [ ! -f "${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz" ];then\
 		echo saving frontend docker image;\
 		docker save ${DOCKER_USERNAME}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION | gzip > ${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz;\
 	fi
 
 package: docker-save-all
-	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND}; (git checkout ${GIT_FRONTEND_BRANCH} > /dev/null 2>&1); make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
 	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
 	if [ ! -f "$$PACKAGE" ];then\
 		curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.rpm;\
@@ -474,7 +475,7 @@ package: docker-save-all
 	fi
 
 package-publish: package
-	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND}; (git checkout ${GIT_FRONTEND_BRANCH} > /dev/null 2>&1); make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
 	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
 	make -C ${APP_PATH}/${GIT_TOOLS} storage-push\
 		FILE=${APP_PATH}/$$PACKAGE\
@@ -529,7 +530,7 @@ local-test-api:
 		${MAKEOVERRIDES}
 
 deploy-remote-instance: config frontend-config
-	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND}; (git checkout ${GIT_FRONTEND_BRANCH} > /dev/null 2>&1); make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
 	make -C ${APP_PATH}/${GIT_TOOLS} remote-config\
 			APP=${APP} APP_VERSION=${APP_VERSION} CLOUD_TAG=front:$$FRONTEND_APP_VERSION-back:${APP_VERSION}\
 			DC_IMAGE_NAME=${DC_IMAGE_NAME}\
@@ -539,7 +540,7 @@ deploy-remote-services:
 	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
 		APP=${APP} APP_VERSION=${APP_VERSION}\
 		ACTIONS="config up" SERVICES="elasticsearch postgres backend" GIT_BRANCH="${GIT_BRANCH}" ${MAKEOVERRIDES}
-	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND}; (git checkout ${GIT_FRONTEND_BRANCH} > /dev/null 2>&1); make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
 		make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
 		APP=${GIT_FRONTEND} APP_VERSION=$$FRONTEND_APP_VERSION DC_IMAGE_NAME=${FRONTEND_DC_IMAGE_NAME}\
 		ACTIONS="${GIT_FRONTEND}" GIT_BRANCH="${GIT_FRONTEND_BRANCH}" ${MAKEOVERRIDES}
