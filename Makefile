@@ -97,7 +97,7 @@ dummy		    := $(shell touch artifacts)
 include ./artifacts
 
 tag                 := $(shell [ -f "/usr/bin/git" ] && git describe --tags | sed 's/-.*//')
-version 			:= $(shell cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/(github|facebook|twitter).yml$$|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
+version 			:= $(shell LC_COLLATE=C;LC_ALL=C;cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/(github|facebook|twitter).yml$$|.tar.gz$$|.pyc$$|.gitignore$$' | sort | xargs cat | sha1sum - | sed 's/\(......\).*/\1/')
 export APP_VERSION =  ${tag}-${version}
 
 commit 				= ${APP_VERSION}
