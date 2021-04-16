@@ -279,7 +279,7 @@ postgres-dev: postgres
 
 postgres: network
 	${DC} -f ${DC_FILE}-${PG}.yml up -d
-	@sleep 2 && docker exec ${DC_PREFIX}-postgres psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch"
+	@sleep 5 && docker exec ${DC_PREFIX}-postgres psql -U postgres -c "CREATE EXTENSION IF NOT EXISTS fuzzystrmatch"
 
 backend-stop:
 	${DC} down
