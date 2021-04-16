@@ -449,14 +449,14 @@ docker-save-all: config backend-docker-check frontend-docker-check postgres-dock
 		echo saving postgres docker image;\
 		docker save postgres:latest | gzip > ${DC_DIR}/postgres:latest.tar.gz;\
 	fi
-	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $NF}');\
 	if [ ! -f "${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz" ];then\
 		echo saving frontend docker image;\
 		docker save ${DOCKER_USERNAME}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION | gzip > ${DC_DIR}/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz;\
 	fi
 
 package: docker-save-all
-	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $NF}');\
 	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
 	if [ ! -f "$$PACKAGE" ];then\
 		curl -s -O https://downloads.rclone.org/rclone-current-linux-amd64.rpm;\
@@ -481,7 +481,7 @@ package: docker-save-all
 	fi
 
 package-publish: package
-	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $NF}');\
 	PACKAGE=${APP_GROUP}-${APP_VERSION}-$$FRONTEND_APP_VERSION.tar.gz;\
 	make -C ${APP_PATH}/${GIT_TOOLS} storage-push\
 		FILE=${APP_PATH}/$$PACKAGE\
@@ -536,7 +536,7 @@ local-test-api:
 		${MAKEOVERRIDES}
 
 deploy-remote-instance: config frontend-config
-	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $NF}');\
 	make -C ${APP_PATH}/${GIT_TOOLS} remote-config\
 			APP=${APP} APP_VERSION=${APP_VERSION} CLOUD_TAG=front:$$FRONTEND_APP_VERSION-back:${APP_VERSION}\
 			DC_IMAGE_NAME=${DC_IMAGE_NAME}\
@@ -546,7 +546,7 @@ deploy-remote-services:
 	@make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
 		APP=${APP} APP_VERSION=${APP_VERSION}\
 		ACTIONS="config up" SERVICES="elasticsearch postgres backend" GIT_BRANCH="${GIT_BRANCH}" ${MAKEOVERRIDES}
-	@FRONTEND_APP_VERSION=$(shell make version | awk '{print $$NF}');\
+	@FRONTEND_APP_VERSION=$(shell cd ${FRONTEND} && make version | awk '{print $NF}');\
 		make -C ${APP_PATH}/${GIT_TOOLS} remote-deploy remote-actions\
 		APP=${GIT_FRONTEND} APP_VERSION=$$FRONTEND_APP_VERSION DC_IMAGE_NAME=${FRONTEND_DC_IMAGE_NAME}\
 		ACTIONS="${GIT_FRONTEND}" GIT_BRANCH="${GIT_FRONTEND_BRANCH}" ${MAKEOVERRIDES}
