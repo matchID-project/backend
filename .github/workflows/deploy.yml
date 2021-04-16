@@ -39,18 +39,16 @@ jobs:
       - name: deploy
         if: success()
         run: |
-          echo GIT_BRANCH=$GIT_BRANCH
           make deploy-remote
             NO_AUTH=$NO_AUTH ADMIN_PASSWORD_HASH=$ADMIN_PASSWORD_HASH
             FACEBOOK_OAUTH_ID=$FACEBOOK_OAUTH_ID FACEBOOK_OAUTH_SECRET=$FACEBOOK_OAUTH_SECRET
             GITHUB_OAUTH_ID=$GITHUB_OAUTH_ID GITHUB_OAUTH_SECRET=$GITHUB_OAUTH_SECRET
-            GIT_BRANCH="$GIT_BRANCH"
+            GIT_BRANCH=master GIT_FRONTEND_BRANCH=master
             APP_DNS=$APP_DNS NGINX_USER=$NGINX_USER NGINX_HOST=$NGINX_HOST
             SCW_FLAVOR=$SCW_FLAVOR
             remote_http_proxy=$remote_http_proxy remote_https_proxy=$remote_https_proxy remote_no_proxy=localhost
             NQ_TOKEN=$NQ_TOKEN;
         env:
-          GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
           NO_AUTH: ${{ secrets.NO_AUTH }}
           ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
           SCW_FLAVOR: ${{ secrets.SCW_FLAVOR }}
