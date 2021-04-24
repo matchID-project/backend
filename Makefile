@@ -407,7 +407,9 @@ frontend-docker-check: frontend-config
 	@make -C ${FRONTEND} frontend-docker-check GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend-clean:
-	@make -C ${FRONTEND} frontend-clean GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
+	@if [ -d "${FRONTEND}" ];then\
+		make -C ${FRONTEND} frontend-clean GIT_BRANCH="${GIT_FRONTEND_BRANCH}";\
+	fi;
 
 frontend-update:
 	@cd ${FRONTEND}; git pull ${GIT_ORIGIN} "${GIT_FRONTEND_BRANCH}"
@@ -416,13 +418,17 @@ frontend-dev: frontend-config
 	@make -C ${FRONTEND} frontend-dev GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend-dev-stop:
-	@make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
+	@if [ -d "${FRONTEND}" ];then\
+		make -C ${FRONTEND} frontend-dev-stop GIT_BRANCH="${GIT_FRONTEND_BRANCH}";\
+	fi
 
 frontend-build: network frontend-config
 	@make -C ${FRONTEND} frontend-build GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
 
 frontend-stop:
-	@make -C ${FRONTEND} frontend-stop GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
+	@if [ -d "${FRONTEND}" ];then\
+		make -C ${FRONTEND} frontend-stop GIT_BRANCH="${GIT_FRONTEND_BRANCH}";\
+	fi
 
 frontend: frontend-docker-check
 	@make -C ${FRONTEND} frontend GIT_BRANCH="${GIT_FRONTEND_BRANCH}"
