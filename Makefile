@@ -120,7 +120,10 @@ version: frontend-version
 	@echo ${APP_GROUP} ${APP} ${APP_VERSION}
 
 frontend-version:
-	@cd ${FRONTEND} && make -s version
+	@if [ -d "${FRONTEND}" ];then\
+		cd ${FRONTEND} && make -s version;\
+	fi
+
 
 version-files:
 	@export LC_COLLATE=C;export LC_ALL=C;cat tagfiles.version | xargs -I '{}' find {} -type f | egrep -v 'conf/security/(github|facebook|twitter).yml$$|.tar.gz$$|.pyc$$|.gitignore$$' | sort
