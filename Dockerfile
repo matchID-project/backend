@@ -11,6 +11,7 @@ WORKDIR /${APP}
 COPY requirements.txt .
 
 RUN apt-get update -y;\
+    apt-get upgrade -y;\
     apt-get install curl build-essential -y;\
     pip install --upgrade pip;\
     pip install `echo $http_proxy | sed 's/\(\S\S*\)/--proxy \1/'` -r requirements.txt;\
