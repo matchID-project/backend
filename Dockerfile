@@ -1,7 +1,7 @@
 #######################
 # Step 1: Base target #
 #######################
-FROM python:3.8-slim as base
+FROM python:3.9-slim as base
 ARG http_proxy
 ARG https_proxy
 ARG no_proxy
