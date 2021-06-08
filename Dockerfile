@@ -1,7 +1,7 @@
 #######################
 # Step 1: Base target #
 #######################
-FROM python:3.8-slim as base
+FROM python:3.9-slim as base
 ARG http_proxy
 ARG https_proxy
 ARG no_proxy
@@ -11,6 +11,7 @@ WORKDIR /${APP}
 COPY requirements.txt .
 
 RUN apt-get update -y;\
+    apt-get upgrade -y;\
     apt-get install curl build-essential -y;\
     pip install --upgrade pip;\
     pip install `echo $http_proxy | sed 's/\(\S\S*\)/--proxy \1/'` -r requirements.txt;\
