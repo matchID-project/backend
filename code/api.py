@@ -1051,11 +1051,11 @@ class jobsList(Resource):
                     if re.match(r'^.*.log$', f)]
         logfiles.sort(reverse=True)
         for file in logfiles:
+            recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
             if ((config.jobs[recipe].job_status() == "down") and ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) < 5)):
                 running = True
             else:
                 running = False
-            recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
 
             date = re.sub(
                 r"(\d{4}.?\d{2}.?\d{2})T(..:..).*log", r"\1-\2", file)
