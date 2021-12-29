@@ -1052,8 +1052,12 @@ class jobsList(Resource):
         logfiles.sort(reverse=True)
         for file in logfiles:
             recipe = re.search(".*-(.*?).log", file, re.IGNORECASE).group(1)
-            if ((config.jobs[recipe].job_status() == "down") and ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) < 5)):
-                running = True
+            print(recipe)
+            if ((time.time() - os.stat(os.path.join(config.conf["global"]["log"]["dir"],file)).st_mtime) < 5):
+                if ((recipe in list(config.conf["recipes"].keys())) and config.jobs[recipe] and (config.jobs[recipe].job_status() == "down")):
+                    running = False
+                else:
+                    running = True
             else:
                 running = False
 
