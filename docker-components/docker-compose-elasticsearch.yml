@@ -8,6 +8,12 @@ networks:
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION}
+    command:
+      - /bin/bash
+      - -c
+      - |
+        bin/elasticsearch-plugin install --batch repository-s3
+        exec /usr/local/bin/docker-entrypoint.sh elasticsearch
     container_name: ${DC_PREFIX}-elasticsearch
     environment:
       - cluster.name=matchid-cluster
