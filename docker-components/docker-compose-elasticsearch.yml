@@ -12,13 +12,21 @@ services:
       - /bin/bash
       - -c
       - |
-        bin/elasticsearch-plugin install --batch repository-s3
+        if [ ! -z "$http_proxy" ]; then
+          host=$${http_proxy##*//};
+          host=$${host%%:*};
+          port=$${http_proxy##*:};
+          (echo -e "cluster.name: \"docker-cluster\"\nnetwork.host: 0.0.0.0\ns3.client.default.proxy.host: $${host}\ns3.client.default.proxy.port: $${port}"  > /usr/share/elasticsearch/config/elasticsearch.yml);
+        fi;
         exec /usr/local/bin/docker-entrypoint.sh elasticsearch
     container_name: ${DC_PREFIX}-elasticsearch
     environment:
       - cluster.name=matchid-cluster
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms%M -Xmx%M"
+      - ES_JAVA_OPTS
+      - http_proxy
+      - https_proxy
+      - no_proxy
       - discovery.type=single-node
       - xpack.security.enabled=false
     ulimits:

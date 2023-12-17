@@ -7,7 +7,7 @@
     environment:
       - cluster.name=matchid-cluster
       - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms%M -Xmx%M"
+      - ES_JAVA_OPTS
       - "discovery.zen.ping.unicast.hosts=elasticsearch"
       - xpack.security.enabled=false
     ulimits:

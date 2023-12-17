@@ -22,6 +22,7 @@ export API_TEST_JSON_PATH=swagger
 export PORT=8081
 export BACKEND_PORT=8081
 export TIMEOUT=30
+export BACKUP_TIMEOUT=600
 # auth method - do not use auth by default (auth can be both passwords and OAuth)
 export NO_AUTH=True
 export TWITTER_OAUTH_ID=None
@@ -81,8 +82,9 @@ export MATCHID_CONFIG_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower
 export ES_INDEX=${APP_GROUP}
 export ES_NODES = 1		# elasticsearch number of nodes
 export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
-export ES_MEM = 1024m		# elasticsearch : memory of each node
-export ES_VERSION = 8.1.3
+export ES_MEM := 1024m		# elasticsearch : memory of each node
+export ES_JAVA_OPTS := -Xms${ES_MEM} -Xmx${ES_MEM}		# elasticsearch : java options
+export ES_VERSION = 8.6.1
 export ES_DATA = ${BACKEND}/esdata
 export ES_THREADS = 2
 export ES_MAX_TRIES = 3
@@ -192,49 +194,95 @@ endif
 elasticsearch2-stop:
 	@${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml down
 
-elastisearch-repository-plugin:
-	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
-		"echo ${STORAGE_ACCESS_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.access_key"
-	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
-		"echo ${STORAGE_SECRET_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.secret_key"
-	@docker restart ${DC_PREFIX}-elasticsearch
-	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
-	@touch elastisearch-repository-plugin
+elasticsearch-repository-plugin: elasticsearch
+	@if [ ! -f "elasticsearch-repository-plugin" ]; then\
+		echo installing elasticsearch repository plugin;\
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
+			"echo ${STORAGE_ACCESS_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.access_key";\
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
+			"echo ${STORAGE_SECRET_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.secret_key";\
+		docker restart ${DC_PREFIX}-elasticsearch;\
+		timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ;\
+		echo; touch elasticsearch-repository-plugin ; exit $$ret;\
+	fi;
 
-elasticsearch-repository-config: elastisearch-repository-plugin
-	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
-		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}" -H 'Content-Type: application/json' \
-		-d '{"type": "s3","settings": {"bucket": "${REPOSITORY_BUCKET}","client": "default","region": "${SCW_REGION}","endpoint": "${SCW_ENDPOINT}","path_style_access": true,"protocol": "https"}}' \
-		| grep -q '"acknowledged":true' && touch elasticsearch-repository-config
+elasticsearch-repository-config: elasticsearch-repository-plugin
+	@if [ ! -f "elasticsearch-repository-config" ]; then\
+		echo creating elasticsearch repository ${APP_GROUP} in s3 bucket ${REPOSITORY_BUCKET} && \
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+			curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}" -H 'Content-Type: application/json' \
+			-d '{"type": "s3","settings": {"bucket": "${REPOSITORY_BUCKET}","client": "default","region": "${SCW_REGION}","endpoint": "${SCW_ENDPOINT}","path_style_access": true,"protocol": "https"}}' \
+			| grep -q '"acknowledged":true' && touch elasticsearch-repository-config;\
+	fi
 
 elasticsearch-repository-backup: elasticsearch-repository-config
-	@echo creating snapshot ${ES_BACKUP_NAME} in elasticsearch repository;\
+	@\
 	docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
-		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}?wait_for_completion=true" -H 'Content-Type: application/json'\
-		-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}'
+		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}" -H 'Content-Type: application/json'\
+			-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}' \
+	| grep -q '{"accepted":true}';\
+	if [ "$$?" -ne "0" ]; then\
+		echo "snapshot ${ES_BACKUP_NAME} creation failed";\
+		exit 1;\
+	fi;\
+	echo -n creating snapshot ${ES_BACKUP_NAME} in elasticsearch repository;\
+	timeout=${BACKUP_TIMEOUT} ; ret=1 ; dot_count=0 ;\
+	until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do\
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+			curl -s -XGET "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}"\
+		| grep -q '"state":"SUCCESS"';\
+		ret=$$? ; \
+		if [ "$$ret" -ne "0" ] ; then\
+			echo -en "." ; \
+			((dot_count++));\
+			if [ "$$dot_count" -gt "10" ]; then\
+				echo -en "\rwaiting for snapshot ${ES_BACKUP_NAME} to complete $$timeout" ;\
+				dot_count=0;\
+			fi;\
+		fi ;\
+		((timeout--));((timeout--)); sleep 2 ; \
+	done ; echo ;\
+	if [ "$$ret" -ne "0" ]; then\
+		echo "snapshot ${ES_BACKUP_NAME} creation failed";\
+		exit $$ret;\
+	fi;\
+	echo "snapshot ${ES_BACKUP_NAME} created in elasticsearch repository" && touch elasticsearch-repository-backup
 
-elasticsearch-repository-backup-async: elastisearch-repository-config
+
+elasticsearch-repository-backup-async: elasticsearch-repository-config
 	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
 		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}" -H 'Content-Type: application/json'\
 		-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}'
 
-elasticsearch-repository-delete: elastisearch-repository-config
-	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
-		curl -s -XDELETE "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}"
+elasticsearch-repository-delete: elasticsearch-repository-config
+	@(\
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+			curl -s -XDELETE "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}"\
+		> /dev/null 2>&1\
+	 ) && echo "snapshot ${ES_BACKUP_NAME} deleted from elasticsearch repository"
 
-elasticsearch-repository-restore: elastisearch-repository-config
+elasticsearch-repository-list: elasticsearch-repository-config
 	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
-		curl -s -XPOST localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}/_restore?wait_for_completion=true -H 'Content-Type: application/json'\
-		-d '{"indices": "${ES_INDEX}","ignore_unavailable": true,"include_global_state": false}'
+			curl -s -XGET "localhost:9200/_snapshot/${APP_GROUP}/_all"\
+		| jq -r '.snapshots[].snapshot'
 
-elasticsearch-repository-check:
+elasticsearch-repository-restore: elasticsearch-repository-config
+	@echo restoring snapshot ${ES_BACKUP_NAME} from elasticsearch repository;\
+	(\
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+			curl -s -XPOST localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}/_restore?wait_for_completion=true -H 'Content-Type: application/json'\
+			-d '{"indices": "${ES_INDEX}","ignore_unavailable": true,"include_global_state": false}' \
+		> /dev/null 2>&1\
+	) && echo "snapshot ${ES_BACKUP_NAME} restored from elasticsearch repository" && touch elasticsearch-repository-restore
+
+elasticsearch-repository-check: elasticsearch-repository-config backup-dir
 	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_NAME}.check" ]; then\
 		(\
 			docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
-				curl -s -XGET "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}" \
+				curl -s -XGET "localhost:9200/_snapshot/${APP_GROUP}/_all" \
 			| jq -r '.snapshots[].snapshot' | grep -q "${ES_BACKUP_NAME}" \
 		) > /dev/null 2>&1 \
-		&& echo "snapshot found for or ${ES_BACKUP_NAME} in elasticsearch repository" && touch "${BACKUP_DIR}/${ES_BACKUP_NAME}.check" \
+		&& echo "snapshot found for or ${ES_BACKUP_NAME} in elasticsearch repository" && mkdir -p touch "${BACKUP_DIR}/${ES_BACKUP_NAME}.check" \
 		|| (echo "no snapshot found for ${ES_BACKUP_NAME} in elasticsearch repository")\
 	fi
 
@@ -276,9 +324,9 @@ endif
 
 elasticsearch-dev: elasticsearch
 
-elasticsearch: network vm_max
+elasticsearch-cluster: network vm_max
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
-	@cat ${DC_FILE}-elasticsearch.yml | sed "s/%M/${ES_MEM}/g" > ${DC_FILE}-elasticsearch-huge.yml
+	@cat ${DC_FILE}-elasticsearch.yml > ${DC_FILE}-elasticsearch-huge.yml
 	@(if [ ! -d ${ES_DATA}/node1 ]; then sudo mkdir -p ${ES_DATA}/node1 ; sudo chmod g+rw ${ES_DATA}/node1/.; sudo chown 1000:1000 ${ES_DATA}/node1/.; fi)
 	@(i=$(ES_NODES); while [ $${i} -gt 1 ]; \
 		do \
@@ -290,15 +338,21 @@ elasticsearch: network vm_max
 	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d
 	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
 
+elasticsearch: network vm_max
+	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
+	@(if [ ! -d ${ES_DATA}/node1 ]; then sudo mkdir -p ${ES_DATA}/node1 ; sudo chmod g+rw ${ES_DATA}/node1/.; sudo chown 1000:1000 ${ES_DATA}/node1/.; fi)
+	${DC} -f ${DC_FILE}-elasticsearch.yml up -d
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
+
 elasticsearch2:
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@cat ${DC_FILE}-elasticsearch.yml | head -8 > ${DC_FILE}-elasticsearch-huge-remote.yml
 	@(i=$$(( $(ES_NODES) * $(ES_SWARM_NODE_NUMBER) ));j=$$(( $(ES_NODES) * $(ES_SWARM_NODE_NUMBER) - $(ES_NODES))); while [ $${i} -gt $${j} ]; \
-	        do \
-	              if [ ! -d ${ES_DATA}/node$$i ]; then (echo ${ES_DATA}/node$$i && sudo mkdir -p ${ES_DATA}/node$$i && sudo chmod g+rw ${ES_DATA}/node$$i/. && sudo chown 1000:1000 ${ES_DATA}/node$$i/.); fi; \
-	              cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MEM}/g;s/%M/${ES_MEM}/g" | egrep -v 'depends_on|- elasticsearch' >> ${DC_FILE}-elasticsearch-huge-remote.yml; \
-	              i=`expr $$i - 1`; \
-	 	done;\
+		do \
+			if [ ! -d ${ES_DATA}/node$$i ]; then (echo ${ES_DATA}/node$$i && sudo mkdir -p ${ES_DATA}/node$$i && sudo chmod g+rw ${ES_DATA}/node$$i/. && sudo chown 1000:1000 ${ES_DATA}/node$$i/.); fi; \
+				cat ${DC_FILE}-elasticsearch-node.yml | sed "s/%N/$$i/g;s/%MM/${ES_MEM}/g;s/%M/${ES_MEM}/g" | egrep -v 'depends_on|- elasticsearch' >> ${DC_FILE}-elasticsearch-huge-remote.yml; \
+				i=`expr $$i - 1`; \
+		done;\
 	true)
 	${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml up -d
 
