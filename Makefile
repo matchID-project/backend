@@ -192,7 +192,7 @@ endif
 elasticsearch2-stop:
 	@${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml down
 
-elastisearch-repository-plugin:
+elastisearch-repository-plugin: elasticsearch
 	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
 		"echo ${STORAGE_ACCESS_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.access_key"
 	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
