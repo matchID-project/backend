@@ -78,6 +78,7 @@ export MATCHID_DATA_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]
 export MATCHID_CONFIG_BUCKET=$(shell echo ${APP_GROUP} | tr '[:upper:]' '[:lower:]')
 
 # elasticsearch defaut configuration
+export ES_INDEX=${APP_GROUP}
 export ES_NODES = 1		# elasticsearch number of nodes
 export ES_SWARM_NODE_NUMBER = 2		# elasticsearch number of nodes
 export ES_MEM = 1024m		# elasticsearch : memory of each node
@@ -86,13 +87,15 @@ export ES_DATA = ${BACKEND}/esdata
 export ES_THREADS = 2
 export ES_MAX_TRIES = 3
 export ES_CHUNK = 500
-export ES_BACKUP_FILE := $(shell echo esdata_`date +"%Y%m%d"`.tar)
-export ES_BACKUP_FILE_SNAR = esdata.snar
+export ES_BACKUP_NAME := $(shell echo esdata_`date +"%Y%m%d"`)
+export ES_BACKUP_FILE := ${ES_BACKUP_NAME}.tar
+export ES_BACKUP_FILE_SNAR = ${ES_BACKUP_NAME}.snar
 
 export DB_SERVICES=elasticsearch postgres
 
 export SERVICES=${DB_SERVICES} backend frontend
 
+-include ${APP_PATH}/${GIT_TOOLS}/artifacts.SCW
 dummy		    := $(shell touch artifacts)
 include ./artifacts
 
@@ -188,6 +191,52 @@ endif
 
 elasticsearch2-stop:
 	@${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml down
+
+elastisearch-repository-plugin:
+	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
+		"echo ${STORAGE_ACCESS_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.access_key"
+	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
+		"echo ${STORAGE_SECRET_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.secret_key"
+	@docker restart ${DC_PREFIX}-elasticsearch
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
+	@touch elastisearch-repository-plugin
+
+elasticsearch-repository-config: elastisearch-repository-plugin
+	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}" -H 'Content-Type: application/json' \
+		-d '{"type": "s3","settings": {"bucket": "${REPOSITORY_BUCKET}","client": "default","region": "${SCW_REGION}","endpoint": "${SCW_ENDPOINT}","path_style_access": true,"protocol": "https"}}' \
+		| grep -q '"acknowledged":true' && touch elasticsearch-repository-config
+
+elasticsearch-repository-backup: elasticsearch-repository-config
+	@echo creating snapshot ${ES_BACKUP_NAME} in elasticsearch repository;\
+	docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}?wait_for_completion=true" -H 'Content-Type: application/json'\
+		-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}'
+
+elasticsearch-repository-backup-async: elastisearch-repository-config
+	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}" -H 'Content-Type: application/json'\
+		-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}'
+
+elasticsearch-repository-delete: elastisearch-repository-config
+	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+		curl -s -XDELETE "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}"
+
+elasticsearch-repository-restore: elastisearch-repository-config
+	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+		curl -s -XPOST localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}/_restore?wait_for_completion=true -H 'Content-Type: application/json'\
+		-d '{"indices": "${ES_INDEX}","ignore_unavailable": true,"include_global_state": false}'
+
+elasticsearch-repository-check:
+	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_NAME}.check" ]; then\
+		(\
+			docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+				curl -s -XGET "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}" \
+			| jq -r '.snapshots[].snapshot' | grep -q "${ES_BACKUP_NAME}" \
+		) > /dev/null 2>&1 \
+		&& echo "snapshot found for or ${ES_BACKUP_NAME} in elasticsearch repository" && touch "${BACKUP_DIR}/${ES_BACKUP_NAME}.check" \
+		|| (echo "no snapshot found for ${ES_BACKUP_NAME} in elasticsearch repository")\
+	fi
 
 elasticsearch-backup: elasticsearch-stop backup-dir
 	@echo taring ${ES_DATA} to ${BACKUP_DIR}/${ES_BACKUP_FILE}
