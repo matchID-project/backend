@@ -193,6 +193,7 @@ elasticsearch2-stop:
 	@${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml down
 
 elastisearch-repository-plugin: elasticsearch
+	@echo installing elasticsearch repository plugin
 	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
 		"echo ${STORAGE_ACCESS_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.access_key"
 	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
@@ -202,7 +203,8 @@ elastisearch-repository-plugin: elasticsearch
 	@touch elastisearch-repository-plugin
 
 elasticsearch-repository-config: elastisearch-repository-plugin
-	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+	@echo creating elasticsearch repository ${APP_GROUP} in s3 bucket ${REPOSITORY_BUCKET} && \
+	docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
 		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}" -H 'Content-Type: application/json' \
 		-d '{"type": "s3","settings": {"bucket": "${REPOSITORY_BUCKET}","client": "default","region": "${SCW_REGION}","endpoint": "${SCW_ENDPOINT}","path_style_access": true,"protocol": "https"}}' \
 		| grep -q '"acknowledged":true' && touch elasticsearch-repository-config
@@ -223,7 +225,8 @@ elasticsearch-repository-delete: elastisearch-repository-config
 		curl -s -XDELETE "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}"
 
 elasticsearch-repository-restore: elastisearch-repository-config
-	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+	@echo restoring snapshot ${ES_BACKUP_NAME} from elasticsearch repository;\
+	docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
 		curl -s -XPOST localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}/_restore?wait_for_completion=true -H 'Content-Type: application/json'\
 		-d '{"indices": "${ES_INDEX}","ignore_unavailable": true,"include_global_state": false}'
 
