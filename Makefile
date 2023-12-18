@@ -220,7 +220,7 @@ elasticsearch-repository-backup-async: elastisearch-repository-config
 		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}" -H 'Content-Type: application/json'\
 		-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}'
 
-elasticsearch-repository-delete: elastisearch-repository-config
+elasticsearch-repository-delete: elasticsearch-repository-config
 	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
 		curl -s -XDELETE "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}"
 
