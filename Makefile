@@ -211,9 +211,12 @@ elasticsearch-repository-config: elastisearch-repository-plugin
 
 elasticsearch-repository-backup: elasticsearch-repository-config
 	@echo creating snapshot ${ES_BACKUP_NAME} in elasticsearch repository;\
-	docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
-		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}?wait_for_completion=true" -H 'Content-Type: application/json'\
-		-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}'
+	(\
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+			curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}?wait_for_completion=true" -H 'Content-Type: application/json'\
+			-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}' \
+		> /dev/null 2>&1\
+	) && echo "snapshot ${ES_BACKUP_NAME} created in elasticsearch repository" && touch elasticsearch-repository-backup
 
 elasticsearch-repository-backup-async: elastisearch-repository-config
 	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
@@ -221,14 +224,20 @@ elasticsearch-repository-backup-async: elastisearch-repository-config
 		-d '{"indices": "${ES_INDEX}", "ignore_unavailable": true, "include_global_state": false}'
 
 elasticsearch-repository-delete: elasticsearch-repository-config
-	@docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
-		curl -s -XDELETE "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}"
+	@(\
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+			curl -s -XDELETE "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}"\
+		> /dev/null 2>&1\
+	 ) && echo "snapshot ${ES_BACKUP_NAME} deleted from elasticsearch repository"
 
 elasticsearch-repository-restore: elastisearch-repository-config
 	@echo restoring snapshot ${ES_BACKUP_NAME} from elasticsearch repository;\
-	docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
-		curl -s -XPOST localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}/_restore?wait_for_completion=true -H 'Content-Type: application/json'\
-		-d '{"indices": "${ES_INDEX}","ignore_unavailable": true,"include_global_state": false}'
+	(\
+		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+			curl -s -XPOST localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}/_restore?wait_for_completion=true -H 'Content-Type: application/json'\
+			-d '{"indices": "${ES_INDEX}","ignore_unavailable": true,"include_global_state": false}' \
+		> /dev/null 2>&1\
+	) && echo "snapshot ${ES_BACKUP_NAME} restored from elasticsearch repository" && touch elasticsearch-repository-restore
 
 elasticsearch-repository-check:
 	@if [ ! -f "${BACKUP_DIR}/${ES_BACKUP_NAME}.check" ]; then\
