@@ -194,7 +194,7 @@ endif
 elasticsearch2-stop:
 	@${DC} -f ${DC_FILE}-elasticsearch-huge-remote.yml down
 
-elasticsearch-repository-plugin: elasticsearch
+elasticsearch-repository-plugin: elasticsearch-start
 	@if [ ! -f "elasticsearch-repository-plugin" ]; then\
 		echo installing elasticsearch repository plugin;\
 		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
@@ -202,7 +202,7 @@ elasticsearch-repository-plugin: elasticsearch
 		docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch sh -c \
 			"echo ${STORAGE_SECRET_KEY} | bin/elasticsearch-keystore add --stdin --force s3.client.default.secret_key";\
 		docker restart ${DC_PREFIX}-elasticsearch;\
-		timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ;\
+		timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/ > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch API to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ;\
 		echo; touch elasticsearch-repository-plugin ; exit $$ret;\
 	fi;
 
@@ -346,11 +346,13 @@ elasticsearch-cluster: network vm_max
 	${DC} -f ${DC_FILE}-elasticsearch-huge.yml up -d
 	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
 
-elasticsearch: network vm_max
+elasticsearch-start: network vm_max
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
 	@(if [ ! -d ${ES_DATA}/node1 ]; then sudo mkdir -p ${ES_DATA}/node1 ; sudo chmod g+rw ${ES_DATA}/node1/.; sudo chown 1000:1000 ${ES_DATA}/node1/.; fi)
 	${DC} -f ${DC_FILE}-elasticsearch.yml up -d
-	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/_cat/indices > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
+
+elasticsearch: elasticsearch-start
+	@timeout=${TIMEOUT} ; ret=1 ; until [ "$$timeout" -le 0 -o "$$ret" -eq "0"  ] ; do (docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch curl -s --fail -XGET localhost:9200/ > /dev/null) ; ret=$$? ; if [ "$$ret" -ne "0" ] ; then echo -en "\rwaiting for elasticsearch API to start $$timeout" ; fi ; ((timeout--)); sleep 1 ; done ; echo ; exit $$ret
 
 elasticsearch2:
 	@echo docker-compose up matchID elasticsearch with ${ES_NODES} nodes
