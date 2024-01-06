@@ -215,7 +215,15 @@ elasticsearch-repository-config: elasticsearch-repository-plugin
 			| grep -q '"acknowledged":true' && touch elasticsearch-repository-config;\
 	fi
 
-elasticsearch-repository-backup: elasticsearch-repository-config
+elasticsearch-freeze:
+	@\
+	docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
+		curl -s -XPUT "localhost:9200/${ES_INDEX}/_settings" -H 'Content-Type: application/json' \
+			-d '{"index":{"blocks.write": true}}' | grep -q '"acknowledged":true' \
+	&& echo "index ${ES_INDEX} frozen" \
+	|| echo "index ${ES_INDEX} freeze failed"
+
+elasticsearch-repository-backup: elasticsearch-repository-config elasticsearch-freeze
 	@\
 	docker exec -i ${USE_TTY} ${DC_PREFIX}-elasticsearch \
 		curl -s -XPUT "localhost:9200/_snapshot/${APP_GROUP}/${ES_BACKUP_NAME}" -H 'Content-Type: application/json'\
