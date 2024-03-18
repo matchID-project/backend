@@ -21,5 +21,7 @@ smart-open==1.10.0
 sqlalchemy
 tslib
 typing
-Werkzeug==0.16.1
+Werkzeug==2.3.8
 rsa>=4.7 # not directly required, pinned by Snyk to avoid a vulnerability
+numpy>=1.22.2 # not directly required, pinned by Snyk to avoid a vulnerability
+redis>=4.3.6 # not directly required, pinned by Snyk to avoid a vulnerability
