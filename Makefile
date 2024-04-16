@@ -22,7 +22,7 @@ export API_TEST_JSON_PATH=swagger
 export PORT=8081
 export BACKEND_PORT=8081
 export TIMEOUT=30
-export BACKUP_TIMEOUT=600
+export BACKUP_TIMEOUT=1800
 # auth method - do not use auth by default (auth can be both passwords and OAuth)
 export NO_AUTH=True
 export TWITTER_OAUTH_ID=None
