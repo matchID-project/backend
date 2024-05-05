@@ -1,7 +1,7 @@
 #######################
 # Step 1: Base target #
 #######################
-FROM python:3.9-slim-bullseye as base
+FROM python:3.13.0a6-slim as base
 ARG http_proxy
 ARG https_proxy
 ARG no_proxy
