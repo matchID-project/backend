@@ -27,7 +27,7 @@ import operator
 import simplejson
 from collections import Iterable
 from collections import OrderedDict
-from pandas.io.json import json_normalize
+from pandas import json_normalize
 from collections import deque
 
 
