@@ -170,17 +170,17 @@ network: config
 elasticsearch-dev-stop: elasticsearch-stop
 
 elasticsearch-docker-check:
-	@if [ ! -f ".docker.elastic.co-elasticsearch-oss:${ES_VERSION}" ]; then\
+	@if [ ! -f ".docker.elastic.co-elasticsearch:${ES_VERSION}" ]; then\
 			(\
-					(docker image inspect docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} > /dev/null 2>&1)\
-					&& touch .docker.elastic.co-elasticsearch-oss:${ES_VERSION}\
+					(docker image inspect docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION} > /dev/null 2>&1)\
+					&& touch .docker.elastic.co-elasticsearch:${ES_VERSION}\
 			)\
 			||\
 			(\
-					(docker pull docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} 2> /dev/null)\
-					&& touch .docker.elastic.co-elasticsearch-oss:${ES_VERSION}\
+					(docker pull docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION} 2> /dev/null)\
+					&& touch .docker.elastic.co-elasticsearch:${ES_VERSION}\
 			)\
-			|| (echo no image found for docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} && exit 1);\
+			|| (echo no image found for docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION} && exit 1);\
 	fi;
 
 elasticsearch-stop:
@@ -566,9 +566,9 @@ docker-save-all: config backend-docker-check frontend-docker-check postgres-dock
 		echo saving backend docker image;\
 		docker save ${DOCKER_USERNAME}/${DC_PREFIX}-${APP}:${APP_VERSION} | gzip > ${DC_DIR}/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz;\
 	fi
-	@if [ ! -f "${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz" ];then\
+	@if [ ! -f "${DC_DIR}/elasticsearch:${ES_VERSION}.tar.gz" ];then\
 		echo saving elasticsearch docker image;\
-		docker save docker.elastic.co/elasticsearch/elasticsearch-oss:${ES_VERSION} | gzip > ${DC_DIR}/elasticsearch-oss:${ES_VERSION}.tar.gz;\
+		docker save docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION} | gzip > ${DC_DIR}/elasticsearch:${ES_VERSION}.tar.gz;\
 	fi
 	@if [ ! -f "${DC_DIR}/postgres:latest.tar.gz" ];then\
 		echo saving postgres docker image;\
@@ -598,7 +598,7 @@ package: docker-save-all
 			$$DC_DIR/postgres:latest.tar.gz\
 			$$DC_DIR/${FRONTEND_DC_IMAGE_NAME}:$$FRONTEND_APP_VERSION.tar.gz\
 			$$DC_DIR/${DC_PREFIX}-${APP}:${APP_VERSION}.tar.gz\
-			$$DC_DIR/elasticsearch-oss:${ES_VERSION}.tar.gz\
+			$$DC_DIR/elasticsearch:${ES_VERSION}.tar.gz\
 			`cd ${APP_PATH}/${GIT_TOOLS};git ls-files | sed "s/^/$${APP_PATH##*/}\/${GIT_TOOLS}\//"`\
 			$${APP_PATH##*/}/${GIT_TOOLS}/.git\
 			`cd ${FRONTEND};git ls-files | sed "s/^/$${FRONTEND##*/}\//"`\
