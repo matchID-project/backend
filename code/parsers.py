@@ -1,5 +1,5 @@
 import werkzeug
-from flask_restplus import reqparse
+from flask_restx import reqparse
 from werkzeug.datastructures import FileStorage
 
 
