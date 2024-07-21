@@ -536,7 +536,7 @@ class Dataset(Configured):
                         self.open(file),
                         sep=self.sep, usecols=self.select, chunksize=self.chunk,
                         encoding=self.encoding,dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
-                        prefix=self.prefix, iterator=True, index_col=False, keep_default_na=False
+                        iterator=True, index_col=False, keep_default_na=False
                     )
                 elif (self.type == "fwf"):
                     reader = pd.read_fwf(
