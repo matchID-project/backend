@@ -22,7 +22,6 @@ import operator
 import simplejson
 from collections.abc import Iterable
 from collections import OrderedDict
-from pandas.io.json import json_normalize
 from collections import deque
 
 
@@ -44,7 +43,7 @@ import uuid
 from flask import Flask, current_app, jsonify, Response, abort, request, g, stream_with_context
 from flask.sessions import SecureCookieSessionInterface
 from flask_login import LoginManager, login_user, login_required, logout_user, current_user
-from flask_restplus import Resource, Api, reqparse
+from flask_restx import Resource, Api
 from werkzeug.utils import secure_filename
 from werkzeug.serving import run_simple
 from werkzeug.middleware.dispatcher import DispatcherMiddleware

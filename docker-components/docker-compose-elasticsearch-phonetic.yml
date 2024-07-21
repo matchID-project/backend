@@ -11,7 +11,7 @@ services:
     container_name: ${DC_PREFIX}-elasticsearch-phonetic
     environment:
       - cluster.name=docker-cluster
-      # - xpack.security.enabled=false
+      - xpack.security.enabled=false
       - "ES_JAVA_OPTS=-Xms3072m -Xmx3072m"
     ulimits:
       memlock:
