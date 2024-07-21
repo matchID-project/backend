@@ -1588,9 +1588,8 @@ class Recipe(Configured):
         return df
 
     def prepare_numerical(self, df=None):
-        df = df[self.numerical].fillna("")
-        df = df.applymap(lambda x: 0 if (
-            (str(x) == "") | (x == None)) else float(x))
+        df = df[self.numerical].fillna("0")
+        df = df.apply(lambda col: pd.to_numeric(col, errors='coerce').fillna(0))
         return df
 
     def internal_fillna(self, df=None, desc=None):
