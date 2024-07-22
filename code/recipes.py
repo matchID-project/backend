@@ -2432,8 +2432,7 @@ class Recipe(Configured):
                 for r in self.args["regex"]:
                     regex.append([re.compile(list(r.keys())[0]), r[list(r.keys())[0]]])
                 pd.options.mode.chained_assignment = None
-                df[self.cols] = df[self.cols].applymap(
-                    lambda x: replace_regex(x, regex))
+                df[self.cols] = df[self.cols].apply(lambda col: col.apply(replace_regex))
             return df
         else:
             return df
