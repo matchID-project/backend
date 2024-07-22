@@ -1890,8 +1890,8 @@ class Recipe(Configured):
         # keep only selected columns
         self.select_columns(df=df)
         try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: np.nan if (str(x) == "") else int(x))
+            # Convert columns to integers, keeping NaN as is
+            df[self.cols] = df[self.cols].apply(lambda col: pd.to_numeric(col, errors='coerce'))
             return df
         except SystemExit:
             return df
