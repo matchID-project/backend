@@ -1926,13 +1926,11 @@ class Recipe(Configured):
     def internal_to_float(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
+        na_value = self.args.get("na_value", np.nan)
+
         try:
-            na_value = self.args["na_value"]
-        except:
-            na_value = np.nan
-        try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: na_value if (str(x) == "") else float(x))
+            # Convert columns to floats, setting non-convertible values to na_value
+            df[self.cols] = df[self.cols].apply(lambda col: pd.to_numeric(col, errors='coerce').fillna(na_value))
             return df
         except SystemExit:
             return df
