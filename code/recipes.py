@@ -2243,8 +2243,7 @@ class Recipe(Configured):
                     if True:
                         m_res = []
 
-                        rest = df.applymap(lambda x: "" if x is None else x)
-                        rest.fillna("", inplace=True)
+                        rest = df.fillna("")
 
                         # elasticsearch bulk search
                         while rest.shape[0] > 0:
