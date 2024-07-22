@@ -1903,8 +1903,7 @@ class Recipe(Configured):
         # keep only selected columns
         self.select_columns(df=df)
         try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: tuple(x) if (type(x) == list) else x)
+            df[self.cols] = df[self.cols].apply(lambda col: col.apply(lambda x: tuple(x) if isinstance(x, list) else x))
             return df
         except SystemExit:
             return df
@@ -1916,8 +1915,7 @@ class Recipe(Configured):
         # keep only selected columns
         self.select_columns(df=df)
         try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: list(x) if (type(x) == tuple) else x)
+            df[self.cols] = df[self.cols].apply(lambda col: col.apply(lambda x: list(x) if isinstance(x, tuple) else x))
             return df
         except SystemExit:
             return df
