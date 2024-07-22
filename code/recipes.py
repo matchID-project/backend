@@ -1941,13 +1941,13 @@ class Recipe(Configured):
     def internal_ngram(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
-        if ("n" in list(self.args.keys())):
-            n = self.args['n']
-        else:
-            n = list([2, 3])
+        n = self.args.get('n', [2, 3])  # Use get with a default value for simplification
+
         try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: ngrams(tokenize(normalize(x)), n))
+            # Apply n-gram generation to each column
+            df[self.cols] = df[self.cols].apply(
+                lambda col: col.apply(lambda x: ngrams(tokenize(normalize(x)), n))
+            )
             return df
         except SystemExit:
             return df
