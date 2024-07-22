@@ -2421,9 +2421,6 @@ class Recipe(Configured):
             for col in self.cols:
                 df[col] = pd.to_datetime(
                     df[col], errors='coerce', format=self.args["format"])
-            # df[self.cols]=df[self.cols].applymap(lambda x:
-            #	parsedate(x,self.args["format"]))
-
         return df
 
     def internal_replace(self, df=None, desc=None):
