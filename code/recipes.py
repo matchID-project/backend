@@ -1755,7 +1755,7 @@ class Recipe(Configured):
             # for debug: self.log.write("{} {} {} {}
             # {}".format(X.shape,len(self.numerical),Xn.shape,len(self.categorical),Xc.shape))
 
-            Y = df[self.target].applymap(lambda x: 1 if x else 0)
+            Y = np.where(df[self.target], 1, 0)
             # prep = DictVectorizer()
             # X=X.to_dict().values()
             # X = prep.fit_transform(X).toarray()
