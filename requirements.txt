@@ -1,6 +1,6 @@
 blake3
 boto3
-elasticsearch
+elasticsearch==7.17.7
 enum34
 Flask
 flask-login
