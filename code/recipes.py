@@ -538,6 +538,13 @@ class Dataset(Configured):
                         encoding=self.encoding,dtype=object, header=self.header, names=self.names, skiprows=self.skiprows,
                         iterator=True, index_col=False, keep_default_na=False
                     )
+                elif (self.type == "jsonl"):
+                    reader = pd.read_json(
+                        self.open(file),
+                        lines=True, chunksize=self.chunk,
+                        encoding=self.encoding, dtype=object,
+                        iterator=True
+                    )
                 elif (self.type == "fwf"):
                     reader = pd.read_fwf(
                         self.open(file),
