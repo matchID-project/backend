@@ -10,17 +10,19 @@ fuzzywuzzy[speedup]
 jellyfish
 networkx
 nltk
-pandas
+pandas==1.5.3
+numpy==1.26.4
 psycopg2-binary
-PyYAML
+pyyaml
 rauth
 redisearch
 scikit-learn[alldeps]
 simplejson
-smart-open==1.10.0
+smart-open==4.2.0
 sqlalchemy
 tslib
 typing
 Werkzeug==3.0.3
 rsa>=4.7 # not directly required, pinned by Snyk to avoid a vulnerability
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
+pyarrow>=14.0.1
