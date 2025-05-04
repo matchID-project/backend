@@ -32,6 +32,7 @@ from collections import deque
 
 # interact with datasets
 import gzip
+import pyarrow.parquet as pq
 
 #from pandasql import sqldf
 import elasticsearch
@@ -565,6 +566,14 @@ class Dataset(Configured):
                             iterator=True, encoding=self.encoding
                         )
                     )
+                elif (self.type == "parquet"):
+                    pq_file = pq.ParquetFile(self.open(file))
+                    reader = pq_file.iter_batches(batch_size=self.chunk)
+                    # Wrapper pour convertir les lots Arrow en DataFrames pandas
+                    def arrow_to_pandas_iterator(arrow_iterator):
+                        for batch in arrow_iterator:
+                            yield batch.to_pandas()
+                    reader = arrow_to_pandas_iterator(reader)
                 for n_chunk_file, df in enumerate(reader):
                     size = df.shape[0]
                     n_rows_total = n_rows_total + size
@@ -894,6 +903,16 @@ class Dataset(Configured):
                     except:
                         self.log.write(
                             "write to msgpack failed writing {}".format(self.file), err())
+                elif (self.type == "parquet"):
+                    try:
+                        df.to_parquet(
+                            self.fs,
+                            engine='pyarrow',
+                            index=False
+                        )
+                    except:
+                        self.log.write(
+                            "write to parquet failed writing {}".format(self.file), err())
                 else:
                     self.log.write("no method for writing to {} with type {}".format(
                         self.file, self.type))

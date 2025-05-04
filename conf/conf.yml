@@ -29,6 +29,9 @@ global:
     - txt
     - gz
     - jsonl
+    - parquet
+    - msgpack
+    - fwf
   machine_learning:
     missing_num: 0
     #default parameters
