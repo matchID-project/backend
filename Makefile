@@ -36,6 +36,7 @@ export GITHUB_OAUTH_SECRET=203010f81158d3ceab0297a213e80bc0fbfe7f8e
 export BACKEND := $(shell pwd)
 export UPLOAD=${BACKEND}/upload
 export PROJECTS=${BACKEND}/projects
+export TESTS=${BACKEND}/tests
 export EXAMPLES=${BACKEND}/../examples
 export TUTORIAL=${BACKEND}/../tutorial
 export MODELS=${BACKEND}/models
@@ -696,3 +697,8 @@ deploy-remote: config deploy-remote-instance deploy-remote-services deploy-remot
 
 clean-remote:
 	@make -C ${APP_PATH}/${GIT_TOOLS} remote-clean ${MAKEOVERRIDES} > /dev/null 2>&1 || true
+
+tests:
+	@docker exec -i ${USE_TTY} ${DC_PREFIX}-${APP} pytest -q -W "ignore::DeprecationWarning"
+
+.PHONY: tests

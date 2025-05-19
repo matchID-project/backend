@@ -128,3 +128,14 @@ If you want to contribute to the developpement, you'll be able to fork the repo 
 ```
 make start-dev
 ```
+
+### Running tests
+Install dependencies and run tests with Make:
+```bash
+make tests
+```
+You can also install the requirements and run pytest directly:
+```bash
+pip install -r requirements.txt
+pytest
+```
