@@ -128,3 +128,4 @@ If you want to contribute to the developpement, you'll be able to fork the repo 
 ```
 make start-dev
 ```
+\n### Running tests\nInstall development requirements and run pytest:\n```\npip install -r requirements.txt\npytest\n```
