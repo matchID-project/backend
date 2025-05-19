@@ -128,3 +128,18 @@ If you want to contribute to the developpement, you'll be able to fork the repo 
 ```
 make start-dev
 ```
+
+### Running tests
+Install development requirements and run pytest:
+
+```bash
+pip install -r requirements.txt
+pytest
+```
+
+To run tests using the Docker image:
+
+```bash
+make backend-build
+docker run --rm -v $(pwd):/matchID -w /matchID matchid/matchid-backend:latest pytest -q
+```

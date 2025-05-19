@@ -21,6 +21,9 @@ jobs:
         run: make version backend-docker-check GIT_BRANCH=$GIT_BRANCH || ( make backend-build GIT_BRANCH=$GIT_BRANCH && make backend backend-stop GIT_BRANCH=$GIT_BRANCH)
         env:
           GIT_BRANCH: ${{ steps.extract_branch.outputs.branch }}
+      - name: Run tests
+        if: success()
+        run: docker run --rm -v ${{ github.workspace }}:/matchID -w /matchID matchid/matchid-backend:latest pytest -q
       - name: publish
         if: success()
         run: |
