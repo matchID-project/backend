@@ -8,3 +8,4 @@ services:
       - ${BACKEND}/code/:/${APP_GROUP}/code/
       - ${BACKEND}/referential_data/:/${APP_GROUP}/referential_data/
       - ${BACKEND}/conf/:/${APP_GROUP}/conf/
+      - ${BACKEND}/tests/:/${APP_GROUP}/tests/

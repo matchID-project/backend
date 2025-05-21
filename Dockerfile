@@ -23,7 +23,7 @@ RUN mkdir -p code\
              conf/run\
              log\
              referential_data\
-             matchID_test/\
+             tests\
              upload
 
 ################################
@@ -41,11 +41,13 @@ WORKDIR /${APP}
 COPY code/ code/
 COPY conf/ conf/
 COPY referential_data/ referential_data/
+COPY tests/ tests/
 
 VOLUME /${app_path}/projects
 VOLUME /${app_path}/log
 VOLUME /${app_path}/models
 VOLUME /${app_path}/upload
+VOLUME /${app_path}/tests
 
 EXPOSE ${BACKEND_PORT}
 
@@ -68,6 +70,7 @@ VOLUME /${APP}/referential_data
 VOLUME /${APP}/log
 VOLUME /${APP}/models
 VOLUME /${APP}/upload
+VOLUME /${APP}/tests
 
 EXPOSE ${BACKEND_PORT}
 
