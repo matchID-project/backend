@@ -77,13 +77,9 @@ def test_internal_map():
     assert mapped['D'].tolist() == [[1, 'a'], [2, 'b'], [3, 'c']]
 
 
-def test_internal_shuffle():
-    df = pd.DataFrame({'A': range(10), 'B': list('abcdefghij')})
-    r = recipes.Recipe.__new__(recipes.Recipe)
-    shuffled = recipes.Recipe.internal_shuffle(r, df.copy())
-    assert set(shuffled['A']) == set(df['A'])
-    assert set(shuffled['B']) == set(df['B'])
-
+# ---------------------------------------------------------------------------
+# Consolidation des tests sensibles à NumPy
+# ---------------------------------------------------------------------------
 
 # Utilitaire pour créer un objet Recipe minimal avec un logger muet
 def _recipe_with_args(args):
@@ -93,20 +89,46 @@ def _recipe_with_args(args):
     return r
 
 
-def test_internal_to_integer_single():
-    df = pd.DataFrame({'A': ['1', '2', '', '']})
-    r = _recipe_with_args({'select': ['A']})
-    converted = recipes.Recipe.internal_to_integer(r, df.copy())
-    assert converted['A'].tolist()[:2] == [1, 2]
-    assert pd.isna(converted['A'].iloc[2]) and pd.isna(converted['A'].iloc[3])
-
-
-def test_internal_to_float():
-    df = pd.DataFrame({'A': ['1.1', '', '']})
-    r = _recipe_with_args({'select': ['A']})
-    converted = recipes.Recipe.internal_to_float(r, df.copy())
-    assert converted['A'].iloc[0] == 1.1
-    assert pd.isna(converted['A'].iloc[1]) and pd.isna(converted['A'].iloc[2])
+@pytest.mark.parametrize(
+    "func, df, args, validator",
+    [
+        (
+            recipes.Recipe.internal_to_integer,
+            pd.DataFrame({'A': ['1', '2', '', '']}),
+            {'select': ['A']},
+            lambda res: (
+                res['A'].tolist()[:2] == [1, 2]
+                and pd.isna(res['A'].iloc[2])
+                and pd.isna(res['A'].iloc[3])
+            ),
+        ),
+        (
+            recipes.Recipe.internal_to_float,
+            pd.DataFrame({'A': ['1.1', '', '']}),
+            {'select': ['A']},
+            lambda res: (
+                res['A'].iloc[0] == 1.1
+                and pd.isna(res['A'].iloc[1])
+                and pd.isna(res['A'].iloc[2])
+            ),
+        ),
+        (
+            recipes.Recipe.internal_shuffle,
+            pd.DataFrame({'A': range(10), 'B': list('abcdefghij')}),
+            {},
+            lambda res, df_orig=pd.DataFrame({'A': range(10), 'B': list('abcdefghij')}): (
+                set(res['A']) == set(df_orig['A'])
+                and set(res['B']) == set(df_orig['B'])
+            ),
+        ),
+    ],
+)
+def test_numpy_sensitive_functions(func, df, args, validator):
+    """Regroupe les tests des fonctions dont le comportement pourrait varier
+    avec NumPy 2 (conversion numériques, permutation aléatoire, etc.)."""
+    r = _recipe_with_args(args)
+    result = func(r, df.copy())
+    assert validator(result)
 
 
 def test_internal_parsedate():
