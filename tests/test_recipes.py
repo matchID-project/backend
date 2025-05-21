@@ -319,3 +319,72 @@ def test_internal_eval():
     r = _recipe_with_args([{'B': 'A * 5'}])
     evaluated = recipes.Recipe.internal_eval(r, df.copy())
     assert evaluated['B'].tolist() == [5, 10]
+
+# ---------------------------------------------------------------------------
+# Fonctions utilitaires de validation spécifiques à pandas
+# ---------------------------------------------------------------------------
+
+
+def _validate_groupby_transform_rank(df_res):
+    """Vérifie que les colonnes dérivées par transform et rank sont correctes"""
+    if not {'val_mean', 'val_rank', 'grp'}.issubset(df_res.columns):
+        return False
+    # mean identique au sein d'un même groupe
+    ok_mean = df_res.groupby('grp')['val_mean'].apply(lambda x: (x == x.iloc[0]).all()).all()
+    # rank dense commence à 1 dans chaque groupe
+    ok_rank = df_res.groupby('grp')['val_rank'].apply(lambda x: set(x) == set(range(1, len(x) + 1))).all()
+    return ok_mean and ok_rank
+
+
+def _validate_unfold_basic(df_res):
+    """S'assure que l'unfold a bien explosé les listes"""
+    # On attend trois lignes issues des deux listes [10,20] et [30]
+    return df_res.shape[0] == 3 and set(df_res['L']) == {10, 20, 30}
+
+
+def _validate_unfold_empty(df_res):
+    """S'assure que les listes vides sont conservées avec valeur de remplissage"""
+    # Si la liste était vide, la valeur doit être vide (""), NaN ou équivalente
+    return df_res['L'].iloc[0] in ("", np.nan) and df_res.shape[0] == 1
+
+
+# ---------------------------------------------------------------------------
+# Tests sensibles à pandas 2
+# ---------------------------------------------------------------------------
+
+
+PANDAS_CASES = [
+    # internal_groupby avec transform et rank
+    pytest.param(
+        recipes.Recipe.internal_groupby,
+        pd.DataFrame({'grp': ['g1', 'g1', 'g2', 'g2'], 'val': [1, 2, 3, 5]}),
+        {'select': ['grp'], 'transform': [{'val': 'mean'}], 'rank': ['val']},
+        _validate_groupby_transform_rank,
+        id="groupby_transform_rank",
+    ),
+    # internal_unfold : cas basique
+    pytest.param(
+        recipes.Recipe.internal_unfold,
+        pd.DataFrame({'A': [1, 2], 'L': [[10, 20], [30]]}),
+        {'select': ['L'], 'fill_na': ''},
+        _validate_unfold_basic,
+        id="unfold_basic",
+    ),
+    # internal_unfold : liste vide
+    pytest.param(
+        recipes.Recipe.internal_unfold,
+        pd.DataFrame({'A': [1], 'L': [[]]}),
+        {'select': ['L'], 'fill_na': ''},
+        _validate_unfold_empty,
+        id="unfold_empty_list",
+    ),
+]
+
+
+@pytest.mark.parametrize("func, df, args, validator", PANDAS_CASES)
+def test_pandas_sensitive_functions(func, df, args, validator):
+    """Regroupe les tests focalisés sur les comportements potentiellement
+    modifiés par la transition vers pandas 2."""
+    r = _recipe_with_args(args)
+    result = func(r, df.copy())
+    assert validator(result)

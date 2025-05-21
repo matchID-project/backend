@@ -699,6 +699,6 @@ clean-remote:
 	@make -C ${APP_PATH}/${GIT_TOOLS} remote-clean ${MAKEOVERRIDES} > /dev/null 2>&1 || true
 
 tests:
-	@docker exec -i ${USE_TTY} ${DC_PREFIX}-${APP} pytest -q -W "ignore::DeprecationWarning"
+	@docker exec -i ${USE_TTY} ${DC_PREFIX}-${APP} pytest -q -W "ignore::DeprecationWarning" -W "ignore::FutureWarning"
 
 .PHONY: tests
