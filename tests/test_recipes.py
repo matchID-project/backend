@@ -89,40 +89,103 @@ def _recipe_with_args(args):
     return r
 
 
-@pytest.mark.parametrize(
-    "func, df, args, validator",
-    [
-        (
-            recipes.Recipe.internal_to_integer,
-            pd.DataFrame({'A': ['1', '2', '', '']}),
-            {'select': ['A']},
-            lambda res: (
-                res['A'].tolist()[:2] == [1, 2]
-                and pd.isna(res['A'].iloc[2])
-                and pd.isna(res['A'].iloc[3])
-            ),
+# Liste étendue de cas d'usage et de bord pour chaque fonction sensible à NumPy 2
+CASES = [
+    # ------------------------------------------------------------------
+    # internal_to_integer
+    # ------------------------------------------------------------------
+    pytest.param(
+        recipes.Recipe.internal_to_integer,
+        pd.DataFrame({'A': ['1', '2', '', '']}),
+        {'select': ['A']},
+        lambda res: (
+            res['A'].tolist()[:2] == [1, 2]
+            and pd.isna(res['A'].iloc[2])
+            and pd.isna(res['A'].iloc[3])
         ),
-        (
-            recipes.Recipe.internal_to_float,
-            pd.DataFrame({'A': ['1.1', '', '']}),
-            {'select': ['A']},
-            lambda res: (
-                res['A'].iloc[0] == 1.1
-                and pd.isna(res['A'].iloc[1])
-                and pd.isna(res['A'].iloc[2])
-            ),
+        id="to_integer_basic",
+    ),
+    pytest.param(
+        recipes.Recipe.internal_to_integer,
+        pd.DataFrame({'A': ['foo', '3']}),
+        {'select': ['A']},
+        # conversion doit échouer et la colonne rester inchangée
+        lambda res: res['A'].tolist() == ['foo', '3'],
+        id="to_integer_invalid_string",
+    ),
+    pytest.param(
+        recipes.Recipe.internal_to_integer,
+        pd.DataFrame({'A': ['-5', '0', '42']}),
+        {'select': ['A']},
+        lambda res: res['A'].tolist() == [-5, 0, 42],
+        id="to_integer_negative_values",
+    ),
+    # ------------------------------------------------------------------
+    # internal_to_float
+    # ------------------------------------------------------------------
+    pytest.param(
+        recipes.Recipe.internal_to_float,
+        pd.DataFrame({'A': ['1.1', '', '']}),
+        {'select': ['A']},
+        lambda res: (
+            res['A'].iloc[0] == 1.1
+            and pd.isna(res['A'].iloc[1])
+            and pd.isna(res['A'].iloc[2])
         ),
-        (
-            recipes.Recipe.internal_shuffle,
-            pd.DataFrame({'A': range(10), 'B': list('abcdefghij')}),
-            {},
-            lambda res, df_orig=pd.DataFrame({'A': range(10), 'B': list('abcdefghij')}): (
-                set(res['A']) == set(df_orig['A'])
-                and set(res['B']) == set(df_orig['B'])
-            ),
+        id="to_float_basic",
+    ),
+    pytest.param(
+        recipes.Recipe.internal_to_float,
+        pd.DataFrame({'A': ['foo', '2.5']}),
+        {'select': ['A']},
+        # doit être inchangé si erreur de conversion
+        lambda res: res['A'].tolist() == ['foo', '2.5'],
+        id="to_float_invalid_string",
+    ),
+    pytest.param(
+        recipes.Recipe.internal_to_float,
+        pd.DataFrame({'A': ['', '']}),
+        {'select': ['A'], 'na_value': 0},
+        lambda res: res['A'].tolist() == [0, 0],
+        id="to_float_custom_na_value",
+    ),
+    # ------------------------------------------------------------------
+    # internal_shuffle
+    # ------------------------------------------------------------------
+    pytest.param(
+        recipes.Recipe.internal_shuffle,
+        pd.DataFrame({'A': range(10), 'B': list('abcdefghij')}),
+        {},
+        lambda res, df_orig=pd.DataFrame({'A': range(10), 'B': list('abcdefghij')}): (
+            set(res['A']) == set(df_orig['A'])
+            and set(res['B']) == set(df_orig['B'])
         ),
-    ],
-)
+        id="shuffle_basic",
+    ),
+    pytest.param(
+        recipes.Recipe.internal_shuffle,
+        pd.DataFrame({'A': [1, 1, 1, 1], 'B': [10, 20, 30, 40]}),
+        {},
+        lambda res, df_orig=pd.DataFrame({'A': [1, 1, 1, 1], 'B': [10, 20, 30, 40]}): (
+            set(res['A']) == {1}  # colonne constante
+            and set(res['B']) == set(df_orig['B'])
+        ),
+        id="shuffle_with_duplicates",
+    ),
+    pytest.param(
+        recipes.Recipe.internal_shuffle,
+        pd.DataFrame({'A': [np.nan, 1, 2], 'B': ['x', 'y', 'z']}),
+        {},
+        lambda res, df_orig=pd.DataFrame({'A': [np.nan, 1, 2], 'B': ['x', 'y', 'z']}): (
+            set(pd.isna(res['A'])) == set(pd.isna(df_orig['A']))
+            and set(res['B']) == set(df_orig['B'])
+        ),
+        id="shuffle_with_nan",
+    ),
+]
+
+
+@pytest.mark.parametrize("func, df, args, validator", [c.values[:4] if hasattr(c, 'values') else c[:-1] for c in CASES])
 def test_numpy_sensitive_functions(func, df, args, validator):
     """Regroupe les tests des fonctions dont le comportement pourrait varier
     avec NumPy 2 (conversion numériques, permutation aléatoire, etc.)."""
