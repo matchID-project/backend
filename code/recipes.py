@@ -1614,9 +1614,8 @@ class Recipe(Configured):
         return df
 
     def prepare_numerical(self, df=None):
-        df = df[self.numerical].fillna("")
-        df = df.applymap(lambda x: 0 if (
-            (str(x) == "") | (x == None)) else float(x))
+        df = df[self.numerical].fillna("0")
+        df = df.apply(lambda col: pd.to_numeric(col, errors='coerce').fillna(0))
         return df
 
     def internal_fillna(self, df=None, desc=None):
@@ -1782,7 +1781,7 @@ class Recipe(Configured):
             # for debug: self.log.write("{} {} {} {}
             # {}".format(X.shape,len(self.numerical),Xn.shape,len(self.categorical),Xc.shape))
 
-            Y = df[self.target].applymap(lambda x: 1 if x else 0)
+            Y = np.where(df[self.target], 1, 0)
             # prep = DictVectorizer()
             # X=X.to_dict().values()
             # X = prep.fit_transform(X).toarray()
@@ -1917,8 +1916,8 @@ class Recipe(Configured):
         # keep only selected columns
         self.select_columns(df=df)
         try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: np.nan if (str(x) == "") else int(x))
+            # Convert columns to integers, keeping NaN as is
+            df[self.cols] = df[self.cols].apply(lambda col: pd.to_numeric(col, errors='coerce'))
             return df
         except SystemExit:
             return df
@@ -1930,8 +1929,7 @@ class Recipe(Configured):
         # keep only selected columns
         self.select_columns(df=df)
         try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: tuple(x) if (type(x) == list) else x)
+            df[self.cols] = df[self.cols].apply(lambda col: col.apply(lambda x: tuple(x) if isinstance(x, list) else x))
             return df
         except SystemExit:
             return df
@@ -1943,8 +1941,7 @@ class Recipe(Configured):
         # keep only selected columns
         self.select_columns(df=df)
         try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: list(x) if (type(x) == tuple) else x)
+            df[self.cols] = df[self.cols].apply(lambda col: col.apply(lambda x: list(x) if isinstance(x, tuple) else x))
             return df
         except SystemExit:
             return df
@@ -1955,13 +1952,11 @@ class Recipe(Configured):
     def internal_to_float(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
+        na_value = self.args.get("na_value", np.nan)
+
         try:
-            na_value = self.args["na_value"]
-        except:
-            na_value = np.nan
-        try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: na_value if (str(x) == "") else float(x))
+            # Convert columns to floats, setting non-convertible values to na_value
+            df[self.cols] = df[self.cols].apply(lambda col: pd.to_numeric(col, errors='coerce').fillna(na_value))
             return df
         except SystemExit:
             return df
@@ -1972,13 +1967,13 @@ class Recipe(Configured):
     def internal_ngram(self, df=None, desc=None):
         # keep only selected columns
         self.select_columns(df=df)
-        if ("n" in list(self.args.keys())):
-            n = self.args['n']
-        else:
-            n = list([2, 3])
+        n = self.args.get('n', [2, 3])  # Use get with a default value for simplification
+
         try:
-            df[self.cols] = df[self.cols].applymap(
-                lambda x: ngrams(tokenize(normalize(x)), n))
+            # Apply n-gram generation to each column
+            df[self.cols] = df[self.cols].apply(
+                lambda col: col.apply(lambda x: ngrams(tokenize(normalize(x)), n))
+            )
             return df
         except SystemExit:
             return df
@@ -2274,8 +2269,7 @@ class Recipe(Configured):
                     if True:
                         m_res = []
 
-                        rest = df.applymap(lambda x: "" if x is None else x)
-                        rest.fillna("", inplace=True)
+                        rest = df.fillna("")
 
                         # elasticsearch bulk search
                         while rest.shape[0] > 0:
@@ -2453,9 +2447,6 @@ class Recipe(Configured):
             for col in self.cols:
                 df[col] = pd.to_datetime(
                     df[col], errors='coerce', format=self.args["format"])
-            # df[self.cols]=df[self.cols].applymap(lambda x:
-            #	parsedate(x,self.args["format"]))
-
         return df
 
     def internal_replace(self, df=None, desc=None):
@@ -2467,8 +2458,7 @@ class Recipe(Configured):
                 for r in self.args["regex"]:
                     regex.append([re.compile(list(r.keys())[0]), r[list(r.keys())[0]]])
                 pd.options.mode.chained_assignment = None
-                df[self.cols] = df[self.cols].applymap(
-                    lambda x: replace_regex(x, regex))
+                df[self.cols] = df[self.cols].apply(lambda col: col.apply(replace_regex))
             return df
         else:
             return df

@@ -109,7 +109,7 @@ export APP_VERSION =  ${tag}-${version}
 commit 				= ${APP_VERSION}
 lastcommit          := $(shell touch .lastcommit && cat .lastcommit)
 date                := $(shell date -I)
-id                  := $(shell openssl rand -base64 8)
+id:=myid
 
 vm_max_count		:= $(shell cat /etc/sysctl.conf | egrep vm.max_map_count\s*=\s*262144 && echo true)
 
