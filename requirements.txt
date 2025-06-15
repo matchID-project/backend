@@ -27,3 +27,4 @@ rsa>=4.7 # not directly required, pinned by Snyk to avoid a vulnerability
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
 pyarrow>=14.0.1
 pytest
+requests>=2.32.4 # not directly required, pinned by Snyk to avoid a vulnerability
