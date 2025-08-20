@@ -610,7 +610,7 @@ class DatasetApi(Resource):
                 except:
                     return {"data": [{"error": "error: no such table {}".format(ds.table)}]}
             df = df.head(n=size).reset_index(drop=True)
-            df = df.applymap(lambda x: unicode_safe(x))
+            df = df.apply(lambda col: col.map(unicode_safe))
             if (format_type == 'json'):
                 return {"data": list(df.fillna("").T.to_dict().values()), "schema": schema}
             elif (format_type == 'csv'):
@@ -957,7 +957,7 @@ class RecipeRun(Resource):
                 try:
                     return jsonify({"data": list(df.T.to_dict().values()), "log": str(r.log.writer.getvalue())})
                 except:
-                    df = df.applymap(lambda x: str(x))
+                    df = df.apply(lambda col: col.astype(str))
                     return jsonify({"data": list(df.T.to_dict().values()), "log": str(r.log.writer.getvalue())})
             else:
                 return {"log": r.log.writer.getvalue()}
@@ -993,7 +993,7 @@ class RecipeRun(Resource):
                 try:
                     return jsonify({"data": list(df.T.to_dict().values()), "log": r.callback["log"]})
                 except:
-                    df = df.applymap(lambda x: unicode_safe(x))
+                    df = df.apply(lambda col: col.map(unicode_safe))
                     return jsonify({"data": list(df.T.to_dict().values()), "log": r.callback["log"]})
             else:
                 return {"data": [{"result": "empty"}], "log": r.callback["log"]}
