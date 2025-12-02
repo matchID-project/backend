@@ -12,7 +12,7 @@ COPY requirements.txt .
 
 RUN apt-get update -y;\
     apt-get upgrade -y;\
-    apt-get install curl build-essential -y;\
+    apt-get install curl build-essential recode jq -y;\
     pip install --upgrade pip;\
     pip install `echo $http_proxy | sed 's/\(\S\S*\)/--proxy \1/'` -r requirements.txt;\
     apt-get autoremove build-essential -y;\
