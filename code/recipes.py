@@ -196,8 +196,28 @@ class Connector(Configured):
                 self.scheme = self.conf["scheme"]
             except:
                 self.scheme = "http"
-            self.es = Elasticsearch(
-                self.host, port=self.port, scheme=self.scheme, timeout=self.timeout)
+
+            # Optional basic auth, only from env (ES_USER / ES_PWD)
+            es_user = os.getenv("ES_USER")
+            es_pwd = os.getenv("ES_PWD")
+
+            if es_user and es_pwd:
+                # Authenticated Elasticsearch client
+                self.es = Elasticsearch(
+                    self.host,
+                    port=self.port,
+                    scheme=self.scheme,
+                    timeout=self.timeout,
+                    http_auth=(es_user, es_pwd),
+                )
+            else:
+                # Backwards-compatible, no-auth client
+                self.es = Elasticsearch(
+                    self.host,
+                    port=self.port,
+                    scheme=self.scheme,
+                    timeout=self.timeout,
+                )
             try:
                 self.chunk_search = self.conf["chunk_search"]
             except:
